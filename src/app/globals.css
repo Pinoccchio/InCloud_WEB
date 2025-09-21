@@ -3,6 +3,21 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* J.A's Food Trading Brand Colors - Extracted from actual logo */
+  --primary-red: #C21722;
+  --primary-blue: #1565C0;
+  --gold-accent: #D4AF37;
+  --white: #FFFFFF;
+  --gray-light: #F8F9FA;
+  --gray-medium: #6C757D;
+  --gray-dark: #343A40;
+
+  /* Additional brand variations */
+  --red-light: #E53E3E;
+  --red-dark: #9B2C2C;
+  --blue-light: #3182CE;
+  --blue-dark: #2C5282;
 }
 
 @theme inline {
@@ -10,6 +25,29 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* J.A's Brand Color Palette */
+  --color-primary: var(--primary-red);
+  --color-primary-red: var(--primary-red);
+  --color-primary-blue: var(--primary-blue);
+  --color-secondary: var(--primary-blue);
+  --color-accent: var(--gold-accent);
+  --color-white: var(--white);
+  --color-gray-50: var(--gray-light);
+  --color-gray-500: var(--gray-medium);
+  --color-gray-700: var(--gray-dark);
+
+  /* Brand color variations */
+  --color-red-light: var(--red-light);
+  --color-red-dark: var(--red-dark);
+  --color-blue-light: var(--blue-light);
+  --color-blue-dark: var(--blue-dark);
+
+  /* Semantic Colors - Updated for better contrast */
+  --color-success: #059669;
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+  --color-info: var(--primary-blue);
 }
 
 @media (prefers-color-scheme: dark) {
