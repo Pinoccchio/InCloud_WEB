@@ -4,20 +4,81 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* J.A's Food Trading Brand Colors - Extracted from actual logo */
+  /* J.A's Food Trading Brand Colors - Enhanced for Flat Design 2.0 */
   --primary-red: #C21722;
-  --primary-blue: #1565C0;
-  --gold-accent: #D4AF37;
-  --white: #FFFFFF;
-  --gray-light: #F8F9FA;
-  --gray-medium: #6C757D;
-  --gray-dark: #343A40;
+  --primary-red-50: #FEF2F2;
+  --primary-red-100: #FEE2E2;
+  --primary-red-200: #FECACA;
+  --primary-red-500: #C21722;
+  --primary-red-600: #A21419;
+  --primary-red-700: #821116;
+  --primary-red-800: #620D10;
+  --primary-red-900: #420A0B;
 
-  /* Additional brand variations */
-  --red-light: #E53E3E;
-  --red-dark: #9B2C2C;
-  --blue-light: #3182CE;
-  --blue-dark: #2C5282;
+  --primary-blue: #1565C0;
+  --primary-blue-50: #EFF6FF;
+  --primary-blue-100: #DBEAFE;
+  --primary-blue-200: #BFDBFE;
+  --primary-blue-500: #1565C0;
+  --primary-blue-600: #1150A3;
+  --primary-blue-700: #0E3A86;
+  --primary-blue-800: #0A2969;
+  --primary-blue-900: #07184C;
+
+  --gold-accent: #D4AF37;
+  --gold-accent-50: #FFFBEB;
+  --gold-accent-100: #FEF3C7;
+  --gold-accent-200: #FDE68A;
+  --gold-accent-500: #D4AF37;
+  --gold-accent-600: #B8942E;
+  --gold-accent-700: #9C7925;
+  --gold-accent-800: #805E1C;
+  --gold-accent-900: #644313;
+
+  /* Neutral Colors for Flat Design */
+  --white: #FFFFFF;
+  --gray-50: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-400: #9CA3AF;
+  --gray-500: #6B7280;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+
+  /* Surface Colors for Flat Design 2.0 */
+  --surface-primary: #FFFFFF;
+  --surface-secondary: #F9FAFB;
+  --surface-tertiary: #F3F4F6;
+  --surface-accent: #FEF2F2;
+
+  /* Shadow Colors */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* Semantic Colors with Better Contrast */
+  --success: #059669;
+  --success-light: #D1FAE5;
+  --warning: #D97706;
+  --warning-light: #FEF3C7;
+  --error: #DC2626;
+  --error-light: #FEE2E2;
+  --info: #1565C0;
+  --info-light: #DBEAFE;
+
+  /* ACCESSIBILITY GUIDELINES - Text Contrast Standards */
+  /* Use these color combinations for WCAG AA compliance (4.5:1 ratio) */
+  --text-primary: var(--gray-900);    /* Primary text on white backgrounds */
+  --text-secondary: var(--gray-800);  /* Secondary text, still high contrast */
+  --text-muted: var(--gray-700);      /* Muted text, minimum for accessibility */
+  --text-subtle: var(--gray-600);     /* Only for non-essential text */
+
+  /* DO NOT USE: gray-500, gray-400, gray-300 for text on white backgrounds */
+  /* These fail WCAG accessibility standards */
 }
 
 @theme inline {
@@ -26,28 +87,71 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* J.A's Brand Color Palette */
+  /* Enhanced Brand Color Palette for Flat Design 2.0 */
   --color-primary: var(--primary-red);
-  --color-primary-red: var(--primary-red);
-  --color-primary-blue: var(--primary-blue);
+  --color-primary-50: var(--primary-red-50);
+  --color-primary-100: var(--primary-red-100);
+  --color-primary-200: var(--primary-red-200);
+  --color-primary-500: var(--primary-red-500);
+  --color-primary-600: var(--primary-red-600);
+  --color-primary-700: var(--primary-red-700);
+  --color-primary-800: var(--primary-red-800);
+  --color-primary-900: var(--primary-red-900);
+
   --color-secondary: var(--primary-blue);
+  --color-secondary-50: var(--primary-blue-50);
+  --color-secondary-100: var(--primary-blue-100);
+  --color-secondary-200: var(--primary-blue-200);
+  --color-secondary-500: var(--primary-blue-500);
+  --color-secondary-600: var(--primary-blue-600);
+  --color-secondary-700: var(--primary-blue-700);
+  --color-secondary-800: var(--primary-blue-800);
+  --color-secondary-900: var(--primary-blue-900);
+
   --color-accent: var(--gold-accent);
+  --color-accent-50: var(--gold-accent-50);
+  --color-accent-100: var(--gold-accent-100);
+  --color-accent-200: var(--gold-accent-200);
+  --color-accent-500: var(--gold-accent-500);
+  --color-accent-600: var(--gold-accent-600);
+  --color-accent-700: var(--gold-accent-700);
+  --color-accent-800: var(--gold-accent-800);
+  --color-accent-900: var(--gold-accent-900);
+
+  /* Neutral Color Scale */
   --color-white: var(--white);
-  --color-gray-50: var(--gray-light);
-  --color-gray-500: var(--gray-medium);
-  --color-gray-700: var(--gray-dark);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
 
-  /* Brand color variations */
-  --color-red-light: var(--red-light);
-  --color-red-dark: var(--red-dark);
-  --color-blue-light: var(--blue-light);
-  --color-blue-dark: var(--blue-dark);
+  /* Surface Colors */
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-tertiary: var(--surface-tertiary);
+  --color-surface-accent: var(--surface-accent);
 
-  /* Semantic Colors - Updated for better contrast */
-  --color-success: #059669;
-  --color-warning: #D97706;
-  --color-error: #DC2626;
-  --color-info: var(--primary-blue);
+  /* Shadow Utilities */
+  --box-shadow-sm: var(--shadow-sm);
+  --box-shadow-md: var(--shadow-md);
+  --box-shadow-lg: var(--shadow-lg);
+  --box-shadow-xl: var(--shadow-xl);
+
+  /* Semantic Colors with Enhanced Variants */
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-error: var(--error);
+  --color-error-light: var(--error-light);
+  --color-info: var(--info);
+  --color-info-light: var(--info-light);
 }
 
 @media (prefers-color-scheme: dark) {

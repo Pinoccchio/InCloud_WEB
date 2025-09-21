@@ -15,30 +15,30 @@ export function Header({ variant = 'landing' }: HeaderProps) {
 
   if (variant === 'landing') {
     return (
-      <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 shadow-md border-b border-gray-200/50">
+        <div className="container mx-auto flex h-18 items-center justify-between px-6">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md p-1">
+          <Link href="/" className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg p-2 transition-all hover:bg-gray-50">
             <Logo size="md" />
           </Link>
 
           {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-6">
+          <nav className="hidden md:flex items-center space-x-2">
             <Link
               href="#features"
-              className="text-sm font-medium text-gray-700 hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1"
+              className="text-sm font-semibold text-gray-900 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2"
             >
               Features
             </Link>
             <Link
               href="#about"
-              className="text-sm font-medium text-gray-700 hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1"
+              className="text-sm font-semibold text-gray-900 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2"
             >
               About
             </Link>
             <Link
               href="#contact"
-              className="text-sm font-medium text-gray-700 hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1"
+              className="text-sm font-semibold text-gray-900 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2"
             >
               Contact
             </Link>
@@ -47,12 +47,12 @@ export function Header({ variant = 'landing' }: HeaderProps) {
           {/* Auth Buttons */}
           <div className="flex items-center space-x-3">
             <Link href="/login">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="font-semibold">
                 Sign In
               </Button>
             </Link>
             <Link href="/signup">
-              <Button size="sm">
+              <Button size="sm" className="font-semibold shadow-md hover:shadow-lg">
                 Get Started
               </Button>
             </Link>
@@ -64,9 +64,9 @@ export function Header({ variant = 'landing' }: HeaderProps) {
 
   if (variant === 'auth') {
     return (
-      <header className="w-full border-b border-gray-200 bg-white">
-        <div className="container mx-auto flex h-16 items-center px-4">
-          <Link href="/" className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md p-1">
+      <header className="w-full bg-white shadow-sm border-b border-gray-200/50">
+        <div className="container mx-auto flex h-18 items-center px-6">
+          <Link href="/" className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg p-2 transition-all hover:bg-gray-50">
             <Logo size="md" />
           </Link>
         </div>
@@ -76,22 +76,22 @@ export function Header({ variant = 'landing' }: HeaderProps) {
 
   // Dashboard variant - more comprehensive navigation
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+    <header className="sticky top-0 z-50 w-full bg-white shadow-md border-b border-gray-200/50">
+      <div className="container mx-auto flex h-18 items-center justify-between px-6">
         {/* Logo */}
-        <Link href="/dashboard" className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md p-1">
+        <Link href="/dashboard" className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg p-2 transition-all hover:bg-gray-50">
           <Logo size="md" variant="compact" />
         </Link>
 
         {/* Dashboard Navigation */}
-        <nav className="hidden lg:flex items-center space-x-6">
+        <nav className="hidden lg:flex items-center space-x-2">
           <Link
             href="/dashboard"
             className={clsx(
-              'text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1',
+              'text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2',
               pathname === '/dashboard'
-                ? 'text-primary bg-primary/10'
-                : 'text-gray-700 hover:text-primary hover:bg-primary/5'
+                ? 'text-primary-600 bg-primary-100'
+                : 'text-gray-900 hover:text-primary-600 hover:bg-primary-50'
             )}
           >
             Dashboard
@@ -99,10 +99,10 @@ export function Header({ variant = 'landing' }: HeaderProps) {
           <Link
             href="/products"
             className={clsx(
-              'text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1',
+              'text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2',
               pathname.startsWith('/products')
-                ? 'text-primary bg-primary/10'
-                : 'text-gray-700 hover:text-primary hover:bg-primary/5'
+                ? 'text-primary-600 bg-primary-100'
+                : 'text-gray-900 hover:text-primary-600 hover:bg-primary-50'
             )}
           >
             Products
@@ -110,10 +110,10 @@ export function Header({ variant = 'landing' }: HeaderProps) {
           <Link
             href="/orders"
             className={clsx(
-              'text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1',
+              'text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2',
               pathname.startsWith('/orders')
-                ? 'text-primary bg-primary/10'
-                : 'text-gray-700 hover:text-primary hover:bg-primary/5'
+                ? 'text-primary-600 bg-primary-100'
+                : 'text-gray-900 hover:text-primary-600 hover:bg-primary-50'
             )}
           >
             Orders
@@ -121,10 +121,10 @@ export function Header({ variant = 'landing' }: HeaderProps) {
           <Link
             href="/analytics"
             className={clsx(
-              'text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md px-2 py-1',
+              'text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2',
               pathname.startsWith('/analytics')
-                ? 'text-primary bg-primary/10'
-                : 'text-gray-700 hover:text-primary hover:bg-primary/5'
+                ? 'text-primary-600 bg-primary-100'
+                : 'text-gray-900 hover:text-primary-600 hover:bg-primary-50'
             )}
           >
             Analytics

@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { clsx } from 'clsx'
 
 interface LogoProps extends HTMLAttributes<HTMLDivElement> {
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   variant?: 'full' | 'compact'
   showText?: boolean
 }
@@ -20,6 +20,7 @@ export function Logo({
     md: { width: 40, height: 40 },
     lg: { width: 48, height: 48 },
     xl: { width: 64, height: 64 },
+    '2xl': { width: 96, height: 96 },
   }
 
   const logoSize = sizeMap[size]
@@ -47,18 +48,18 @@ export function Logo({
       {/* Company Text - Show based on variant and showText prop */}
       {showText && variant === 'full' && (
         <div className="flex flex-col">
-          <span className="font-bold text-primary-blue text-sm sm:text-base leading-tight">
-            J.A's Food Trading
+          <span className="font-bold text-gray-900 text-sm sm:text-base leading-tight">
+            J.A&apos;s Food Trading
           </span>
-          <span className="text-xs text-gray-500 leading-tight">
+          <span className="text-xs text-gray-800 leading-tight font-semibold">
             EST. 2018
           </span>
         </div>
       )}
 
       {showText && variant === 'compact' && (
-        <span className="font-bold text-primary-blue text-sm leading-tight">
-          J.A's
+        <span className="font-bold text-gray-900 text-sm leading-tight">
+          J.A&apos;s
         </span>
       )}
     </div>
@@ -102,10 +103,10 @@ export function InCloudLogo({
       {/* System Name */}
       {showText && (
         <div className="flex flex-col">
-          <span className="font-bold text-primary text-sm sm:text-base leading-tight">
+          <span className="font-bold text-gray-900 text-sm sm:text-base leading-tight">
             InCloud
           </span>
-          <span className="text-xs text-gray-500 leading-tight">
+          <span className="text-xs text-gray-800 leading-tight font-semibold">
             Inventory Management
           </span>
         </div>
@@ -140,10 +141,10 @@ export function FallbackLogo({ size = 'md', variant = 'full', className, ...prop
       {/* Company Name */}
       {variant === 'full' && (
         <div className="flex flex-col">
-          <span className="font-bold text-primary-blue text-sm sm:text-base">
-            J.A's Food Trading
+          <span className="font-bold text-gray-900 text-sm sm:text-base">
+            J.A&apos;s Food Trading
           </span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-gray-800 font-semibold">
             EST. 2018
           </span>
         </div>
