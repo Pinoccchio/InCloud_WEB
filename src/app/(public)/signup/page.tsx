@@ -14,7 +14,7 @@ const signupSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
-  role: z.enum(['admin', 'super_admin'], {
+  role: z.enum(['admin'], {
     required_error: 'Please select a role',
   }),
   agreeToTerms: z.boolean().refine(val => val === true, {
@@ -105,7 +105,6 @@ export default function SignupPage() {
                     >
                       <option value="" className="text-gray-500">Select a role</option>
                       <option value="admin" className="text-gray-900">Admin</option>
-                      <option value="super_admin" className="text-gray-900">Super Admin</option>
                     </select>
                     <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
                       <ChevronDownIcon className="h-5 w-5 text-gray-600" />
