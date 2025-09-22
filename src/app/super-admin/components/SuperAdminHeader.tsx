@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeftStartOnRectangleIcon,
-  UserIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline'
-import { Button } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSidebar } from '@/contexts/SidebarContext'
 
 interface AdminData {
   id: string
@@ -26,6 +26,7 @@ interface SuperAdminHeaderProps {
 export default function SuperAdminHeader({ adminData }: SuperAdminHeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const { logout } = useAuth()
+  const { toggleSidebar } = useSidebar()
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -35,31 +36,57 @@ export default function SuperAdminHeader({ adminData }: SuperAdminHeaderProps) {
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="px-6 py-4">
+      <div className="px-4 md:px-6 py-3">
         <div className="flex items-center justify-between">
-          {/* Title */}
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              InCloud Super Admin
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              System administration and user management
-            </p>
+          {/* Left side - Menu toggle and title */}
+          <div className="flex items-center space-x-3">
+            {/* Hamburger Menu Toggle */}
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:scale-95"
+              aria-label="Toggle sidebar"
+            >
+              <Bars3Icon className="w-5 h-5" />
+            </button>
+
+            {/* Title */}
+            <div className="hidden md:block">
+              <h2 className="text-lg font-semibold text-gray-900">
+                InCloud Super Admin
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                System administration and user management
+              </p>
+            </div>
+
+            {/* Mobile title */}
+            <div className="md:hidden">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Super Admin
+              </h2>
+            </div>
           </div>
 
           {/* User Menu */}
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center space-x-3 text-sm text-gray-700 hover:text-gray-900 focus:outline-none"
+              className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
             >
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                  <UserIcon className="w-4 h-4 text-red-600" />
-                </div>
-                <span className="font-medium">{adminData?.fullName || 'Super Admin'}</span>
-                <ChevronDownIcon className="w-4 h-4" />
+              <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium text-white">
+                  {adminData?.fullName?.charAt(0)?.toUpperCase() || 'S'}
+                </span>
               </div>
+              <div className="hidden md:block text-left">
+                <span className="block font-medium text-gray-900 text-sm">
+                  {adminData?.fullName || 'Super Admin'}
+                </span>
+                <span className="block text-xs text-gray-500">
+                  System Administrator
+                </span>
+              </div>
+              <ChevronDownIcon className="w-4 h-4 ml-1" />
             </button>
 
             {/* Dropdown */}
@@ -69,19 +96,22 @@ export default function SuperAdminHeader({ adminData }: SuperAdminHeaderProps) {
                   className="fixed inset-0 z-10"
                   onClick={() => setShowDropdown(false)}
                 />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                  <div className="py-1">
-                    <div className="px-4 py-2 border-b border-gray-100">
-                      <p className="text-xs text-gray-500">Signed in as</p>
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {adminData?.email}
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-20 overflow-hidden">
+                  <div className="py-2">
+                    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Signed in as</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate mt-1">
+                        {adminData?.fullName || 'Super Admin'}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {adminData?.email || 'admin@incloud.local'}
                       </p>
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 flex items-center transition-colors duration-200"
                     >
-                      <ArrowLeftStartOnRectangleIcon className="w-4 h-4 mr-2 text-gray-500" />
+                      <ArrowLeftStartOnRectangleIcon className="w-4 h-4 mr-3 text-gray-500" />
                       Sign out
                     </button>
                   </div>

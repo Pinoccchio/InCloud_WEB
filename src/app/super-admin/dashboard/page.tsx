@@ -54,7 +54,7 @@ export default function SuperAdminDashboard() {
           totalSuperAdmins: admins.filter(a => a.role === 'super_admin').length,
           activeUsers: admins.filter(a => a.is_active).length,
           inactiveUsers: admins.filter(a => !a.is_active).length,
-          recentlyAdded: admins.filter(a => new Date(a.created_at) > lastWeek).length
+          recentlyAdded: admins.filter(a => a.created_at && new Date(a.created_at) > lastWeek).length
         })
       }
 
@@ -120,7 +120,7 @@ export default function SuperAdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0 max-w-full">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -142,7 +142,7 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* User Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 min-w-0">
         <StatCard
           title="Total Users"
           value={userStats?.totalUsers || 0}
@@ -181,7 +181,7 @@ export default function SuperAdminDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 min-w-0">
         {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>

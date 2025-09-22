@@ -1,15 +1,18 @@
-Console AuthApiError
 
 
-User not allowed
+1/1
 
-src/app/super-admin/users/page.tsx (67:53) @ async loadAdmins
+Next.js 15.5.3
+Turbopack
+Build Error
 
 
-  65 |
-  66 |       // Get auth user data for emails
-> 67 |       const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-     |                                                     ^
-  68 |       if (authError) throw authError
-  69 |
-  70 |       // Combine admin data with auth user data
+Parsing ecmascript source code failed
+
+./src/app/super-admin/components/SuperAdminSidebar.tsx (195:1)
+
+Parsing ecmascript source code failed
+  193 |     </div>
+  194 |   )
+> 195 | }
+      | ^

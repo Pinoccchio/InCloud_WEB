@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* Prevent horizontal overflow globally */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Ensure all containers respect boundaries */
+* {
+  box-sizing: border-box;
+}
+
+/* Prevent layout shift during sidebar transitions */
+.sidebar-transition {
+  transition: margin-left 300ms ease-in-out, width 300ms ease-in-out;
+}
+
+/* Grid and flex containers should not overflow */
+.grid {
+  min-width: 0;
+}
+
+.flex {
+  min-width: 0;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
