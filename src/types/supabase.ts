@@ -1548,6 +1548,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_admin_last_login: {
+        Args: { p_admin_id: string }
+        Returns: Json
+      }
       validate_admin_access: {
         Args: { p_action: string; p_resource: string }
         Returns: boolean

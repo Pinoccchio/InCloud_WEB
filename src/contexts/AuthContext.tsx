@@ -10,6 +10,7 @@ interface AdminData {
   fullName: string
   role: 'admin' | 'super_admin'
   branches: string[]
+  last_login: string | null
 }
 
 interface User {

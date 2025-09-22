@@ -26,6 +26,7 @@ export interface LoginResult {
     fullName: string
     role: string
     branches: string[]
+    last_login: string | null
   }
 }
 
@@ -45,6 +46,7 @@ export interface SessionResult {
     fullName: string
     role: string
     branches: string[]
+    last_login: string | null
   }
 }
 
@@ -120,18 +122,39 @@ export async function loginAdmin(credentials: LoginCredentials): Promise<AuthRes
       }
     }
 
+    // Update last login timestamp
+    const { error: updateError } = await supabase
+      .rpc('update_admin_last_login', {
+        p_admin_id: adminProfile.id
+      })
+
+    if (updateError) {
+      console.error('Failed to update last login:', updateError)
+      // Don't fail the login process if last login update fails
+    }
+
+    // Get updated admin profile with new last_login timestamp
+    const { data: updatedProfile } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('id', adminProfile.id)
+      .single()
+
+    const finalProfile = updatedProfile || adminProfile
+
     return {
       success: true,
       data: {
         user: authData.user,
         session: authData.session,
         admin: {
-          id: adminProfile.id,
-          user_id: adminProfile.user_id ?? authData.user.id,
+          id: finalProfile.id,
+          user_id: finalProfile.user_id ?? authData.user.id,
           email: (authData.user.email ?? '') as string,
-          fullName: adminProfile.full_name,
-          role: adminProfile.role,
-          branches: Array.isArray(adminProfile.branches) ? adminProfile.branches as string[] : []
+          fullName: finalProfile.full_name,
+          role: finalProfile.role,
+          branches: Array.isArray(finalProfile.branches) ? finalProfile.branches as string[] : [],
+          last_login: finalProfile.last_login
         }
       }
     }
@@ -229,7 +252,8 @@ export async function getCurrentSession(): Promise<AuthResult<SessionResult>> {
           email: (session.user.email ?? '') as string,
           fullName: adminProfile.full_name,
           role: adminProfile.role,
-          branches: Array.isArray(adminProfile.branches) ? adminProfile.branches as string[] : []
+          branches: Array.isArray(adminProfile.branches) ? adminProfile.branches as string[] : [],
+          last_login: adminProfile.last_login
         }
       }
     }
@@ -345,7 +369,6 @@ export async function createInitialSuperAdmin(adminData: InitialSuperAdminData):
     const { data: adminId, error: profileError } = await supabase.rpc('create_admin_profile', {
       p_user_id: authData.user.id,
       p_full_name: adminData.fullName,
-      p_email: adminData.email,
       p_role: 'super_admin',
       p_branches: []
     })

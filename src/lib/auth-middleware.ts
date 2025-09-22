@@ -65,7 +65,7 @@ export async function validateSuperAdminWithContext(request: NextRequest) {
 // Create IP and User Agent metadata for audit logs
 export function getRequestMetadata(request: NextRequest) {
   return {
-    ip_address: request.ip || request.headers.get('x-forwarded-for') || 'unknown',
+    ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
     user_agent: request.headers.get('user-agent') || 'unknown',
     timestamp: new Date().toISOString()
   }

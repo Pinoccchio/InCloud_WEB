@@ -6,7 +6,8 @@ import {
   UserPlusIcon,
   PencilIcon,
   UserGroupIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  KeyIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal, ConfirmDialog } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
@@ -17,7 +18,6 @@ interface AdminUser {
   id: string
   user_id: string
   full_name: string
-  email?: string
   role: 'admin' | 'super_admin'
   branches: string[]
   is_active: boolean
@@ -39,6 +39,7 @@ export default function AdminUsersPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ admin: AdminUser, newStatus: boolean } | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const { success, error } = useToastActions()
   const { admin: currentAdmin } = useAuth()
@@ -66,14 +67,39 @@ export default function AdminUsersPage() {
     // Must be super admin to toggle any admin status
     if (currentAdmin.role !== 'super_admin') return false
 
-    // Super admin can toggle their own status
-    if (targetAdmin.id === currentAdmin.id) return true
+    // Super admin CANNOT deactivate themselves (security protection)
+    if (targetAdmin.id === currentAdmin.id) return false
 
     // Super admin cannot toggle other super admin status
     if (targetAdmin.role === 'super_admin' && targetAdmin.id !== currentAdmin.id) return false
 
     // Super admin can toggle regular admin status
     return targetAdmin.role === 'admin'
+  }
+
+  const getActionMessage = (targetAdmin: AdminUser) => {
+    if (!currentAdmin) return 'No permissions'
+
+    if (currentAdmin.role !== 'super_admin') {
+      return 'Super admin access required'
+    }
+
+    // Self-protection message
+    if (targetAdmin.id === currentAdmin.id) {
+      return 'Self-protection active'
+    }
+
+    // Other super admin protection
+    if (targetAdmin.role === 'super_admin' && targetAdmin.id !== currentAdmin.id) {
+      return 'Protected account'
+    }
+
+    // Has edit access but no status toggle
+    if (canEditAdmin(targetAdmin) && !canToggleStatus(targetAdmin)) {
+      return 'Edit only'
+    }
+
+    return 'No actions available'
   }
 
   useEffect(() => {
@@ -85,6 +111,18 @@ export default function AdminUsersPage() {
     }
   }, [searchParams])
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (openDropdown) {
+        setOpenDropdown(null)
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [openDropdown])
+
   const loadAdmins = async () => {
     try {
       // Get admins data including email
@@ -94,7 +132,6 @@ export default function AdminUsersPage() {
           id,
           user_id,
           full_name,
-          email,
           role,
           branches,
           is_active,
@@ -160,11 +197,11 @@ export default function AdminUsersPage() {
 
       // Refresh admin list
       loadAdmins()
-    } catch (error) {
-      console.error('Error updating admin status:', error)
+    } catch (err) {
+      console.error('Error updating admin status:', err)
       error(
         'Status Update Failed',
-        error instanceof Error ? error.message : 'Failed to update admin status'
+        err instanceof Error ? err.message : 'Failed to update admin status'
       )
     } finally {
       setIsUpdatingStatus(false)
@@ -192,8 +229,7 @@ export default function AdminUsersPage() {
   }
 
   const filteredAdmins = admins.filter(admin => {
-    const matchesSearch = admin.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         admin.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = admin.full_name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesRole = roleFilter === 'all' || admin.role === roleFilter
     const matchesStatus = statusFilter === 'all' ||
                          (statusFilter === 'active' && admin.is_active) ||
@@ -260,7 +296,7 @@ export default function AdminUsersPage() {
             </div>
             <input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Search by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
@@ -364,18 +400,27 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-red-500 flex items-center justify-center">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                            admin.role === 'super_admin'
+                              ? 'bg-gradient-to-br from-red-500 to-red-600 ring-2 ring-red-200'
+                              : 'bg-blue-500'
+                          }`}>
                             <span className="text-sm font-medium text-white">
                               {admin.full_name.charAt(0).toUpperCase()}
                             </span>
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className="text-sm font-medium text-gray-900 flex items-center">
                             {admin.full_name}
+                            {admin.id === currentAdmin?.id && (
+                              <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                You
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {admin.email}
+                            {admin.role === 'super_admin' ? 'System Administrator' : 'Branch Administrator'}
                           </div>
                         </div>
                       </div>
@@ -401,28 +446,87 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        {canEditAdmin(admin) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditAdmin(admin)}
+                        {/* Actions Dropdown - shadcn Button */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenDropdown(openDropdown === admin.id ? null : admin.id)
+                            }}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                           >
-                            <PencilIcon className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {canToggleStatus(admin) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleStatus(admin)}
-                            className={admin.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
-                          >
-                            {admin.is_active ? 'Deactivate' : 'Activate'}
-                          </Button>
-                        )}
-                        {!canEditAdmin(admin) && !canToggleStatus(admin) && (
-                          <span className="text-sm text-gray-400 italic">No actions available</span>
-                        )}
+                            <span className="text-lg font-bold">⋮</span>
+                          </button>
+
+                          {openDropdown === admin.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setOpenDropdown(null)}
+                              />
+                              <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                <div className="py-1">
+                                  {/* Edit Profile - Always visible */}
+                                  {canEditAdmin(admin) ? (
+                                    <button
+                                      onClick={() => {
+                                        handleEditAdmin(admin)
+                                        setOpenDropdown(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                                    >
+                                      <PencilIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                      Edit Profile
+                                    </button>
+                                  ) : (
+                                    <div className="px-4 py-2 cursor-not-allowed bg-gray-50">
+                                      <div className="flex items-center text-gray-400">
+                                        <PencilIcon className="w-4 h-4 mr-2" />
+                                        <span className="text-sm">Edit Profile</span>
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1 ml-6">
+                                        {getActionMessage(admin)}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Status Toggle - Only for Regular Admins */}
+                                  {admin.role === 'admin' && (
+                                    <>
+                                      <div className="border-t border-gray-100 my-1"></div>
+                                      {canToggleStatus(admin) ? (
+                                        <button
+                                          onClick={() => {
+                                            handleToggleStatus(admin)
+                                            setOpenDropdown(null)
+                                          }}
+                                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center ${
+                                            admin.is_active
+                                              ? 'text-red-600 hover:text-red-700'
+                                              : 'text-green-600 hover:text-green-700'
+                                          }`}
+                                        >
+                                          <KeyIcon className="w-4 h-4 mr-2" />
+                                          {admin.is_active ? 'Deactivate' : 'Activate'}
+                                        </button>
+                                      ) : (
+                                        <div className="px-4 py-2 cursor-not-allowed bg-gray-50">
+                                          <div className="flex items-center text-gray-400">
+                                            <KeyIcon className="w-4 h-4 mr-2" />
+                                            <span className="text-sm">Change Status</span>
+                                          </div>
+                                          <div className="text-xs text-gray-500 mt-1 ml-6">
+                                            Restricted
+                                          </div>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

@@ -172,11 +172,11 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
       success('Admin Updated', 'Admin details have been updated successfully')
       onSuccess()
       onClose()
-    } catch (error) {
-      console.error('Error updating admin:', error)
+    } catch (err) {
+      console.error('Error updating admin:', err)
       error(
         'Update Failed',
-        error instanceof Error ? error.message : 'Failed to update admin user'
+        err instanceof Error ? err.message : 'Failed to update admin user'
       )
     } finally {
       setIsSubmitting(false)
@@ -209,11 +209,11 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
         'Password Reset Sent',
         `Password reset email sent to ${result.email}`
       )
-    } catch (error) {
-      console.error('Error resetting password:', error)
+    } catch (err) {
+      console.error('Error resetting password:', err)
       error(
         'Password Reset Failed',
-        error instanceof Error ? error.message : 'Failed to reset password'
+        err instanceof Error ? err.message : 'Failed to reset password'
       )
     } finally {
       setIsResettingPassword(false)
