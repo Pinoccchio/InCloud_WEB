@@ -45,7 +45,7 @@ export default function AdminUsersPage() {
 
   const loadAdmins = async () => {
     try {
-      // Get admins with their auth user data
+      // Get admins data
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select(`
@@ -63,14 +63,11 @@ export default function AdminUsersPage() {
 
       if (adminError) throw adminError
 
-      // Get auth user data for emails
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-      if (authError) throw authError
-
-      // Combine admin data with auth user data
+      // Use placeholder emails until database schema is updated
+      // TODO: Add email column to admins table and update create_admin_profile function
       const adminsWithEmail = adminData?.map(admin => ({
         ...admin,
-        email: authUsers.users.find(user => user.id === admin.user_id)?.email
+        email: `${admin.full_name.toLowerCase().replace(' ', '.')}@incloud.local`
       })) || []
 
       setAdmins(adminsWithEmail as AdminUser[])

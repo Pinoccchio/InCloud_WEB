@@ -56,8 +56,12 @@ export default function LoginPage() {
           ...result.data.admin,
           role: result.data.admin.role as 'admin' | 'super_admin'
         })
-        // Redirect to dashboard
-        router.push('/dashboard')
+        // Redirect based on role
+        if (result.data.admin.role === 'super_admin') {
+          router.push('/super-admin/dashboard')
+        } else {
+          router.push('/admin/dashboard')
+        }
       } else {
         setError(result.error || 'Login failed')
       }

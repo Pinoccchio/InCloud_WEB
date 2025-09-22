@@ -7,30 +7,37 @@ import { Button, Card, CardDescription, CardHeader, CardTitle, LoadingSpinner } 
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Home() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, admin } = useAuth()
   const router = useRouter()
 
-  // Redirect authenticated users to dashboard
+  // Redirect authenticated users to role-specific dashboard
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push('/dashboard')
+    if (!isLoading && isAuthenticated && admin) {
+      // Direct redirect based on role
+      if (admin.role === 'super_admin') {
+        router.push('/super-admin/dashboard')
+      } else if (admin.role === 'admin') {
+        router.push('/admin/dashboard')
+      }
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isAuthenticated, isLoading, admin, router])
 
-  // Show loading while checking auth status
-  if (isLoading) {
+  // Show loading while checking auth status or waiting for admin data
+  if (isLoading || (isAuthenticated && !admin)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600 font-medium">Loading...</p>
+          <p className="mt-4 text-gray-600 font-medium">
+            {isLoading ? 'Loading...' : 'Redirecting to your dashboard...'}
+          </p>
         </div>
       </div>
     )
   }
 
   // Don't render if authenticated (redirect is happening)
-  if (isAuthenticated) {
+  if (isAuthenticated && admin) {
     return null
   }
   return (
