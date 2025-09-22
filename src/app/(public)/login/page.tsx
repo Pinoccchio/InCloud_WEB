@@ -1,21 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from '@/components/ui'
+import { loginAdmin, checkSuperAdminExists, getCurrentSession, type LoginCredentials } from '@/lib/supabase/auth'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showSuperAdminSetup, setShowSuperAdminSetup] = useState(false)
+  const router = useRouter()
 
   const {
     register,
@@ -25,16 +30,35 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   })
 
+  // Check if super admin exists on component mount
+  useEffect(() => {
+    const checkSuperAdmin = async () => {
+      const result = await checkSuperAdminExists()
+      if (result.success && result.data) {
+        setShowSuperAdminSetup(!result.data.exists)
+      }
+    }
+    checkSuperAdmin()
+  }, [])
+
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
-    // TODO: Implement actual authentication logic
-    console.log('Login attempt:', data)
+    setError(null)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      const result = await loginAdmin(data as LoginCredentials)
 
-    setIsLoading(false)
-    // TODO: Handle success/error and redirect
+      if (result.success) {
+        // Redirect to dashboard
+        router.push('/dashboard')
+      } else {
+        setError(result.error || 'Login failed')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -57,6 +81,12 @@ export default function LoginPage() {
             </CardHeader>
 
             <CardContent className="px-8 pb-8">
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 text-sm font-medium">{error}</p>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <Input
                   label="Email Address"
@@ -136,6 +166,25 @@ export default function LoginPage() {
               </div>
             </CardContent>
           </Card>
+
+          {showSuperAdminSetup && (
+            <div className="mt-8">
+              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 shadow-sm">
+                <p className="text-yellow-800 font-bold text-base mb-2">🔧 Initial Setup Required</p>
+                <p className="text-yellow-700 text-sm mb-4">
+                  No super administrator account found. Create the initial super admin to get started.
+                </p>
+                <Link href="/super-admin-setup">
+                  <Button
+                    variant="outline"
+                    className="w-full text-yellow-800 border-yellow-300 hover:bg-yellow-100"
+                  >
+                    Create Super Admin Account
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
 
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-800 font-medium">

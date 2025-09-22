@@ -1,22 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from '@/components/ui'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
+import { signupAdmin, getBranches, type SignupData } from '@/lib/supabase/auth'
 
 const signupSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
   role: z.enum(['admin'], {
     required_error: 'Please select a role',
   }),
+  branches: z.array(z.string()).optional(),
   agreeToTerms: z.boolean().refine(val => val === true, {
     message: 'You must agree to the terms and conditions',
   }),
@@ -29,6 +31,11 @@ type SignupFormData = z.infer<typeof signupSchema>
 
 export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
+  const router = useRouter()
 
   const {
     register,
@@ -38,16 +45,44 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
   })
 
+  useEffect(() => {
+    const fetchBranches = async () => {
+      const result = await getBranches()
+      if (result.success) {
+        setBranches(result.data)
+      }
+    }
+    fetchBranches()
+  }, [])
+
   const onSubmit = async (data: SignupFormData) => {
     setIsLoading(true)
-    // TODO: Implement actual registration logic
-    console.log('Registration attempt:', data)
+    setError(null)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      const signupData: SignupData = {
+        fullName: data.fullName,
+        email: data.email,
+        password: data.password,
+        role: data.role,
+        branches: selectedBranches.length > 0 ? selectedBranches : undefined
+      }
 
-    setIsLoading(false)
-    // TODO: Handle success/error and redirect
+      const result = await signupAdmin(signupData)
+
+      if (result.success) {
+        setSuccess(true)
+        setTimeout(() => {
+          router.push('/login')
+        }, 3000)
+      } else {
+        setError(result.error || 'Account creation failed')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -70,21 +105,27 @@ export default function SignupPage() {
             </CardHeader>
 
             <CardContent className="px-8 pb-8">
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="First Name"
-                    placeholder="John"
-                    error={errors.firstName?.message}
-                    {...register('firstName')}
-                  />
-                  <Input
-                    label="Last Name"
-                    placeholder="Doe"
-                    error={errors.lastName?.message}
-                    {...register('lastName')}
-                  />
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 text-sm font-medium">{error}</p>
                 </div>
+              )}
+
+              {success && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-green-800 text-sm font-medium">
+                    Account created successfully! Redirecting to login...
+                  </p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                <Input
+                  label="Full Name"
+                  placeholder="John Doe"
+                  error={errors.fullName?.message}
+                  {...register('fullName')}
+                />
 
                 <Input
                   label="Email Address"
@@ -113,6 +154,44 @@ export default function SignupPage() {
                   {errors.role && (
                     <p className="mt-1 text-sm text-error font-medium">{errors.role.message}</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-800">
+                    Branch Access (Optional)
+                  </label>
+                  <div className="relative">
+                    <select
+                      disabled={branches.length === 0}
+                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-12 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50 transition-all appearance-none"
+                      value={selectedBranches[0] || ''}
+                      onChange={(e) => {
+                        setSelectedBranches(e.target.value ? [e.target.value] : [])
+                      }}
+                    >
+                      {branches.length === 0 ? (
+                        <option value="" className="text-gray-400">No branches configured yet</option>
+                      ) : (
+                        <>
+                          <option value="" className="text-gray-500">All branches (default)</option>
+                          {branches.map((branch) => (
+                            <option key={branch.id} value={branch.id} className="text-gray-900">
+                              {branch.name}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                      <ChevronDownIcon className="h-5 w-5 text-gray-600" />
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {branches.length === 0
+                      ? "Branches must be created by Super Admin first"
+                      : "Select a specific branch or leave as default for all access"
+                    }
+                  </p>
                 </div>
 
                 <Input
@@ -161,9 +240,9 @@ export default function SignupPage() {
                   className="w-full font-semibold shadow-lg hover:shadow-xl"
                   size="lg"
                   isLoading={isLoading}
-                  disabled={isLoading}
+                  disabled={isLoading || success}
                 >
-                  {isLoading ? 'Creating Account...' : 'Request Access'}
+                  {isLoading ? 'Creating Account...' : success ? 'Account Created!' : 'Create Admin Account'}
                 </Button>
 
                 <div className="relative my-8">
@@ -209,15 +288,6 @@ export default function SignupPage() {
             </CardContent>
           </Card>
 
-          <div className="mt-8 text-center">
-            <div className="bg-secondary-50 border-2 border-secondary-200 rounded-xl p-6 shadow-sm">
-              <p className="text-secondary-800 font-bold text-base mb-2">📋 Account Approval Required</p>
-              <p className="text-secondary-700 leading-relaxed">
-                Admin accounts require approval from a Super Admin before activation.
-                You&apos;ll receive an email notification once your account is approved.
-              </p>
-            </div>
-          </div>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-800 font-medium">
