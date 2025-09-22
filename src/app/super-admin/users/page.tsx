@@ -7,7 +7,8 @@ import {
   PencilIcon,
   UserGroupIcon,
   MagnifyingGlassIcon,
-  KeyIcon
+  KeyIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal, ConfirmDialog } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
@@ -18,6 +19,7 @@ interface AdminUser {
   id: string
   user_id: string
   full_name: string
+  email?: string
   role: 'admin' | 'super_admin'
   branches: string[]
   is_active: boolean
@@ -39,6 +41,9 @@ export default function AdminUsersPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ admin: AdminUser, newStatus: boolean } | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const { success, error } = useToastActions()
@@ -74,6 +79,22 @@ export default function AdminUsersPage() {
     if (targetAdmin.role === 'super_admin' && targetAdmin.id !== currentAdmin.id) return false
 
     // Super admin can toggle regular admin status
+    return targetAdmin.role === 'admin'
+  }
+
+  const canDeleteAdmin = (targetAdmin: AdminUser) => {
+    if (!currentAdmin) return false
+
+    // Must be super admin to delete any admin
+    if (currentAdmin.role !== 'super_admin') return false
+
+    // Super admin CANNOT delete themselves (security protection)
+    if (targetAdmin.id === currentAdmin.id) return false
+
+    // Super admin cannot delete other super admins
+    if (targetAdmin.role === 'super_admin') return false
+
+    // Super admin can only delete regular admins
     return targetAdmin.role === 'admin'
   }
 
@@ -132,6 +153,7 @@ export default function AdminUsersPage() {
           id,
           user_id,
           full_name,
+          email,
           role,
           branches,
           is_active,
@@ -222,6 +244,62 @@ export default function AdminUsersPage() {
     }
     setSelectedAdmin(admin)
     setShowEditModal(true)
+  }
+
+  const handleDeleteAdmin = (admin: AdminUser) => {
+    if (!canDeleteAdmin(admin)) {
+      error(
+        'Permission Denied',
+        'You can only delete regular admin accounts. Super admin accounts cannot be deleted.'
+      )
+      return
+    }
+    setAdminToDelete(admin)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDeleteAdmin = async () => {
+    if (!adminToDelete || !currentAdmin) return
+
+    try {
+      setIsDeleting(true)
+
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminId: adminToDelete.id,
+          currentAdminId: currentAdmin.id,
+          currentAdminRole: currentAdmin.role
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete admin account')
+      }
+
+      success(
+        'Account Deleted',
+        `${adminToDelete.full_name} has been deleted successfully`
+      )
+
+      // Refresh admin list
+      loadAdmins()
+    } catch (err) {
+      console.error('Error deleting admin:', err)
+      error(
+        'Delete Failed',
+        err instanceof Error ? err.message : 'Failed to delete admin account'
+      )
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setAdminToDelete(null)
+    }
   }
 
   const handleModalSuccess = () => {
@@ -522,6 +600,23 @@ export default function AdminUsersPage() {
                                       )}
                                     </>
                                   )}
+
+                                  {/* Delete Account - Only for Regular Admins */}
+                                  {admin.role === 'admin' && canDeleteAdmin(admin) && (
+                                    <>
+                                      <div className="border-t border-gray-100 my-1"></div>
+                                      <button
+                                        onClick={() => {
+                                          handleDeleteAdmin(admin)
+                                          setOpenDropdown(null)
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
+                                      >
+                                        <TrashIcon className="w-4 h-4 mr-2" />
+                                        Delete Account
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </>
@@ -632,6 +727,24 @@ export default function AdminUsersPage() {
         confirmText={confirmAction?.newStatus ? 'Activate' : 'Deactivate'}
         type={confirmAction?.newStatus ? 'info' : 'warning'}
         isLoading={isUpdatingStatus}
+      />
+
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false)
+          setAdminToDelete(null)
+        }}
+        onConfirm={confirmDeleteAdmin}
+        title="Delete Admin Account"
+        message={
+          adminToDelete
+            ? `Are you sure you want to delete ${adminToDelete.full_name}? This action cannot be undone and will permanently remove their account and all associated data.`
+            : ''
+        }
+        confirmText="Delete Account"
+        type="destructive"
+        isLoading={isDeleting}
       />
     </div>
   )

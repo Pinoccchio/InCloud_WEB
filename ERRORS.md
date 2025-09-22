@@ -1,18 +1,1 @@
-
-
-1/1
-
-Next.js 15.5.3
-Turbopack
-Build Error
-
-
-Parsing ecmascript source code failed
-
-./src/app/super-admin/components/SuperAdminSidebar.tsx (195:1)
-
-Parsing ecmascript source code failed
-  193 |     </div>
-  194 |   )
-> 195 | }
-      | ^
+TEST THE USER MANAGEMNT, SEE THE DASHBOARD, SEE THE AUDIOT MAKE SURE IT WORKS WHEN WE EDIT, DELETE? OR CRAETE ACCOUNT EVEYRHTNG WHAT WE CAN DO IN THE SUPER ADMIN USER MENEGMENT I THINK-- ALSO CEHCK IF WE CAN SUCCESSFULY CREATE NEW ADMIN/SUPER ADMIN, AND CAN EDIT, DELETE
