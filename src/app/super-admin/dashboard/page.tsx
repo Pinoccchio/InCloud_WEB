@@ -210,18 +210,6 @@ export default function SuperAdminDashboard() {
                 <p className="text-sm text-gray-500">View and edit all users</p>
               </div>
             </Link>
-            <Link
-              href="/super-admin/settings"
-              className="flex items-center p-3 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            >
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <ShieldCheckIcon className="w-5 h-5 text-gray-600" />
-              </div>
-              <div className="ml-3">
-                <p className="font-medium text-gray-900">System Settings</p>
-                <p className="text-sm text-gray-500">Configure system preferences</p>
-              </div>
-            </Link>
           </div>
         </div>
 

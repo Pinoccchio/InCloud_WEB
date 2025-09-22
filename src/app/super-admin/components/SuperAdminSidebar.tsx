@@ -6,7 +6,6 @@ import { clsx } from 'clsx'
 import {
   HomeIcon,
   UserGroupIcon,
-  Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 import { Logo } from '@/components/ui'
 
@@ -42,12 +41,6 @@ const navigation: NavItem[] = [
     href: '/super-admin/users',
     icon: UserGroupIcon,
     description: 'Manage all system users'
-  },
-  {
-    name: 'System Settings',
-    href: '/super-admin/settings',
-    icon: Cog6ToothIcon,
-    description: 'System configuration'
   },
 ]
 
