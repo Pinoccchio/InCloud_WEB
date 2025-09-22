@@ -13,16 +13,26 @@ export default function PublicLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, admin } = useAuth()
   const isAuthPage = pathname === '/login' || pathname === '/signup'
   const isSetupPage = pathname === '/super-admin-setup'
 
-  // Redirect authenticated users away from auth pages
+  // Redirect authenticated users away from auth pages to role-specific dashboards
   useEffect(() => {
     if (!isLoading && isAuthenticated && (isAuthPage || isSetupPage)) {
-      router.push('/dashboard')
+      if (admin) {
+        // Redirect based on role
+        if (admin.role === 'super_admin') {
+          router.push('/super-admin/dashboard')
+        } else if (admin.role === 'admin') {
+          router.push('/admin/dashboard')
+        }
+      } else {
+        // If admin data not loaded yet, redirect to generic dashboard which will handle role redirection
+        router.push('/dashboard')
+      }
     }
-  }, [isAuthenticated, isLoading, isAuthPage, isSetupPage, router])
+  }, [isAuthenticated, isLoading, admin, isAuthPage, isSetupPage, router])
 
   // Show loading while checking auth status for auth pages
   if (isLoading && (isAuthPage || isSetupPage)) {

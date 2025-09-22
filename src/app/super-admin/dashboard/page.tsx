@@ -129,22 +129,22 @@ export default function SuperAdminDashboard() {
               Super Admin Dashboard
             </h1>
             <p className="text-gray-600 mt-1">
-              System-wide user management and administration
+              User role management and administration
             </p>
           </div>
           <Link href="/super-admin/users">
             <Button className="flex items-center">
               <UserPlusIcon className="w-4 h-4 mr-2" />
-              Add New User
+              Add New Admin
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* User Statistics */}
+      {/* Admin Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 min-w-0">
         <StatCard
-          title="Total Users"
+          title="Total Admins"
           value={userStats?.totalUsers || 0}
           icon={<UserGroupIcon className="w-6 h-6 text-blue-600" />}
           color="bg-blue-100"
@@ -162,19 +162,19 @@ export default function SuperAdminDashboard() {
           color="bg-green-100"
         />
         <StatCard
-          title="Active Users"
+          title="Active Admins"
           value={userStats?.activeUsers || 0}
           icon={<CheckCircleIcon className="w-6 h-6 text-green-600" />}
           color="bg-green-100"
         />
         <StatCard
-          title="Inactive Users"
+          title="Inactive Admins"
           value={userStats?.inactiveUsers || 0}
           icon={<XCircleIcon className="w-6 h-6 text-gray-600" />}
           color="bg-gray-100"
         />
         <StatCard
-          title="Recently Added"
+          title="Recently Created"
           value={userStats?.recentlyAdded || 0}
           icon={<ClockIcon className="w-6 h-6 text-purple-600" />}
           color="bg-purple-100"
@@ -206,8 +206,8 @@ export default function SuperAdminDashboard() {
                 <UserGroupIcon className="w-5 h-5 text-blue-600" />
               </div>
               <div className="ml-3">
-                <p className="font-medium text-gray-900">Manage Users</p>
-                <p className="text-sm text-gray-500">View and edit all users</p>
+                <p className="font-medium text-gray-900">Manage Admins</p>
+                <p className="text-sm text-gray-500">View and edit all admin accounts</p>
               </div>
             </Link>
           </div>
@@ -241,29 +241,40 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      {/* System Status */}
+      {/* Admin Management Overview */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">System Status</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Management Overview</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <ShieldCheckIcon className="w-6 h-6 text-red-600" />
+            </div>
             <div>
-              <p className="font-medium text-gray-900">User Management</p>
-              <p className="text-sm text-gray-500">All systems operational</p>
+              <p className="text-2xl font-bold text-gray-900">{userStats?.totalSuperAdmins || 0}</p>
+              <p className="text-sm font-medium text-gray-900">Super Admins</p>
+              <p className="text-xs text-gray-500 mt-1">System administrators</p>
             </div>
           </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+          <div className="text-center">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <UserGroupIcon className="w-6 h-6 text-blue-600" />
+            </div>
             <div>
-              <p className="font-medium text-gray-900">Database</p>
-              <p className="text-sm text-gray-500">Connected and responsive</p>
+              <p className="text-2xl font-bold text-gray-900">{userStats?.totalAdmins || 0}</p>
+              <p className="text-sm font-medium text-gray-900">Regular Admins</p>
+              <p className="text-xs text-gray-500 mt-1">Operational staff</p>
             </div>
           </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+          <div className="text-center">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <CheckCircleIcon className="w-6 h-6 text-green-600" />
+            </div>
             <div>
-              <p className="font-medium text-gray-900">Authentication</p>
-              <p className="text-sm text-gray-500">Service running normally</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {userStats ? Math.round((userStats.activeUsers / userStats.totalUsers) * 100) || 0 : 0}%
+              </p>
+              <p className="text-sm font-medium text-gray-900">Active Rate</p>
+              <p className="text-xs text-gray-500 mt-1">Admin engagement</p>
             </div>
           </div>
         </div>

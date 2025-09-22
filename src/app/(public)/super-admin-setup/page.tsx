@@ -70,8 +70,8 @@ export default function SuperAdminSetupPage() {
               ...loginResult.data.admin,
               role: loginResult.data.admin.role as 'admin' | 'super_admin'
             })
-            // Redirect to dashboard immediately
-            router.push('/dashboard')
+            // Redirect to super admin dashboard immediately
+            router.push('/super-admin/dashboard')
           } else {
             // If auto-login fails, redirect to login page after delay
             setTimeout(() => {
