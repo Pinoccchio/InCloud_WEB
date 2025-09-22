@@ -1,7 +1,38 @@
+'use client'
+
+import { useEffect } from 'react'
 import Link from 'next/link'
-import { Button, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { useRouter } from 'next/navigation'
+import { Button, Card, CardDescription, CardHeader, CardTitle, LoadingSpinner } from '@/components/ui'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Home() {
+  const { isAuthenticated, isLoading } = useAuth()
+  const router = useRouter()
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, isLoading, router])
+
+  // Show loading while checking auth status
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600 font-medium">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if authenticated (redirect is happening)
+  if (isAuthenticated) {
+    return null
+  }
   return (
     <>
         {/* Hero Section - Enhanced Flat Design 2.0 */}

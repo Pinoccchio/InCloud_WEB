@@ -10,7 +10,7 @@ import {
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon
 } from '@heroicons/react/24/outline'
-import { signOut } from '@/lib/supabase/auth'
+import { useAuth } from '@/contexts/AuthContext'
 import { clsx } from 'clsx'
 
 interface AdminData {
@@ -29,14 +29,13 @@ interface HeaderProps {
 export default function Header({ adminData }: HeaderProps) {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const router = useRouter()
+  const { logout } = useAuth()
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
     try {
-      const result = await signOut()
-      if (result.success) {
-        router.push('/login')
-      }
+      await logout()
+      router.push('/login')
     } catch (error) {
       console.error('Sign out error:', error)
     } finally {

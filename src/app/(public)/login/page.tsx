@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from '@/components/ui'
 import { loginAdmin, checkSuperAdminExists, type LoginCredentials } from '@/lib/supabase/auth'
+import { useAuth } from '@/contexts/AuthContext'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [showSuperAdminSetup, setShowSuperAdminSetup] = useState(false)
   const router = useRouter()
+  const { login } = useAuth()
 
   const {
     register,
@@ -48,7 +50,12 @@ export default function LoginPage() {
     try {
       const result = await loginAdmin(data as LoginCredentials)
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Update auth context with login data
+        login(result.data.user, result.data.session, {
+          ...result.data.admin,
+          role: result.data.admin.role as 'admin' | 'super_admin'
+        })
         // Redirect to dashboard
         router.push('/dashboard')
       } else {

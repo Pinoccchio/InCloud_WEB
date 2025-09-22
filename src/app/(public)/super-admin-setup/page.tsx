@@ -7,7 +7,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from '@/components/ui'
-import { createInitialSuperAdmin, type InitialSuperAdminData } from '@/lib/supabase/auth'
+import { createInitialSuperAdmin, type InitialSuperAdminData, loginAdmin } from '@/lib/supabase/auth'
+import { useAuth } from '@/contexts/AuthContext'
 
 const superAdminSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -29,6 +30,7 @@ export default function SuperAdminSetupPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const router = useRouter()
+  const { login } = useAuth()
 
   const {
     register,
@@ -54,9 +56,34 @@ export default function SuperAdminSetupPage() {
 
       if (result.success) {
         setSuccess(true)
-        setTimeout(() => {
-          router.push('/login')
-        }, 3000)
+
+        // Automatically log in the newly created super admin
+        try {
+          const loginResult = await loginAdmin({
+            email: data.email,
+            password: data.password
+          })
+
+          if (loginResult.success && loginResult.data) {
+            // Update auth context with login data
+            login(loginResult.data.user, loginResult.data.session, {
+              ...loginResult.data.admin,
+              role: loginResult.data.admin.role as 'admin' | 'super_admin'
+            })
+            // Redirect to dashboard immediately
+            router.push('/dashboard')
+          } else {
+            // If auto-login fails, redirect to login page after delay
+            setTimeout(() => {
+              router.push('/login')
+            }, 3000)
+          }
+        } catch {
+          // If auto-login fails, redirect to login page after delay
+          setTimeout(() => {
+            router.push('/login')
+          }, 3000)
+        }
       } else {
         setError(result.error || 'Super admin creation failed')
       }

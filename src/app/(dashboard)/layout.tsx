@@ -1,54 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentSession } from '@/lib/supabase/auth'
 import { LoadingSpinner } from '@/components/ui'
+import { useAuth } from '@/contexts/AuthContext'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
-
-interface AdminData {
-  id: string
-  user_id: string
-  email: string
-  fullName: string
-  role: 'admin' | 'super_admin'
-  branches: string[]
-}
 
 interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const [adminData, setAdminData] = useState<AdminData | null>(null)
+  const { isAuthenticated, isLoading, admin } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const result = await getCurrentSession()
-
-      if (!result.success || !result.data?.admin) {
-        router.push('/login')
-        return
-      }
-
-      // Verify super admin or admin role
-      const { admin } = result.data
-      if (!admin.role || (admin.role !== 'super_admin' && admin.role !== 'admin')) {
-        router.push('/login')
-        return
-      }
-
-      setAdminData(admin as AdminData)
-      setIsAuthenticated(true)
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login')
     }
+  }, [isAuthenticated, isLoading, router])
 
-    checkAuth()
-  }, [router])
-
-  if (isAuthenticated === null) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -59,7 +32,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !admin) {
     return null // Redirect will happen in useEffect
   }
 
@@ -67,12 +40,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-gray-50">
       <div className="flex">
         {/* Sidebar */}
-        <Sidebar adminData={adminData} />
+        <Sidebar adminData={admin} />
 
         {/* Main content */}
         <div className="flex-1 flex flex-col min-h-screen ml-64">
           {/* Header */}
-          <Header adminData={adminData} />
+          <Header adminData={admin} />
 
           {/* Page content */}
           <main className="flex-1 p-6">
