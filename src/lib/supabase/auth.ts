@@ -345,6 +345,7 @@ export async function createInitialSuperAdmin(adminData: InitialSuperAdminData):
     const { data: adminId, error: profileError } = await supabase.rpc('create_admin_profile', {
       p_user_id: authData.user.id,
       p_full_name: adminData.fullName,
+      p_email: adminData.email,
       p_role: 'super_admin',
       p_branches: []
     })

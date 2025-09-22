@@ -8,7 +8,7 @@ import {
   UserGroupIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
-import { Button, LoadingSpinner } from '@/components/ui'
+import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 
 interface AdminUser {
@@ -31,7 +31,9 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'super_admin'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
-  const [, setShowCreateModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null)
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -45,13 +47,14 @@ export default function AdminUsersPage() {
 
   const loadAdmins = async () => {
     try {
-      // Get admins data
+      // Get admins data including email
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select(`
           id,
           user_id,
           full_name,
+          email,
           role,
           branches,
           is_active,
@@ -63,14 +66,7 @@ export default function AdminUsersPage() {
 
       if (adminError) throw adminError
 
-      // Use placeholder emails until database schema is updated
-      // TODO: Add email column to admins table and update create_admin_profile function
-      const adminsWithEmail = adminData?.map(admin => ({
-        ...admin,
-        email: `${admin.full_name.toLowerCase().replace(' ', '.')}@incloud.local`
-      })) || []
-
-      setAdmins(adminsWithEmail as AdminUser[])
+      setAdmins(adminData as AdminUser[] || [])
     } catch (error) {
       console.error('Error loading admins:', error)
     } finally {
@@ -94,6 +90,15 @@ export default function AdminUsersPage() {
     }
   }
 
+  const handleEditAdmin = (admin: AdminUser) => {
+    setSelectedAdmin(admin)
+    setShowEditModal(true)
+  }
+
+  const handleModalSuccess = () => {
+    loadAdmins()
+  }
+
   const filteredAdmins = admins.filter(admin => {
     const matchesSearch = admin.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          admin.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -107,14 +112,14 @@ export default function AdminUsersPage() {
 
   const getRoleBadgeColor = (role: string) => {
     return role === 'super_admin'
-      ? 'bg-red-100 text-red-800'
-      : 'bg-blue-100 text-blue-800'
+      ? 'bg-red-600 text-white'
+      : 'bg-blue-600 text-white'
   }
 
   const getStatusBadgeColor = (isActive: boolean) => {
     return isActive
-      ? 'bg-green-100 text-green-800'
-      : 'bg-gray-100 text-gray-800'
+      ? 'bg-green-600 text-white'
+      : 'bg-gray-600 text-white'
   }
 
   const formatBranches = (branches: string[]) => {
@@ -159,14 +164,14 @@ export default function AdminUsersPage() {
           {/* Search */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />
+              <MagnifyingGlassIcon className="h-4 w-4 text-gray-600" />
             </div>
             <input
               type="text"
               placeholder="Search by name or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
 
@@ -175,7 +180,7 @@ export default function AdminUsersPage() {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as 'all' | 'admin' | 'super_admin')}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="all">All Roles</option>
               <option value="super_admin">Super Admin</option>
@@ -188,7 +193,7 @@ export default function AdminUsersPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -199,7 +204,7 @@ export default function AdminUsersPage() {
           {/* Clear Filters */}
           <div className="flex items-center">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => {
                 setSearchTerm('')
@@ -263,12 +268,12 @@ export default function AdminUsersPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAdmins.map((admin) => (
-                  <tr key={admin.id} className="hover:bg-gray-50">
+                  <tr key={admin.id} className="hover:bg-blue-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary-700">
+                          <div className="h-10 w-10 rounded-full bg-red-500 flex items-center justify-center">
+                            <span className="text-sm font-medium text-white">
                               {admin.full_name.charAt(0).toUpperCase()}
                             </span>
                           </div>
@@ -304,7 +309,11 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditAdmin(admin)}
+                        >
                           <PencilIcon className="w-4 h-4" />
                         </Button>
                         <Button
@@ -375,7 +384,7 @@ export default function AdminUsersPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
+              <div className="h-2 w-2 bg-red-500 rounded-full"></div>
             </div>
             <div className="ml-4">
               <div className="text-2xl font-semibold text-gray-900">
@@ -386,6 +395,23 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <CreateAdminModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={handleModalSuccess}
+      />
+
+      <EditAdminModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setSelectedAdmin(null)
+        }}
+        onSuccess={handleModalSuccess}
+        admin={selectedAdmin}
+      />
     </div>
   )
 }

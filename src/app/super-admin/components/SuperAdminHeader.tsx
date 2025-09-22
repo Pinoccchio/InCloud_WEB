@@ -83,7 +83,7 @@ export default function SuperAdminHeader({ adminData }: SuperAdminHeaderProps) {
                   {adminData?.fullName || 'Super Admin'}
                 </span>
                 <span className="block text-xs text-gray-500">
-                  System Administrator
+                  Super Admin
                 </span>
               </div>
               <ChevronDownIcon className="w-4 h-4 ml-1" />

@@ -167,7 +167,7 @@ export default function SuperAdminSidebar({ adminData }: SidebarProps) {
                   {adminData?.fullName || 'Super Admin'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  System Administrator
+                  Super Admin
                 </p>
               </div>
             )}
