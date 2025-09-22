@@ -8,8 +8,10 @@ import {
   UserGroupIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
-import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal } from '@/components/ui'
+import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal, ConfirmDialog } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
+import { useToastActions } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface AdminUser {
   id: string
@@ -34,7 +36,45 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{ admin: AdminUser, newStatus: boolean } | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const searchParams = useSearchParams()
+  const { success, error } = useToastActions()
+  const { admin: currentAdmin } = useAuth()
+
+  // Permission checking functions
+  const canEditAdmin = (targetAdmin: AdminUser) => {
+    if (!currentAdmin) return false
+
+    // Must be super admin to edit any admin
+    if (currentAdmin.role !== 'super_admin') return false
+
+    // Super admin can edit their own profile
+    if (targetAdmin.id === currentAdmin.id) return true
+
+    // Super admin cannot edit other super admins
+    if (targetAdmin.role === 'super_admin' && targetAdmin.id !== currentAdmin.id) return false
+
+    // Super admin can edit regular admins
+    return targetAdmin.role === 'admin'
+  }
+
+  const canToggleStatus = (targetAdmin: AdminUser) => {
+    if (!currentAdmin) return false
+
+    // Must be super admin to toggle any admin status
+    if (currentAdmin.role !== 'super_admin') return false
+
+    // Super admin can toggle their own status
+    if (targetAdmin.id === currentAdmin.id) return true
+
+    // Super admin cannot toggle other super admin status
+    if (targetAdmin.role === 'super_admin' && targetAdmin.id !== currentAdmin.id) return false
+
+    // Super admin can toggle regular admin status
+    return targetAdmin.role === 'admin'
+  }
 
   useEffect(() => {
     loadAdmins()
@@ -74,23 +114,75 @@ export default function AdminUsersPage() {
     }
   }
 
-  const toggleAdminStatus = async (adminId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('admins')
-        .update({ is_active: !currentStatus })
-        .eq('id', adminId)
+  const handleToggleStatus = (admin: AdminUser) => {
+    if (!canToggleStatus(admin)) {
+      error(
+        'Permission Denied',
+        'You do not have permission to change this admin\'s status.'
+      )
+      return
+    }
+    setConfirmAction({ admin, newStatus: !admin.is_active })
+    setShowConfirmDialog(true)
+  }
 
-      if (error) throw error
+  const confirmToggleStatus = async () => {
+    if (!confirmAction) return
+
+    try {
+      setIsUpdatingStatus(true)
+      const { admin, newStatus } = confirmAction
+
+      const response = await fetch('/api/admin/toggle-status', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminId: admin.id,
+          isActive: newStatus,
+          currentAdminId: currentAdmin?.id,
+          currentAdminRole: currentAdmin?.role
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update admin status')
+      }
+
+      // Show success message
+      success(
+        'Status Updated',
+        `${admin.full_name} has been ${newStatus ? 'activated' : 'deactivated'} successfully`
+      )
 
       // Refresh admin list
       loadAdmins()
     } catch (error) {
       console.error('Error updating admin status:', error)
+      error(
+        'Status Update Failed',
+        error instanceof Error ? error.message : 'Failed to update admin status'
+      )
+    } finally {
+      setIsUpdatingStatus(false)
+      setShowConfirmDialog(false)
+      setConfirmAction(null)
     }
   }
 
   const handleEditAdmin = (admin: AdminUser) => {
+    if (!canEditAdmin(admin)) {
+      error(
+        'Permission Denied',
+        admin.role === 'super_admin'
+          ? 'You cannot edit other super admin profiles. You can only edit your own profile.'
+          : 'You do not have permission to edit this admin profile.'
+      )
+      return
+    }
     setSelectedAdmin(admin)
     setShowEditModal(true)
   }
@@ -309,21 +401,28 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditAdmin(admin)}
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleAdminStatus(admin.id, admin.is_active)}
-                          className={admin.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
-                        >
-                          {admin.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
+                        {canEditAdmin(admin) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditAdmin(admin)}
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {canToggleStatus(admin) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleStatus(admin)}
+                            className={admin.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
+                          >
+                            {admin.is_active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        )}
+                        {!canEditAdmin(admin) && !canToggleStatus(admin) && (
+                          <span className="text-sm text-gray-400 italic">No actions available</span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -411,6 +510,24 @@ export default function AdminUsersPage() {
         }}
         onSuccess={handleModalSuccess}
         admin={selectedAdmin}
+      />
+
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => {
+          setShowConfirmDialog(false)
+          setConfirmAction(null)
+        }}
+        onConfirm={confirmToggleStatus}
+        title={confirmAction?.newStatus ? 'Activate Admin' : 'Deactivate Admin'}
+        message={
+          confirmAction?.newStatus
+            ? `Are you sure you want to activate ${confirmAction.admin.full_name}? They will regain access to the system.`
+            : `Are you sure you want to deactivate ${confirmAction?.admin.full_name}? They will lose access to the system.`
+        }
+        confirmText={confirmAction?.newStatus ? 'Activate' : 'Deactivate'}
+        type={confirmAction?.newStatus ? 'info' : 'warning'}
+        isLoading={isUpdatingStatus}
       />
     </div>
   )

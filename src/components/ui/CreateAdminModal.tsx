@@ -9,6 +9,7 @@ import { XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline'
 import { Button } from './Button'
 import { Input } from './Input'
 import { createClient } from '@supabase/supabase-js'
+import { useToastActions } from '@/contexts/ToastContext'
 
 // Form validation schema
 const createAdminSchema = z.object({
@@ -42,6 +43,7 @@ export function CreateAdminModal({ isOpen, onClose, onSuccess }: CreateAdminModa
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [branches, setBranches] = useState<Branch[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
+  const { success, error } = useToastActions()
 
   const {
     register,
@@ -130,12 +132,16 @@ export function CreateAdminModal({ isOpen, onClose, onSuccess }: CreateAdminModa
       }
 
       // Success
+      success('Admin Created', `New ${data.role.replace('_', ' ')} account created successfully`)
       reset()
       onSuccess()
       onClose()
-    } catch (error) {
-      console.error('Error creating admin:', error)
-      alert(error instanceof Error ? error.message : 'Failed to create admin user')
+    } catch (err) {
+      console.error('Error creating admin:', err)
+      error(
+        'Creation Failed',
+        err instanceof Error ? err.message : 'Failed to create admin user'
+      )
     } finally {
       setIsSubmitting(false)
     }

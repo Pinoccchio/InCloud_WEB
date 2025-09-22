@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Create admin profile using the database function
-    const { data: adminResult, error: adminError } = await supabaseAdmin
-      .rpc('link_auth_user_to_admin', {
-        p_auth_user_id: authUser.user.id,
-        p_email: email,
+    const { data: adminId, error: adminError } = await supabaseAdmin
+      .rpc('create_admin_profile', {
+        p_user_id: authUser.user.id,
         p_full_name: fullName,
+        p_email: email,
         p_role: role,
         p_branches: branches || []
       })
@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if the function call was successful
-    if (!adminResult?.success) {
+    // Check if admin ID was returned
+    if (!adminId) {
       // Cleanup: Delete the auth user if admin profile creation failed
       try {
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { error: adminResult?.error || 'Failed to create admin profile' },
+        { error: 'Failed to create admin profile' },
         { status: 400 }
       )
     }
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       message: 'Admin user created successfully',
       data: {
         auth_user_id: authUser.user.id,
-        admin_id: adminResult.admin_id,
+        admin_id: adminId,
         email: email,
         full_name: fullName,
         role: role

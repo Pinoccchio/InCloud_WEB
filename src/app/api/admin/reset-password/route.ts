@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Send password reset email using Supabase Auth admin API
-    const { data: authResult, error: authError } = await supabaseAdmin.auth.admin.generateLink({
+    const { error: authError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: adminEmail,
       options: {

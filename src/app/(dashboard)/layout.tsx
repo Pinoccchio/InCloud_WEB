@@ -5,11 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LoadingSpinner } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
 
-interface DashboardLayoutProps {
-  children: React.ReactNode
-}
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout() {
   const { isAuthenticated, isLoading, admin } = useAuth()
   const router = useRouter()
 

@@ -9,6 +9,8 @@ import { XMarkIcon, PencilIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { Button } from './Button'
 import { Input } from './Input'
 import { createClient } from '@supabase/supabase-js'
+import { useToastActions } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Form validation schema
 const editAdminSchema = z.object({
@@ -48,6 +50,8 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
   const [isResettingPassword, setIsResettingPassword] = useState(false)
   const [branches, setBranches] = useState<Branch[]>([])
   const [loadingBranches, setLoadingBranches] = useState(false)
+  const { success, error } = useToastActions()
+  const { admin: currentAdmin } = useAuth()
 
   const {
     register,
@@ -110,8 +114,36 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
     }
   }
 
+  // Check if current admin can edit the target admin
+  const canEditAdmin = () => {
+    if (!currentAdmin || !admin) return false
+
+    // Must be super admin to edit any admin
+    if (currentAdmin.role !== 'super_admin') return false
+
+    // Super admin can edit their own profile
+    if (admin.id === currentAdmin.id) return true
+
+    // Super admin cannot edit other super admins
+    if (admin.role === 'super_admin' && admin.id !== currentAdmin.id) return false
+
+    // Super admin can edit regular admins
+    return admin.role === 'admin'
+  }
+
   const onSubmit = async (data: EditAdminFormData) => {
-    if (!admin) return
+    if (!admin || !currentAdmin) return
+
+    // Check permissions before submitting
+    if (!canEditAdmin()) {
+      error(
+        'Permission Denied',
+        admin.role === 'super_admin'
+          ? 'You cannot edit other super admin profiles. You can only edit your own profile.'
+          : 'You do not have permission to edit this admin profile.'
+      )
+      return
+    }
 
     try {
       setIsSubmitting(true)
@@ -125,7 +157,9 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
           adminId: admin.id,
           fullName: data.fullName,
           role: data.role,
-          branches: data.branches || []
+          branches: data.branches || [],
+          currentAdminId: currentAdmin.id,
+          currentAdminRole: currentAdmin.role
         }),
       })
 
@@ -135,11 +169,15 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
         throw new Error(result.error || 'Failed to update admin user')
       }
 
+      success('Admin Updated', 'Admin details have been updated successfully')
       onSuccess()
       onClose()
     } catch (error) {
       console.error('Error updating admin:', error)
-      alert(error instanceof Error ? error.message : 'Failed to update admin user')
+      error(
+        'Update Failed',
+        error instanceof Error ? error.message : 'Failed to update admin user'
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -167,10 +205,16 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
         throw new Error(result.error || 'Failed to reset password')
       }
 
-      alert(`Password reset email sent to ${result.email}`)
+      success(
+        'Password Reset Sent',
+        `Password reset email sent to ${result.email}`
+      )
     } catch (error) {
       console.error('Error resetting password:', error)
-      alert(error instanceof Error ? error.message : 'Failed to reset password')
+      error(
+        'Password Reset Failed',
+        error instanceof Error ? error.message : 'Failed to reset password'
+      )
     } finally {
       setIsResettingPassword(false)
     }
@@ -242,13 +286,24 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
                 <label className="mb-2 block text-sm font-semibold text-gray-800">
                   Role
                 </label>
-                <select
-                  {...register('role')}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="super_admin">Super Admin</option>
-                </select>
+                {admin?.role === 'super_admin' ? (
+                  <div>
+                    <div className="flex h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                      Super Admin
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Super admin role cannot be changed
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    {...register('role')}
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                )}
                 {errors.role && (
                   <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
                 )}
