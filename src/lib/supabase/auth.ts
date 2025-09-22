@@ -6,11 +6,52 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
-export interface AuthResult {
+export interface AuthResult<T = unknown> {
   success: boolean
-  data?: any
+  data?: T
   error?: string
 }
+
+export interface CheckSuperAdminResult {
+  exists: boolean
+}
+
+export interface LoginResult {
+  user: { id: string; email?: string }
+  session: { access_token: string; user: { id: string } }
+  admin: {
+    id: string
+    user_id: string
+    email: string
+    fullName: string
+    role: string
+    branches: string[]
+  }
+}
+
+export interface SignupResult {
+  userId: string
+  adminId: string
+  emailConfirmationSent: boolean
+}
+
+export interface SessionResult {
+  user: { id: string; email?: string }
+  session: { access_token: string; user: { id: string } }
+  admin: {
+    id: string
+    user_id: string
+    email: string
+    fullName: string
+    role: string
+    branches: string[]
+  }
+}
+
+export type BranchesResult = Array<{
+  id: string
+  name: string
+}>
 
 export interface LoginCredentials {
   email: string
@@ -40,7 +81,7 @@ export interface AdminProfile {
   is_active: boolean
 }
 
-export async function loginAdmin(credentials: LoginCredentials): Promise<AuthResult> {
+export async function loginAdmin(credentials: LoginCredentials): Promise<AuthResult<LoginResult>> {
   try {
     // Use Supabase's built-in authentication
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -86,11 +127,11 @@ export async function loginAdmin(credentials: LoginCredentials): Promise<AuthRes
         session: authData.session,
         admin: {
           id: adminProfile.id,
-          user_id: adminProfile.user_id,
-          email: authData.user.email,
+          user_id: adminProfile.user_id ?? authData.user.id,
+          email: (authData.user.email ?? '') as string,
           fullName: adminProfile.full_name,
           role: adminProfile.role,
-          branches: adminProfile.branches
+          branches: Array.isArray(adminProfile.branches) ? adminProfile.branches as string[] : []
         }
       }
     }
@@ -102,7 +143,7 @@ export async function loginAdmin(credentials: LoginCredentials): Promise<AuthRes
   }
 }
 
-export async function signupAdmin(signupData: SignupData): Promise<AuthResult> {
+export async function signupAdmin(signupData: SignupData): Promise<AuthResult<SignupResult>> {
   try {
     // First, create the auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -157,7 +198,7 @@ export async function signupAdmin(signupData: SignupData): Promise<AuthResult> {
   }
 }
 
-export async function getCurrentSession() {
+export async function getCurrentSession(): Promise<AuthResult<SessionResult>> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession()
 
@@ -184,11 +225,11 @@ export async function getCurrentSession() {
         session,
         admin: {
           id: adminProfile.id,
-          user_id: adminProfile.user_id,
-          email: session.user.email,
+          user_id: adminProfile.user_id ?? session.user.id,
+          email: (session.user.email ?? '') as string,
           fullName: adminProfile.full_name,
           role: adminProfile.role,
-          branches: adminProfile.branches
+          branches: Array.isArray(adminProfile.branches) ? adminProfile.branches as string[] : []
         }
       }
     }
@@ -215,7 +256,7 @@ export async function signOut() {
   }
 }
 
-export async function getBranches() {
+export async function getBranches(): Promise<AuthResult<BranchesResult>> {
   try {
     const { data, error } = await supabase
       .from('branches')
@@ -241,7 +282,7 @@ export async function getBranches() {
   }
 }
 
-export async function checkSuperAdminExists(): Promise<AuthResult> {
+export async function checkSuperAdminExists(): Promise<AuthResult<CheckSuperAdminResult>> {
   try {
     const { data, error } = await supabase
       .from('admins')
@@ -269,7 +310,7 @@ export async function checkSuperAdminExists(): Promise<AuthResult> {
   }
 }
 
-export async function createInitialSuperAdmin(adminData: InitialSuperAdminData): Promise<AuthResult> {
+export async function createInitialSuperAdmin(adminData: InitialSuperAdminData): Promise<AuthResult<SignupResult>> {
   try {
     // Check if super admin already exists
     const existsResult = await checkSuperAdminExists()

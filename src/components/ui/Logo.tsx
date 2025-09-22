@@ -77,6 +77,7 @@ export function InCloudLogo({
     md: { width: 40, height: 40 },
     lg: { width: 48, height: 48 },
     xl: { width: 64, height: 64 },
+    '2xl': { width: 96, height: 96 },
   }
 
   const logoSize = sizeMap[size]
@@ -122,6 +123,7 @@ export function FallbackLogo({ size = 'md', variant = 'full', className, ...prop
     md: 'h-10',
     lg: 'h-12',
     xl: 'h-16',
+    '2xl': 'h-24',
   }
 
   return (

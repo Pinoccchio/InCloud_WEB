@@ -15,9 +15,7 @@ const signupSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
-  role: z.enum(['admin'], {
-    required_error: 'Please select a role',
-  }),
+  role: z.literal('admin'),
   branches: z.array(z.string()).optional(),
   agreeToTerms: z.boolean().refine(val => val === true, {
     message: 'You must agree to the terms and conditions',
@@ -48,7 +46,7 @@ export default function SignupPage() {
   useEffect(() => {
     const fetchBranches = async () => {
       const result = await getBranches()
-      if (result.success) {
+      if (result.success && result.data) {
         setBranches(result.data)
       }
     }
@@ -78,7 +76,7 @@ export default function SignupPage() {
       } else {
         setError(result.error || 'Account creation failed')
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred')
     } finally {
       setIsLoading(false)

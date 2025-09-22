@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from '@/components/ui'
-import { loginAdmin, checkSuperAdminExists, getCurrentSession, type LoginCredentials } from '@/lib/supabase/auth'
+import { loginAdmin, checkSuperAdminExists, type LoginCredentials } from '@/lib/supabase/auth'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -54,7 +54,7 @@ export default function LoginPage() {
       } else {
         setError(result.error || 'Login failed')
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred')
     } finally {
       setIsLoading(false)
