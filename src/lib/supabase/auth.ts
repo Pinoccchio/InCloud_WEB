@@ -191,6 +191,7 @@ export async function signupAdmin(signupData: SignupData): Promise<AuthResult<Si
     // Create admin profile using the database function
     const { data: adminId, error: profileError } = await supabase.rpc('create_admin_profile', {
       p_user_id: authData.user.id,
+      p_email: authData.user.email!,
       p_full_name: signupData.fullName,
       p_role: signupData.role as Database['public']['Enums']['admin_role'],
       p_branches: signupData.branches ? signupData.branches : []
@@ -368,6 +369,7 @@ export async function createInitialSuperAdmin(adminData: InitialSuperAdminData):
     // Create super admin profile (this will work even without authentication since no super admin exists)
     const { data: adminId, error: profileError } = await supabase.rpc('create_admin_profile', {
       p_user_id: authData.user.id,
+      p_email: authData.user.email!,
       p_full_name: adminData.fullName,
       p_role: 'super_admin',
       p_branches: []

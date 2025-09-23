@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { validateSuperAdminWithContext } from '@/lib/auth-middleware'
 
 // Create Supabase admin client with service role key for password operations
 const supabaseAdmin = createClient(
@@ -21,7 +22,9 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { adminId } = await request.json()
+    // Get admin context and validate permissions
+    const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
+    const { adminId } = requestBody
 
     // Validate required fields
     if (!adminId) {
@@ -31,10 +34,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // First, call the database function to validate and get admin details
-    const { data: resetResult, error: resetError } = await supabase
-      .rpc('reset_admin_password', {
-        p_admin_id: adminId
+    // Call the service role function to validate and get admin details
+    const { data: resetResult, error: resetError } = await client
+      .rpc('reset_admin_password_service_role', {
+        p_admin_id: adminId,
+        p_current_admin_id: currentAdminId,
+        p_current_admin_role: currentAdminRole
       })
 
     if (resetError) {
@@ -57,7 +62,7 @@ export async function POST(request: NextRequest) {
     const adminEmail = resetResult.email
 
     // Get the auth user_id for this admin
-    const { data: adminData, error: adminFetchError } = await supabase
+    const { data: adminData, error: adminFetchError } = await client
       .from('admins')
       .select('user_id')
       .eq('id', adminId)
@@ -96,6 +101,18 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Unexpected error in reset-password API:', error)
+
+    // Handle authentication errors specifically
+    if (error instanceof Error) {
+      if (error.message.includes('Authentication required') ||
+          error.message.includes('Super admin access required')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        )
+      }
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

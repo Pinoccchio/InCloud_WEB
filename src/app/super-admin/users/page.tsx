@@ -11,7 +11,7 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal, ConfirmDialog } from '@/components/ui'
-import { supabase } from '@/lib/supabase/auth'
+import { supabase, getBranches, type BranchesResult } from '@/lib/supabase/auth'
 import { useToastActions } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -45,6 +45,7 @@ export default function AdminUsersPage() {
   const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [branches, setBranches] = useState<BranchesResult>([])
   const searchParams = useSearchParams()
   const { success, error } = useToastActions()
   const { admin: currentAdmin } = useAuth()
@@ -125,6 +126,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     loadAdmins()
+    loadBranches()
 
     // Check if create action is requested
     if (searchParams.get('action') === 'create') {
@@ -170,6 +172,21 @@ export default function AdminUsersPage() {
       console.error('Error loading admins:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadBranches = async () => {
+    try {
+      const result = await getBranches()
+      if (result.success && result.data) {
+        setBranches(result.data)
+      } else {
+        console.error('Error loading branches:', result.error)
+        setBranches([])
+      }
+    } catch (error) {
+      console.error('Error loading branches:', error)
+      setBranches([])
     }
   }
 
@@ -328,10 +345,29 @@ export default function AdminUsersPage() {
       : 'bg-gray-600 text-white'
   }
 
-  const formatBranches = (branches: string[]) => {
-    if (!branches || branches.length === 0) return 'All branches'
-    if (branches.length === 1) return `1 branch`
-    return `${branches.length} branches`
+  const formatBranches = (userBranches: string[], role: string) => {
+    // Super admin gets system-wide access (empty array)
+    if (role === 'super_admin' || !userBranches || userBranches.length === 0) {
+      return 'All branches'
+    }
+
+    // For single-branch system, show actual branch name
+    if (userBranches.length === 1) {
+      const branch = branches.find(b => b.id === userBranches[0])
+      return branch ? branch.name : 'Main Branch'
+    }
+
+    // For multi-branch scenarios, show count and names if available
+    if (userBranches.length <= 3) {
+      const branchNames = userBranches
+        .map(branchId => branches.find(b => b.id === branchId)?.name)
+        .filter(Boolean)
+        .join(', ')
+      return branchNames || `${userBranches.length} branch${userBranches.length === 1 ? '' : 'es'}`
+    }
+
+    // Fallback for many branches
+    return `${userBranches.length} branches`
   }
 
   if (isLoading) {
@@ -339,7 +375,7 @@ export default function AdminUsersPage() {
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading admin users...</p>
+          <p className="mt-4 text-gray-600 font-medium">Loading admin users...</p>
         </div>
       </div>
     )
@@ -498,7 +534,7 @@ export default function AdminUsersPage() {
                             )}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {admin.role === 'super_admin' ? 'System Administrator' : 'Branch Administrator'}
+                            {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
                           </div>
                         </div>
                       </div>
@@ -509,7 +545,7 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatBranches(admin.branches)}
+                      {formatBranches(admin.branches, admin.role)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(admin.is_active)}`}>
@@ -743,7 +779,7 @@ export default function AdminUsersPage() {
             : ''
         }
         confirmText="Delete Account"
-        type="destructive"
+        type="danger"
         isLoading={isDeleting}
       />
     </div>

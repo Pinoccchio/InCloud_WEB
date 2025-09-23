@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-InCloud is a cloud-based inventory management system for J.A's Food Trading, a frozen food distributor with 3 branches in Sampaloc, Manila. The system consists of:
+InCloud is a cloud-based inventory management system for J.A's Food Trading, a frozen food distributor operating from Sampaloc, Manila. The system consists of:
 
 - **Web Application** (this repository): Next.js-based admin interface for business operations
 - **Mobile Application**: Flutter app for customers (separate repository)
@@ -89,11 +89,31 @@ Based on J.A's Food Trading logo colors:
 ## Key Functional Requirements
 
 - **Real-time synchronization** between web and mobile platforms
-- **Multi-branch inventory** coordination
+- **Single-branch architecture** with main branch coordination
 - **Analytics**: Descriptive (trends/charts) and Prescriptive (AI recommendations)
 - **Alert system** for low stock and expiring products
 - **Role-based access control**
 - **Audit logging** for security and accountability
+
+## Branch Management Architecture
+
+The system implements a **single-branch architecture** with dynamic branch management:
+
+### Branch Structure
+- **Main Branch**: "J.A's Food Trading - Main Branch" (UUID-based ID)
+- **Branch Retrieval**: Dynamic loading from Supabase `branches` table
+- **No Hardcoded IDs**: All branch references use database lookups
+
+### User Role Access
+- **Super Admin**: Empty branches array `[]` = access to all branches
+- **Regular Admin**: Specific branch ID array (e.g., `["uuid"]`) = access to assigned branches
+- **Branch Display**: Frontend shows actual branch names dynamically
+
+### Implementation Notes
+- Branch IDs use proper UUIDs (not custom formats)
+- Frontend uses `getBranches()` function for dynamic branch loading
+- Admin creation automatically assigns appropriate branch access
+- Branch permissions are enforced at both frontend and backend levels
 
 ## Integration Notes
 
@@ -102,3 +122,15 @@ Based on J.A's Food Trading logo colors:
 - **Real-time Updates**: Supabase Realtime for live inventory sync
 - **File Storage**: Supabase Storage for product images
 - **Database**: PostgreSQL with Row Level Security policies
+
+## Development Environment
+
+### Git Configuration
+- **Author**: InCloud Developer <dev@jasfoodtrading.com>
+- **Professional Commits**: All commits use proper developer identity
+- **No Test Data**: Database contains professional admin user names
+
+### Database State
+- **Clean Data**: Professional admin users ("InCloud Super Admin", "InCloud Admin")
+- **Proper UUIDs**: All branch IDs use standard UUID format
+- **No Hardcoded Values**: System uses dynamic data retrieval throughout

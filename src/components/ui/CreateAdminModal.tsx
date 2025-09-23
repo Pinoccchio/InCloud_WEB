@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -8,8 +8,8 @@ import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
 import { XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline'
 import { Button } from './Button'
 import { Input } from './Input'
-import { createClient } from '@supabase/supabase-js'
 import { useToastActions } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Form validation schema
 const createAdminSchema = z.object({
@@ -17,21 +17,13 @@ const createAdminSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
-  role: z.enum(['admin', 'super_admin']),
-  branches: z.array(z.string()).optional()
+  role: z.enum(['admin', 'super_admin'])
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 })
 
 type CreateAdminFormData = z.infer<typeof createAdminSchema>
-
-interface Branch {
-  id: string
-  name: string
-  address: string
-  is_active: boolean
-}
 
 interface CreateAdminModalProps {
   isOpen: boolean
@@ -41,76 +33,32 @@ interface CreateAdminModalProps {
 
 export function CreateAdminModal({ isOpen, onClose, onSuccess }: CreateAdminModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [loadingBranches, setLoadingBranches] = useState(false)
   const { success, error } = useToastActions()
+  const { admin: currentAdmin } = useAuth()
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
-    watch,
-    setValue
+    reset
   } = useForm<CreateAdminFormData>({
     resolver: zodResolver(createAdminSchema),
     defaultValues: {
-      role: 'admin',
-      branches: []
+      role: 'admin'
     }
   })
 
-  const selectedRole = watch('role')
-  const selectedBranches = watch('branches') || []
-
-  // Load available branches
-  useEffect(() => {
-    if (isOpen) {
-      loadBranches()
-    }
-  }, [isOpen])
-
-  const loadBranches = async () => {
-    try {
-      setLoadingBranches(true)
-
-      // Create regular Supabase client for reading branches
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-
-      const { data, error } = await supabase
-        .from('branches')
-        .select('id, name, address, is_active')
-        .eq('is_active', true)
-        .order('name')
-
-      if (error) throw error
-      setBranches(data || [])
-    } catch (error) {
-      console.error('Error loading branches:', error)
-    } finally {
-      setLoadingBranches(false)
-    }
-  }
-
-  const handleBranchToggle = (branchId: string) => {
-    const currentBranches = selectedBranches || []
-    const isSelected = currentBranches.includes(branchId)
-
-    if (isSelected) {
-      setValue('branches', currentBranches.filter(id => id !== branchId))
-    } else {
-      setValue('branches', [...currentBranches, branchId])
-    }
-  }
 
   const onSubmit = async (data: CreateAdminFormData) => {
+    if (!currentAdmin) {
+      error('Authentication Error', 'You must be logged in to create admin users')
+      return
+    }
+
     try {
       setIsSubmitting(true)
 
-      // Step 1: Create Supabase Auth user using service role
+      // Create Supabase Auth user using service role with admin context
       const response = await fetch('/api/admin/create-user', {
         method: 'POST',
         headers: {
@@ -121,7 +69,8 @@ export function CreateAdminModal({ isOpen, onClose, onSuccess }: CreateAdminModa
           password: data.password,
           fullName: data.fullName,
           role: data.role,
-          branches: data.branches || []
+          currentAdminId: currentAdmin.id,
+          currentAdminRole: currentAdmin.role
         }),
       })
 
@@ -239,49 +188,6 @@ export function CreateAdminModal({ isOpen, onClose, onSuccess }: CreateAdminModa
                 )}
               </div>
 
-              {/* Branch Assignment (only for regular admins) */}
-              {selectedRole === 'admin' && (
-                <div>
-                  <label className="mb-3 block text-sm font-semibold text-gray-800">
-                    Branch Access
-                  </label>
-                  {loadingBranches ? (
-                    <div className="flex items-center justify-center py-4">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                      <span className="ml-2 text-sm text-gray-600">Loading branches...</span>
-                    </div>
-                  ) : branches.length === 0 ? (
-                    <p className="text-sm text-gray-600 py-2">No branches available</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-md p-3">
-                      {branches.map((branch) => (
-                        <label
-                          key={branch.id}
-                          className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedBranches.includes(branch.id)}
-                            onChange={() => handleBranchToggle(branch.id)}
-                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {branch.name}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {branch.address}
-                            </p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  <p className="mt-2 text-xs text-gray-600">
-                    Leave empty to grant access to all branches
-                  </p>
-                </div>
-              )}
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">

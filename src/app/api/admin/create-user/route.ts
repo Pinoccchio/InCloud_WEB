@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { validateSuperAdminWithContext } from '@/lib/auth-middleware'
 
 // Create Supabase admin client with service role key
 const supabaseAdmin = createClient(
@@ -15,7 +16,9 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, fullName, role, branches } = await request.json()
+    // Get admin context and validate permissions
+    const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
+    const { email, password, fullName, role } = requestBody
 
     // Validate required fields
     if (!email || !password || !fullName || !role) {
@@ -59,14 +62,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 2: Create admin profile using the database function
-    const { data: adminId, error: adminError } = await supabaseAdmin
-      .rpc('create_admin_profile', {
+    // Step 2: Get main branch ID for regular admins
+    let branchesToAssign: string[] = []
+
+    if (role === 'admin') {
+      // Regular admins get assigned to the main branch
+      const { data: branches, error: branchError } = await client
+        .from('branches')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1)
+        .single()
+
+      if (!branchError && branches) {
+        branchesToAssign = [branches.id]
+      }
+    }
+    // Super admins get empty array (access to all branches)
+
+    // Step 3: Create admin profile using the service role function
+    const { data: result, error: adminError } = await client
+      .rpc('create_admin_profile_service_role', {
         p_user_id: authUser.user.id,
         p_full_name: fullName,
         p_email: email,
+        p_current_admin_id: currentAdminId,
+        p_current_admin_role: currentAdminRole,
         p_role: role,
-        p_branches: branches || []
+        p_branches: branchesToAssign
       })
 
     if (adminError) {
@@ -85,8 +108,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if admin ID was returned
-    if (!adminId) {
+    // Check if the function call was successful
+    if (!result?.success) {
       // Cleanup: Delete the auth user if admin profile creation failed
       try {
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
@@ -95,7 +118,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { error: 'Failed to create admin profile' },
+        { error: result?.error || 'Failed to create admin profile' },
         { status: 400 }
       )
     }
@@ -105,7 +128,7 @@ export async function POST(request: NextRequest) {
       message: 'Admin user created successfully',
       data: {
         auth_user_id: authUser.user.id,
-        admin_id: adminId,
+        admin_id: result.admin_id,
         email: email,
         full_name: fullName,
         role: role
@@ -114,6 +137,18 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Unexpected error in create-user API:', error)
+
+    // Handle authentication errors specifically
+    if (error instanceof Error) {
+      if (error.message.includes('Authentication required') ||
+          error.message.includes('Super admin access required')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        )
+      }
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

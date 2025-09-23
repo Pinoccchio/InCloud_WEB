@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           branches: Json | null
           created_at: string | null
+          email: string | null
           full_name: string
           id: string
           is_active: boolean | null
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           branches?: Json | null
           created_at?: string | null
+          email?: string | null
           full_name: string
           id?: string
           is_active?: boolean | null
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           branches?: Json | null
           created_at?: string | null
+          email?: string | null
           full_name?: string
           id?: string
           is_active?: boolean | null
@@ -1433,11 +1436,24 @@ export type Database = {
       create_admin_profile: {
         Args: {
           p_branches?: Json
+          p_email: string
           p_full_name: string
           p_role?: Database["public"]["Enums"]["admin_role"]
           p_user_id: string
         }
         Returns: string
+      }
+      create_admin_profile_service_role: {
+        Args: {
+          p_branches?: Json
+          p_current_admin_id: string
+          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+          p_email: string
+          p_full_name: string
+          p_role?: Database["public"]["Enums"]["admin_role"]
+          p_user_id: string
+        }
+        Returns: Json
       }
       create_admin_session: {
         Args: {
@@ -1447,6 +1463,16 @@ export type Database = {
           p_user_agent?: string
         }
         Returns: string
+      }
+      create_admin_with_auth: {
+        Args: {
+          p_branches?: Json
+          p_email: string
+          p_full_name: string
+          p_password: string
+          p_role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Returns: Json
       }
       create_inventory_snapshot: {
         Args: { p_date?: string }
@@ -1476,13 +1502,17 @@ export type Database = {
         }
         Returns: string
       }
+      deactivate_admin_safely: {
+        Args: { p_admin_id: string }
+        Returns: Json
+      }
       generate_expiration_alerts: {
         Args: Record<PropertyKey, never>
         Returns: number
       }
       generate_inventory_trend_report: {
-        Args: { p_branch_id?: string; p_days_back?: number }
-        Returns: string
+        Args: { p_branch_id: string; p_days_back?: number }
+        Returns: Json
       }
       generate_low_stock_alerts: {
         Args: Record<PropertyKey, never>
@@ -1500,6 +1530,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_admin_permissions: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_available_branches: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       has_branch_access: {
         Args: { branch_id: string }
         Returns: boolean
@@ -1508,18 +1546,82 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      is_user_super_admin: {
+        Args: { user_uuid: string }
+        Returns: boolean
+      }
+      link_auth_user_to_admin: {
+        Args: {
+          p_auth_user_id: string
+          p_branches?: Json
+          p_email: string
+          p_full_name: string
+          p_role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Returns: Json
+      }
+      reset_admin_password: {
+        Args: { p_admin_id: string }
+        Returns: Json
+      }
+      reset_admin_password_service_role: {
+        Args: {
+          p_admin_id: string
+          p_current_admin_id: string
+          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+        }
+        Returns: Json
+      }
+      toggle_admin_status: {
+        Args: { p_admin_id: string; p_new_status: boolean }
+        Returns: Json
+      }
+      toggle_admin_status_service_role: {
+        Args: {
+          p_admin_id: string
+          p_current_admin_id: string
+          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+          p_new_status: boolean
+        }
+        Returns: Json
+      }
+      update_admin_details: {
+        Args: {
+          p_admin_id: string
+          p_branches?: Json
+          p_email?: string
+          p_full_name?: string
+          p_role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Returns: Json
+      }
+      update_admin_details_service_role: {
+        Args: {
+          p_admin_id: string
+          p_branches: Json
+          p_current_admin_id: string
+          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+          p_full_name: string
+          p_role: Database["public"]["Enums"]["admin_role"]
+        }
+        Returns: Json
+      }
+      update_admin_last_login: {
+        Args: { p_admin_id: string }
+        Returns: Json
+      }
       update_admin_role_and_branches: {
         Args: {
           p_admin_id: string
-          p_new_branches?: Json
-          p_new_role?: Database["public"]["Enums"]["admin_role"]
+          p_new_branches: Json
+          p_new_role: Database["public"]["Enums"]["admin_role"]
         }
         Returns: boolean
       }
       update_inventory_level: {
         Args: {
           p_branch_id: string
-          p_movement_type?: string
+          p_movement_type: string
           p_notes?: string
           p_product_id: string
           p_quantity_change: number
@@ -1540,7 +1642,7 @@ export type Database = {
           p_brand_id?: string
           p_category_id?: string
           p_description?: string
-          p_name?: string
+          p_name: string
           p_product_id: string
           p_sku?: string
           p_status?: Database["public"]["Enums"]["product_status"]
@@ -1548,12 +1650,16 @@ export type Database = {
         }
         Returns: boolean
       }
-      update_admin_last_login: {
-        Args: { p_admin_id: string }
-        Returns: Json
-      }
       validate_admin_access: {
         Args: { p_action: string; p_resource: string }
+        Returns: boolean
+      }
+      validate_admin_operation: {
+        Args: {
+          p_operation: string
+          p_record_id?: string
+          p_table_name: string
+        }
         Returns: boolean
       }
     }

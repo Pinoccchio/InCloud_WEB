@@ -8,25 +8,16 @@ import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
 import { XMarkIcon, PencilIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { Button } from './Button'
 import { Input } from './Input'
-import { createClient } from '@supabase/supabase-js'
 import { useToastActions } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 
 // Form validation schema
 const editAdminSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-  role: z.enum(['admin', 'super_admin']),
-  branches: z.array(z.string()).optional()
+  role: z.enum(['admin', 'super_admin'])
 })
 
 type EditAdminFormData = z.infer<typeof editAdminSchema>
-
-interface Branch {
-  id: string
-  name: string
-  address: string
-  is_active: boolean
-}
 
 interface AdminUser {
   id: string
@@ -34,7 +25,6 @@ interface AdminUser {
   full_name: string
   email?: string
   role: 'admin' | 'super_admin'
-  branches: string[]
   is_active: boolean
 }
 
@@ -48,8 +38,6 @@ interface EditAdminModalProps {
 export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResettingPassword, setIsResettingPassword] = useState(false)
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [loadingBranches, setLoadingBranches] = useState(false)
   const { success, error } = useToastActions()
   const { admin: currentAdmin } = useAuth()
 
@@ -57,62 +45,20 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
     register,
     handleSubmit,
     formState: { errors },
-    reset,
-    watch,
-    setValue
+    reset
   } = useForm<EditAdminFormData>({
     resolver: zodResolver(editAdminSchema)
   })
-
-  const selectedRole = watch('role')
-  const selectedBranches = watch('branches') || []
 
   // Load admin data into form when modal opens or admin changes
   useEffect(() => {
     if (isOpen && admin) {
       reset({
         fullName: admin.full_name,
-        role: admin.role,
-        branches: admin.branches || []
+        role: admin.role
       })
-      loadBranches()
     }
   }, [isOpen, admin, reset])
-
-  const loadBranches = async () => {
-    try {
-      setLoadingBranches(true)
-
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-
-      const { data, error } = await supabase
-        .from('branches')
-        .select('id, name, address, is_active')
-        .eq('is_active', true)
-        .order('name')
-
-      if (error) throw error
-      setBranches(data || [])
-    } catch (error) {
-      console.error('Error loading branches:', error)
-    } finally {
-      setLoadingBranches(false)
-    }
-  }
-
-  const handleBranchToggle = (branchId: string) => {
-    const currentBranches = selectedBranches || []
-    const isSelected = currentBranches.includes(branchId)
-
-    if (isSelected) {
-      setValue('branches', currentBranches.filter(id => id !== branchId))
-    } else {
-      setValue('branches', [...currentBranches, branchId])
-    }
-  }
 
   // Check if current admin can edit the target admin
   const canEditAdmin = () => {
@@ -157,7 +103,6 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
           adminId: admin.id,
           fullName: data.fullName,
           role: data.role,
-          branches: data.branches || [],
           currentAdminId: currentAdmin.id,
           currentAdminRole: currentAdmin.role
         }),
@@ -184,7 +129,10 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
   }
 
   const handlePasswordReset = async () => {
-    if (!admin) return
+    if (!admin || !currentAdmin) {
+      error('Authentication Error', 'You must be logged in to reset passwords')
+      return
+    }
 
     try {
       setIsResettingPassword(true)
@@ -195,7 +143,9 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          adminId: admin.id
+          adminId: admin.id,
+          currentAdminId: currentAdmin.id,
+          currentAdminRole: currentAdmin.role
         }),
       })
 
@@ -309,49 +259,6 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
                 )}
               </div>
 
-              {/* Branch Assignment (only for regular admins) */}
-              {selectedRole === 'admin' && (
-                <div>
-                  <label className="mb-3 block text-sm font-semibold text-gray-800">
-                    Branch Access
-                  </label>
-                  {loadingBranches ? (
-                    <div className="flex items-center justify-center py-4">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                      <span className="ml-2 text-sm text-gray-600">Loading branches...</span>
-                    </div>
-                  ) : branches.length === 0 ? (
-                    <p className="text-sm text-gray-600 py-2">No branches available</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-md p-3">
-                      {branches.map((branch) => (
-                        <label
-                          key={branch.id}
-                          className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedBranches.includes(branch.id)}
-                            onChange={() => handleBranchToggle(branch.id)}
-                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {branch.name}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {branch.address}
-                            </p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  <p className="mt-2 text-xs text-gray-600">
-                    Leave empty to grant access to all branches
-                  </p>
-                </div>
-              )}
 
               {/* Password Reset Section */}
               <div className="border-t border-gray-200 pt-4">

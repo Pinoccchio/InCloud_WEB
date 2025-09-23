@@ -16,7 +16,6 @@ interface AdminData {
   email: string
   fullName: string
   role: 'admin' | 'super_admin'
-  branches: string[]
 }
 
 interface AdminHeaderProps {
@@ -33,11 +32,16 @@ export default function AdminHeader({ adminData }: AdminHeaderProps) {
     router.push('/login')
   }
 
-  const formatBranches = (branches: string[]) => {
-    if (!branches || branches.length === 0) return 'All branches'
-    if (branches.length === 1) return branches[0]
-    return `${branches.length} branches`
+  const getManagingContext = () => {
+    if (!adminData) return 'Loading...'
+
+    if (adminData.role === 'super_admin') {
+      return 'System-wide (All Branches)'
+    } else {
+      return 'J.A\'s Food Trading - Main Branch'
+    }
   }
+
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
@@ -49,7 +53,7 @@ export default function AdminHeader({ adminData }: AdminHeaderProps) {
               InCloud Admin
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Managing: {formatBranches(adminData?.branches || [])}
+              Managing: {getManagingContext()}
             </p>
           </div>
 

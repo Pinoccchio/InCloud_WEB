@@ -9,7 +9,7 @@ import {
   CheckCircleIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline'
-import { Button } from '@/components/ui'
+import { Button, LoadingSpinner } from '@/components/ui'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/auth'
 
@@ -112,8 +112,8 @@ export default function SuperAdminDashboard() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600 font-medium">Loading dashboard...</p>
         </div>
       </div>
     )
