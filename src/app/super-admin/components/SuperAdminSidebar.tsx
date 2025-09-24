@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import {
   HomeIcon,
   UserGroupIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline'
 import { Logo } from '@/components/ui'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -42,6 +43,12 @@ const navigation: NavItem[] = [
     href: '/super-admin/users',
     icon: UserGroupIcon,
     description: 'Manage all system users'
+  },
+  {
+    name: 'Audit Logs',
+    href: '/super-admin/audit',
+    icon: ClockIcon,
+    description: 'Track all administrative actions'
   },
 ]
 

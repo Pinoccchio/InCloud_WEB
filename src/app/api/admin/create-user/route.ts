@@ -20,6 +20,9 @@ export async function POST(request: NextRequest) {
     const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
     const { email, password, fullName, role } = requestBody
 
+    // Get audit metadata (currently unused)
+    // const auditMetadata = getRequestMetadata(request)
+
     // Validate required fields
     if (!email || !password || !fullName || !role) {
       return NextResponse.json(

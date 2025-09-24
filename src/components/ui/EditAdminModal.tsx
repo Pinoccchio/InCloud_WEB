@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
-import { XMarkIcon, PencilIcon, KeyIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, PencilIcon, KeyIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { Button } from './Button'
 import { Input } from './Input'
 import { useToastActions } from '@/contexts/ToastContext'
@@ -14,7 +14,8 @@ import { useAuth } from '@/contexts/AuthContext'
 // Form validation schema
 const editAdminSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-  role: z.enum(['admin', 'super_admin'])
+  role: z.enum(['admin', 'super_admin']),
+  isActive: z.boolean()
 })
 
 type EditAdminFormData = z.infer<typeof editAdminSchema>
@@ -26,6 +27,7 @@ interface AdminUser {
   email?: string
   role: 'admin' | 'super_admin'
   is_active: boolean
+  branches?: string[]
 }
 
 interface EditAdminModalProps {
@@ -55,7 +57,8 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
     if (isOpen && admin) {
       reset({
         fullName: admin.full_name,
-        role: admin.role
+        role: admin.role,
+        isActive: admin.is_active
       })
     }
   }, [isOpen, admin, reset])
@@ -74,6 +77,23 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
     if (admin.role === 'super_admin' && admin.id !== currentAdmin.id) return false
 
     // Super admin can edit regular admins
+    return admin.role === 'admin'
+  }
+
+  // Check if current admin can toggle status
+  const canToggleStatus = () => {
+    if (!currentAdmin || !admin) return false
+
+    // Must be super admin to toggle status
+    if (currentAdmin.role !== 'super_admin') return false
+
+    // Super admin CANNOT toggle their own status (security protection)
+    if (admin.id === currentAdmin.id) return false
+
+    // Super admin cannot toggle other super admin status
+    if (admin.role === 'super_admin' && admin.id !== currentAdmin.id) return false
+
+    // Super admin can toggle regular admin status
     return admin.role === 'admin'
   }
 
@@ -103,6 +123,7 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
           adminId: admin.id,
           fullName: data.fullName,
           role: data.role,
+          isActive: data.isActive,
           currentAdminId: currentAdmin.id,
           currentAdminRole: currentAdmin.role
         }),
@@ -180,12 +201,12 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
   if (!admin) return null
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/25" />
+    <Dialog open={isOpen} onClose={handleClose} className="relative z-60">
+      <div className="fixed inset-0 bg-black/25 z-60" />
 
-      <div className="fixed inset-0 overflow-y-auto">
+      <div className="fixed inset-0 overflow-y-auto z-60">
         <div className="flex min-h-full items-center justify-center p-4 text-center">
-          <DialogPanel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+          <DialogPanel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all z-60 relative">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center">
                 <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
@@ -256,6 +277,62 @@ export function EditAdminModal({ isOpen, onClose, onSuccess, admin }: EditAdminM
                 )}
                 {errors.role && (
                   <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+                )}
+              </div>
+
+              {/* Account Status */}
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-800">
+                  Account Status
+                </label>
+                {canToggleStatus() ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        {...register('isActive')}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-900">Account is active</span>
+                    </div>
+                    <div className="flex items-start space-x-2">
+                      {admin.is_active ? (
+                        <CheckCircleIcon className="w-5 h-5 text-green-500 mt-0.5" />
+                      ) : (
+                        <XCircleIcon className="w-5 h-5 text-red-500 mt-0.5" />
+                      )}
+                      <div>
+                        <p className="text-sm text-gray-700">
+                          {admin.is_active
+                            ? 'This admin can access the system and perform their assigned tasks.'
+                            : 'This admin cannot access the system. Deactivated accounts retain their data but cannot log in.'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 items-center">
+                      {admin.is_active ? (
+                        <>
+                          <CheckCircleIcon className="w-4 h-4 text-green-500 mr-2" />
+                          Active
+                        </>
+                      ) : (
+                        <>
+                          <XCircleIcon className="w-4 h-4 text-red-500 mr-2" />
+                          Inactive
+                        </>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {admin.id === currentAdmin?.id
+                        ? 'You cannot change your own account status'
+                        : 'Account status cannot be changed for this user'
+                      }
+                    </p>
+                  </div>
                 )}
               </div>
 

@@ -1,21 +1,23 @@
 'use client'
 
-import { useState, useEffect, useRef, useLayoutEffect } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   UserPlusIcon,
   PencilIcon,
   UserGroupIcon,
   MagnifyingGlassIcon,
+  KeyIcon,
   TrashIcon,
+  ClockIcon,
   EyeIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal, ConfirmDialog } from '@/components/ui'
 import { supabase, getBranches, type BranchesResult } from '@/lib/supabase/auth'
 import { useToastActions } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { ViewProfileModal } from './components/ViewProfileModal'
+import { ViewHistoryModal } from './components/ViewHistoryModal'
+import { ViewDetailsModal } from './components/ViewDetailsModal'
 
 interface AdminUser {
   id: string
@@ -40,24 +42,18 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{ admin: AdminUser, newStatus: boolean } | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
-  const [dropdownPosition, setDropdownPosition] = useState<{
-    x: number
-    y: number
-    position: 'top' | 'bottom'
-    align: 'left' | 'right'
-  } | null>(null)
   const [branches, setBranches] = useState<BranchesResult>([])
-  const [showViewProfile, setShowViewProfile] = useState(false)
-  const [selectedAdminForProfile, setSelectedAdminForProfile] = useState<AdminUser | null>(null)
-  const [isOpeningModal, setIsOpeningModal] = useState(false)
-
-  // Refs for dropdown positioning
-  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
-  const dropdownContentRef = useRef<HTMLDivElement | null>(null)
+  const [showAuditHistory, setShowAuditHistory] = useState(false)
+  const [selectedAdminForAudit, setSelectedAdminForAudit] = useState<AdminUser | null>(null)
+  const [showViewDetails, setShowViewDetails] = useState(false)
+  const [selectedAdminForDetails, setSelectedAdminForDetails] = useState<AdminUser | null>(null)
   const searchParams = useSearchParams()
   const { success, error } = useToastActions()
   const { admin: currentAdmin } = useAuth()
@@ -79,6 +75,21 @@ export default function AdminUsersPage() {
     return targetAdmin.role === 'admin'
   }
 
+  const canToggleStatus = (targetAdmin: AdminUser) => {
+    if (!currentAdmin) return false
+
+    // Must be super admin to toggle any admin status
+    if (currentAdmin.role !== 'super_admin') return false
+
+    // Super admin CANNOT deactivate themselves (security protection)
+    if (targetAdmin.id === currentAdmin.id) return false
+
+    // Super admin cannot toggle other super admin status
+    if (targetAdmin.role === 'super_admin' && targetAdmin.id !== currentAdmin.id) return false
+
+    // Super admin can toggle regular admin status
+    return targetAdmin.role === 'admin'
+  }
 
   const canDeleteAdmin = (targetAdmin: AdminUser) => {
     if (!currentAdmin) return false
@@ -113,6 +124,10 @@ export default function AdminUsersPage() {
       return 'Protected account'
     }
 
+    // Has edit access but no status toggle
+    if (canEditAdmin(targetAdmin) && !canToggleStatus(targetAdmin)) {
+      return 'Edit only'
+    }
 
     return 'No actions available'
   }
@@ -127,122 +142,11 @@ export default function AdminUsersPage() {
     }
   }, [searchParams])
 
-  // Debug current admin info
-  useEffect(() => {
-    console.log('[DROPDOWN DEBUG] Component mounted/updated. Current admin:', currentAdmin?.full_name, 'Role:', currentAdmin?.role)
-  }, [currentAdmin])
-
-  // Enhanced dropdown positioning with precise coordinates
-  const calculateDropdownPosition = (adminId: string) => {
-    const buttonRef = dropdownRefs.current[adminId]
-    if (!buttonRef) return
-
-    const buttonRect = buttonRef.getBoundingClientRect()
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-
-    // Dropdown dimensions - will be measured dynamically, these are fallback estimates
-    const dropdownWidth = 224 // w-56 = 14rem = 224px
-    const dropdownMinHeight = 120 // Minimum height for basic actions
-    const dropdownMaxHeight = 256 // max-h-64 = 16rem = 256px
-
-    // Calculate available space in all directions
-    const spaceAbove = buttonRect.top
-    const spaceBelow = viewportHeight - buttonRect.bottom
-    const spaceLeft = buttonRect.left
-    const spaceRight = viewportWidth - buttonRect.right
-
-    // Determine vertical position
-    let position: 'top' | 'bottom' = 'bottom'
-    let y = buttonRect.bottom + 8 // 8px gap below button
-
-    if (spaceBelow < dropdownMinHeight && spaceAbove > spaceBelow) {
-      position = 'top'
-      y = buttonRect.top - 8 // 8px gap above button
-    }
-
-    // Determine horizontal alignment
-    let align: 'left' | 'right' = 'right'
-    let x = buttonRect.right - dropdownWidth // Align right edge with button right edge
-
-    // If dropdown would go off the left edge, align to the left
-    if (x < 8) { // 8px minimum margin from viewport edge
-      align = 'left'
-      x = buttonRect.left
-    }
-
-    // Ensure dropdown doesn't go off the right edge
-    if (x + dropdownWidth > viewportWidth - 8) {
-      x = viewportWidth - dropdownWidth - 8
-    }
-
-    // Ensure minimum margins from viewport edges
-    x = Math.max(8, Math.min(x, viewportWidth - dropdownWidth - 8))
-
-    if (position === 'top') {
-      y = Math.max(8, y - dropdownMaxHeight)
-    } else {
-      y = Math.min(y, viewportHeight - dropdownMinHeight - 8)
-    }
-
-    setDropdownPosition({
-      x,
-      y,
-      position,
-      align
-    })
-  }
-
-  // Calculate position when dropdown opens and after content renders
-  useLayoutEffect(() => {
-    if (openDropdown) {
-      // Small delay to ensure DOM is ready
-      setTimeout(() => calculateDropdownPosition(openDropdown), 0)
-    }
-  }, [openDropdown])
-
-  // Recalculate position after dropdown content is rendered (for accurate measurements)
-  useLayoutEffect(() => {
-    if (dropdownPosition && dropdownContentRef.current) {
-      const content = dropdownContentRef.current
-      const actualHeight = content.scrollHeight
-      const actualWidth = content.scrollWidth
-
-      // If actual dimensions differ significantly from estimates, recalculate
-      const buttonRef = dropdownRefs.current[openDropdown!]
-      if (buttonRef) {
-        const buttonRect = buttonRef.getBoundingClientRect()
-        const viewportHeight = window.innerHeight
-        const spaceBelow = viewportHeight - buttonRect.bottom
-        const spaceAbove = buttonRect.top
-
-        // Recalculate if current position would be clipped
-        let needsRepositioning = false
-
-        if (dropdownPosition.position === 'bottom' && spaceBelow < actualHeight + 16) {
-          if (spaceAbove > spaceBelow) {
-            needsRepositioning = true
-          }
-        } else if (dropdownPosition.position === 'top' && spaceAbove < actualHeight + 16) {
-          if (spaceBelow > spaceAbove) {
-            needsRepositioning = true
-          }
-        }
-
-        if (needsRepositioning) {
-          calculateDropdownPosition(openDropdown!)
-        }
-      }
-    }
-  }, [dropdownPosition, openDropdown])
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = () => {
       if (openDropdown) {
-        console.log('[DROPDOWN DEBUG] Closing dropdown via outside click:', openDropdown)
         setOpenDropdown(null)
-        setDropdownPosition(null)
       }
     }
 
@@ -294,6 +198,64 @@ export default function AdminUsersPage() {
     }
   }
 
+  const handleToggleStatus = (admin: AdminUser) => {
+    if (!canToggleStatus(admin)) {
+      error(
+        'Permission Denied',
+        'You do not have permission to change this admin\'s status.'
+      )
+      return
+    }
+    setConfirmAction({ admin, newStatus: !admin.is_active })
+    setShowConfirmDialog(true)
+  }
+
+  const confirmToggleStatus = async () => {
+    if (!confirmAction) return
+
+    try {
+      setIsUpdatingStatus(true)
+      const { admin, newStatus } = confirmAction
+
+      const response = await fetch('/api/admin/toggle-status', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminId: admin.id,
+          isActive: newStatus,
+          currentAdminId: currentAdmin?.id,
+          currentAdminRole: currentAdmin?.role
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update admin status')
+      }
+
+      // Show success message
+      success(
+        'Status Updated',
+        `${admin.full_name} has been ${newStatus ? 'activated' : 'deactivated'} successfully`
+      )
+
+      // Refresh admin list
+      loadAdmins()
+    } catch (err) {
+      console.error('Error updating admin status:', err)
+      error(
+        'Status Update Failed',
+        err instanceof Error ? err.message : 'Failed to update admin status'
+      )
+    } finally {
+      setIsUpdatingStatus(false)
+      setShowConfirmDialog(false)
+      setConfirmAction(null)
+    }
+  }
 
   const handleEditAdmin = (admin: AdminUser) => {
     if (!canEditAdmin(admin)) {
@@ -369,29 +331,16 @@ export default function AdminUsersPage() {
     loadAdmins()
   }
 
-  // Helper function to safely close dropdown and open modal
-  const closeDropdownAndOpenModal = async (modalAction: () => void) => {
-    if (isOpeningModal) return // Prevent rapid clicks
-
-    setIsOpeningModal(true)
-
-    // Close dropdown immediately
-    setOpenDropdown(null)
-    setDropdownPosition(null)
-
-    // Wait for dropdown to fully close and cleanup
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // Execute modal action
-    modalAction()
-
-    setIsOpeningModal(false)
+  const handleViewAuditHistory = (admin: AdminUser) => {
+    setSelectedAdminForAudit(admin)
+    setShowAuditHistory(true)
   }
 
-  const handleViewProfile = (admin: AdminUser) => {
-    console.log('[DROPDOWN DEBUG] handleViewProfile called for admin:', admin.full_name, admin.id)
-    setSelectedAdminForProfile(admin)
-    setShowViewProfile(true)
+  // Removed handleViewFullAuditHistory as it's replaced by ViewDetailsModal
+
+  const handleViewDetails = (admin: AdminUser) => {
+    setSelectedAdminForDetails(admin)
+    setShowViewDetails(true)
   }
 
   const filteredAdmins = admins.filter(admin => {
@@ -634,26 +583,126 @@ export default function AdminUsersPage() {
                         {/* Actions Dropdown - shadcn Button */}
                         <div className="relative">
                           <button
-                            ref={(el) => { dropdownRefs.current[admin.id] = el }}
                             onClick={(e) => {
                               e.stopPropagation()
-                              const newState = openDropdown === admin.id ? null : admin.id
-                              console.log('[DROPDOWN DEBUG] Dropdown button clicked for admin:', admin.full_name, 'Current state:', openDropdown, 'New state:', newState)
-                              console.log('[DROPDOWN DEBUG] Current admin permissions:')
-                              console.log('  - canEditAdmin:', canEditAdmin(admin))
-                              console.log('  - canDeleteAdmin:', canDeleteAdmin(admin))
-                              console.log('  - currentAdmin role:', currentAdmin?.role)
-                              console.log('  - target admin role:', admin.role)
-                              setOpenDropdown(newState)
-                              if (!newState) {
-                                setDropdownPosition(null)
-                              }
+                              setOpenDropdown(openDropdown === admin.id ? null : admin.id)
                             }}
                             className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                           >
                             <span className="text-lg font-bold">⋮</span>
                           </button>
 
+                          {openDropdown === admin.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setOpenDropdown(null)}
+                              />
+                              <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                <div className="py-1">
+                                  {/* View Audit History - Always visible for all admins */}
+                                  <button
+                                    onClick={() => {
+                                      handleViewAuditHistory(admin)
+                                      setOpenDropdown(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                                  >
+                                    <ClockIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                    View History
+                                  </button>
+
+                                  {/* View Admin Details */}
+                                  <button
+                                    onClick={() => {
+                                      handleViewDetails(admin)
+                                      setOpenDropdown(null)
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                                  >
+                                    <EyeIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                    View Details
+                                  </button>
+
+                                  <div className="border-t border-gray-100 my-1"></div>
+
+                                  {/* Edit Profile - Always visible */}
+                                  {canEditAdmin(admin) ? (
+                                    <button
+                                      onClick={() => {
+                                        handleEditAdmin(admin)
+                                        setOpenDropdown(null)
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                                    >
+                                      <PencilIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                      Edit Profile
+                                    </button>
+                                  ) : (
+                                    <div className="px-4 py-2 cursor-not-allowed bg-gray-50">
+                                      <div className="flex items-center text-gray-400">
+                                        <PencilIcon className="w-4 h-4 mr-2" />
+                                        <span className="text-sm">Edit Profile</span>
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1 ml-6">
+                                        {getActionMessage(admin)}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Status Toggle - Only for Regular Admins */}
+                                  {admin.role === 'admin' && (
+                                    <>
+                                      <div className="border-t border-gray-100 my-1"></div>
+                                      {canToggleStatus(admin) ? (
+                                        <button
+                                          onClick={() => {
+                                            handleToggleStatus(admin)
+                                            setOpenDropdown(null)
+                                          }}
+                                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center ${
+                                            admin.is_active
+                                              ? 'text-red-600 hover:text-red-700'
+                                              : 'text-green-600 hover:text-green-700'
+                                          }`}
+                                        >
+                                          <KeyIcon className="w-4 h-4 mr-2" />
+                                          {admin.is_active ? 'Deactivate' : 'Activate'}
+                                        </button>
+                                      ) : (
+                                        <div className="px-4 py-2 cursor-not-allowed bg-gray-50">
+                                          <div className="flex items-center text-gray-400">
+                                            <KeyIcon className="w-4 h-4 mr-2" />
+                                            <span className="text-sm">Change Status</span>
+                                          </div>
+                                          <div className="text-xs text-gray-500 mt-1 ml-6">
+                                            Restricted
+                                          </div>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+
+                                  {/* Delete Account - Only for Regular Admins */}
+                                  {admin.role === 'admin' && canDeleteAdmin(admin) && (
+                                    <>
+                                      <div className="border-t border-gray-100 my-1"></div>
+                                      <button
+                                        onClick={() => {
+                                          handleDeleteAdmin(admin)
+                                          setOpenDropdown(null)
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
+                                      >
+                                        <TrashIcon className="w-4 h-4 mr-2" />
+                                        Delete Account
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -665,116 +714,6 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
-
-      {/* Portal-based Dropdown - Render outside table hierarchy */}
-      {openDropdown && dropdownPosition && currentAdmin && typeof window !== 'undefined' && createPortal(
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => {
-              setOpenDropdown(null)
-              setDropdownPosition(null)
-            }}
-          />
-
-          {/* Dropdown Content */}
-          <div
-            ref={dropdownContentRef}
-            className="fixed w-56 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 max-h-64 overflow-y-auto transition-all duration-200 ease-out"
-            style={{
-              left: `${dropdownPosition.x}px`,
-              [dropdownPosition.position === 'top' ? 'bottom' : 'top']:
-                dropdownPosition.position === 'top'
-                  ? `${window.innerHeight - dropdownPosition.y}px`
-                  : `${dropdownPosition.y}px`,
-              filter: 'drop-shadow(0 20px 25px rgb(0 0 0 / 0.15))',
-            }}
-          >
-            <div className="py-1">
-              {(() => {
-                const admin = admins.find(a => a.id === openDropdown)
-                if (!admin) return null
-
-                return (
-                  <>
-                    {/* View Profile - Always visible for all admins */}
-                    <button
-                      onClick={() => {
-                        console.log('[DROPDOWN DEBUG] View Profile button clicked for admin:', admin.full_name)
-                        closeDropdownAndOpenModal(() => handleViewProfile(admin))
-                      }}
-                      disabled={isOpeningModal}
-                      className={`w-full text-left px-4 py-2 text-sm flex items-center transition-colors ${
-                        isOpeningModal
-                          ? 'text-gray-400 cursor-not-allowed bg-gray-50'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <EyeIcon className="w-4 h-4 mr-2 text-gray-500" />
-                      View Profile
-                    </button>
-
-                    <div className="border-t border-gray-100 my-1"></div>
-
-                    {/* Edit Profile */}
-                    {canEditAdmin(admin) ? (
-                      <button
-                        onClick={() => {
-                          console.log('[DROPDOWN DEBUG] Edit Profile button clicked for admin:', admin.full_name)
-                          closeDropdownAndOpenModal(() => handleEditAdmin(admin))
-                        }}
-                        disabled={isOpeningModal}
-                        className={`w-full text-left px-4 py-2 text-sm flex items-center transition-colors ${
-                          isOpeningModal
-                            ? 'text-gray-400 cursor-not-allowed bg-gray-50'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <PencilIcon className="w-4 h-4 mr-2 text-gray-500" />
-                        Edit Profile
-                      </button>
-                    ) : (
-                      <div className="px-4 py-2 cursor-not-allowed bg-gray-50">
-                        <div className="flex items-center text-gray-400">
-                          <PencilIcon className="w-4 h-4 mr-2" />
-                          <span className="text-sm">Edit Profile</span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 ml-6">
-                          {getActionMessage(admin)}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Delete Account - Only for Regular Admins */}
-                    {admin.role === 'admin' && canDeleteAdmin(admin) && (
-                      <>
-                        <div className="border-t border-gray-100 my-1"></div>
-                        <button
-                          onClick={() => {
-                            console.log('[DROPDOWN DEBUG] Delete button clicked for admin:', admin.full_name)
-                            closeDropdownAndOpenModal(() => handleDeleteAdmin(admin))
-                          }}
-                          disabled={isOpeningModal}
-                          className={`w-full text-left px-4 py-2 text-sm flex items-center transition-colors ${
-                            isOpeningModal
-                              ? 'text-red-400 cursor-not-allowed bg-red-25'
-                              : 'text-red-600 hover:text-red-700 hover:bg-red-50'
-                          }`}
-                        >
-                          <TrashIcon className="w-4 h-4 mr-2" />
-                          Delete Account
-                        </button>
-                      </>
-                    )}
-                  </>
-                )
-              })()}
-            </div>
-          </div>
-        </>,
-        document.body
-      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 min-w-0">
@@ -854,6 +793,23 @@ export default function AdminUsersPage() {
         admin={selectedAdmin}
       />
 
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => {
+          setShowConfirmDialog(false)
+          setConfirmAction(null)
+        }}
+        onConfirm={confirmToggleStatus}
+        title={confirmAction?.newStatus ? 'Activate Admin' : 'Deactivate Admin'}
+        message={
+          confirmAction?.newStatus
+            ? `Are you sure you want to activate ${confirmAction.admin.full_name}? They will regain access to the system.`
+            : `Are you sure you want to deactivate ${confirmAction?.admin.full_name}? They will lose access to the system.`
+        }
+        confirmText={confirmAction?.newStatus ? 'Activate' : 'Deactivate'}
+        type={confirmAction?.newStatus ? 'info' : 'warning'}
+        isLoading={isUpdatingStatus}
+      />
 
       <ConfirmDialog
         isOpen={showDeleteDialog}
@@ -873,14 +829,24 @@ export default function AdminUsersPage() {
         isLoading={isDeleting}
       />
 
-      {/* View Profile Modal */}
-      <ViewProfileModal
-        isOpen={showViewProfile}
+      {/* View History Modal */}
+      <ViewHistoryModal
+        isOpen={showAuditHistory}
         onClose={() => {
-          setShowViewProfile(false)
-          setSelectedAdminForProfile(null)
+          setShowAuditHistory(false)
+          setSelectedAdminForAudit(null)
         }}
-        admin={selectedAdminForProfile}
+        admin={selectedAdminForAudit}
+      />
+
+      {/* View Details Modal */}
+      <ViewDetailsModal
+        isOpen={showViewDetails}
+        onClose={() => {
+          setShowViewDetails(false)
+          setSelectedAdminForDetails(null)
+        }}
+        admin={selectedAdminForDetails}
       />
     </div>
   )

@@ -14,11 +14,7 @@ const supabaseAdmin = createClient(
   }
 )
 
-// Create regular client for database operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Note: Using admin client from auth middleware for privileged operations
 
 export async function POST(request: NextRequest) {
   try {

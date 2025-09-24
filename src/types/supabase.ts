@@ -289,41 +289,44 @@ export type Database = {
         Row: {
           action: Database["public"]["Enums"]["audit_action"]
           admin_id: string | null
+          change_context: string | null
+          change_summary: string | null
           created_at: string | null
+          field_changes: Json | null
           id: string
-          ip_address: unknown | null
           metadata: Json | null
           new_data: Json | null
           old_data: Json | null
           record_id: string | null
           table_name: string | null
-          user_agent: string | null
         }
         Insert: {
           action: Database["public"]["Enums"]["audit_action"]
           admin_id?: string | null
+          change_context?: string | null
+          change_summary?: string | null
           created_at?: string | null
+          field_changes?: Json | null
           id?: string
-          ip_address?: unknown | null
           metadata?: Json | null
           new_data?: Json | null
           old_data?: Json | null
           record_id?: string | null
           table_name?: string | null
-          user_agent?: string | null
         }
         Update: {
           action?: Database["public"]["Enums"]["audit_action"]
           admin_id?: string | null
+          change_context?: string | null
+          change_summary?: string | null
           created_at?: string | null
+          field_changes?: Json | null
           id?: string
-          ip_address?: unknown | null
           metadata?: Json | null
           new_data?: Json | null
           old_data?: Json | null
           record_id?: string | null
           table_name?: string | null
-          user_agent?: string | null
         }
         Relationships: [
           {
@@ -1445,12 +1448,12 @@ export type Database = {
       }
       create_admin_profile_service_role: {
         Args: {
-          p_branches?: Json
+          p_branches: Json
           p_current_admin_id: string
           p_current_admin_role: Database["public"]["Enums"]["admin_role"]
           p_email: string
           p_full_name: string
-          p_role?: Database["public"]["Enums"]["admin_role"]
+          p_role: Database["public"]["Enums"]["admin_role"]
           p_user_id: string
         }
         Returns: Json
@@ -1459,8 +1462,6 @@ export type Database = {
         Args: {
           p_admin_id: string
           p_expires_in?: unknown
-          p_ip_address?: unknown
-          p_user_agent?: string
         }
         Returns: string
       }

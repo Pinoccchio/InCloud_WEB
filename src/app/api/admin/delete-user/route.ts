@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateSuperAdminWithContext } from '@/lib/auth-middleware'
+import { validateSuperAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
 
 export async function DELETE(request: NextRequest) {
   try {
     // Get admin context and validate permissions
-    const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
-    const { adminId } = requestBody
+    const { client, currentAdminId, requestBody } = await validateSuperAdminWithContext(request)
+    const { adminId, reason } = requestBody
+
+    // Get audit metadata
+    const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!adminId) {
@@ -82,7 +85,10 @@ export async function DELETE(request: NextRequest) {
           metadata: {
             deleted_admin_name: adminToDelete.full_name,
             deleted_admin_role: adminToDelete.role,
-            had_auth_user: !!adminToDelete.user_id
+            had_auth_user: !!adminToDelete.user_id,
+            reason: reason || null,
+            action_context: 'admin_deletion',
+            timestamp: auditMetadata.timestamp
           }
         })
     } catch (auditError) {

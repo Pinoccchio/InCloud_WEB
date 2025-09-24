@@ -5,7 +5,10 @@ export async function PUT(request: NextRequest) {
   try {
     // Get admin context and validate permissions
     const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
-    const { adminId, fullName, role, branches } = requestBody
+    const { adminId, fullName, role, branches, isActive } = requestBody
+
+    // Get audit metadata (currently unused)
+    // const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!adminId || !fullName || !role) {
@@ -30,6 +33,7 @@ export async function PUT(request: NextRequest) {
         p_full_name: fullName,
         p_role: role,
         p_branches: branches || [],
+        p_is_active: isActive,
         p_current_admin_id: currentAdminId,
         p_current_admin_role: currentAdminRole
       })

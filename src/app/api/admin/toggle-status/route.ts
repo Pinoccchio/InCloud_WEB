@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateSuperAdminWithContext } from '@/lib/auth-middleware'
+import { validateSuperAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
 
 export async function PUT(request: NextRequest) {
   try {
     // Get admin context and validate permissions
     const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
-    const { adminId, isActive } = requestBody
+    const { adminId, isActive, reason } = requestBody
+
+    // Get audit metadata
+    const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!adminId || typeof isActive !== 'boolean') {
@@ -21,7 +24,12 @@ export async function PUT(request: NextRequest) {
         p_admin_id: adminId,
         p_new_status: isActive,
         p_current_admin_id: currentAdminId,
-        p_current_admin_role: currentAdminRole
+        p_current_admin_role: currentAdminRole,
+        p_audit_metadata: {
+          ...auditMetadata,
+          reason: reason || null,
+          action_context: 'admin_status_toggle'
+        }
       })
 
     if (error) {
