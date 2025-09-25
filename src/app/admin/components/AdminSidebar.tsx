@@ -9,7 +9,6 @@ import {
   ClipboardDocumentListIcon,
   ChartBarIcon,
   BellIcon,
-  Cog6ToothIcon,
   BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline'
 import { Logo } from '@/components/ui'
@@ -71,12 +70,6 @@ const navigation: NavItem[] = [
     href: '/admin/alerts',
     icon: BellIcon,
     description: 'Notifications and warnings'
-  },
-  {
-    name: 'Settings',
-    href: '/admin/settings',
-    icon: Cog6ToothIcon,
-    description: 'Preferences and audit logs'
   },
 ]
 
