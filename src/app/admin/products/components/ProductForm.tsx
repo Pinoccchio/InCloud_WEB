@@ -90,13 +90,13 @@ export default function ProductForm({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'basic' | 'images' | 'pricing' | 'review'>('basic')
+  const [step, setStep] = useState(1)
 
-  const tabs = [
-    { id: 'basic', name: 'Basic Info', icon: CubeIcon, description: 'Product details and classification' },
-    { id: 'images', name: 'Images', icon: PhotoIcon, description: 'Product photos and gallery' },
-    { id: 'pricing', name: 'Pricing', icon: CurrencyDollarIcon, description: 'Set pricing tiers and rules' },
-    { id: 'review', name: 'Review', icon: DocumentCheckIcon, description: 'Review and save product' }
+  const steps = [
+    { number: 1, name: 'Basic Info', icon: CubeIcon, description: 'Product details and classification' },
+    { number: 2, name: 'Images', icon: PhotoIcon, description: 'Product photos and gallery' },
+    { number: 3, name: 'Pricing', icon: CurrencyDollarIcon, description: 'Set pricing tiers and rules' },
+    { number: 4, name: 'Review', icon: DocumentCheckIcon, description: 'Review and save product' }
   ] as const
 
   // Initialize form when product changes
@@ -228,7 +228,45 @@ export default function ProductForm({
       images: [],
       pricingTiers: []
     })
-    setActiveTab('basic')
+    setStep(1)
+    setError(null)
+  }
+
+  const validateStep = (currentStep: number): string | null => {
+    switch (currentStep) {
+      case 1:
+        if (!formData.name.trim()) return 'Product name is required'
+        if (!formData.category_id) return 'Category is required'
+        if (!formData.brand_id) return 'Brand is required'
+        return null
+      case 2:
+        // Images are optional, but we could warn if none uploaded
+        return null
+      case 3:
+        if (formData.pricingTiers.length === 0) return 'At least one pricing tier is required'
+        const hasActiveTiers = formData.pricingTiers.some(tier => tier.is_active)
+        if (!hasActiveTiers) return 'At least one pricing tier must be active'
+        return null
+      case 4:
+        // Final validation - same as current validateForm()
+        return validateForm()
+      default:
+        return null
+    }
+  }
+
+  const nextStep = () => {
+    const validation = validateStep(step)
+    if (validation) {
+      setError(validation)
+      return
+    }
+    setError(null)
+    setStep(prev => prev + 1)
+  }
+
+  const prevStep = () => {
+    setStep(prev => prev - 1)
     setError(null)
   }
 
@@ -293,46 +331,146 @@ export default function ProductForm({
   }
 
   const createProduct = async () => {
-    const productData: ProductInsert = {
-      name: formData.name.trim(),
-      description: formData.description.trim() || null,
-      sku: formData.sku.trim() || null,
-      barcode: formData.barcode.trim() || null,
-      category_id: formData.category_id || null,
-      brand_id: formData.brand_id || null,
-      unit_of_measure: formData.unit_of_measure,
-      is_frozen: formData.is_frozen,
-      status: formData.status,
-      images: formData.images.map(img => ({
-        url: img.url,
-        path: img.path
-      }))
-    }
+    console.log('🔄 Creating product with automatic inventory integration...')
 
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .insert(productData)
-      .select()
-      .single()
-
-    if (productError) throw productError
-
-    // Create pricing tiers
-    if (formData.pricingTiers.length > 0) {
-      const pricingData = formData.pricingTiers.map(tier => ({
-        product_id: product.id,
+    // Try using the enhanced database function first for better integration
+    try {
+      const pricingTiersForFunction = formData.pricingTiers.map(tier => ({
         tier_type: tier.tier_type,
-        price: tier.price,
-        min_quantity: tier.min_quantity,
-        max_quantity: tier.max_quantity,
+        price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
+        min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
+        max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
         is_active: tier.is_active
       }))
 
-      const { error: pricingError } = await supabase
-        .from('price_tiers')
-        .insert(pricingData)
+      const { data: functionResult, error: functionError } = await supabase.rpc(
+        'create_product_with_inventory',
+        {
+          p_name: formData.name.trim(),
+          p_description: formData.description.trim() || null,
+          p_sku: formData.sku.trim() || null,
+          p_barcode: formData.barcode.trim() || null,
+          p_category_id: formData.category_id || null,
+          p_brand_id: formData.brand_id || null,
+          p_unit_of_measure: formData.unit_of_measure,
+          p_is_frozen: formData.is_frozen,
+          p_pricing_tiers: JSON.stringify(pricingTiersForFunction)
+        }
+      )
 
-      if (pricingError) throw pricingError
+      if (functionError) {
+        console.warn('Database function failed, falling back to direct insert:', functionError)
+        throw functionError
+      }
+
+      const productId = functionResult
+      console.log('✅ Product created with inventory via database function:', productId)
+
+      // Update product with images if any (function doesn't handle images yet)
+      if (formData.images.length > 0) {
+        const { error: imageError } = await supabase
+          .from('products')
+          .update({
+            images: formData.images.map(img => ({
+              url: img.url,
+              path: img.path
+            }))
+          })
+          .eq('id', productId)
+
+        if (imageError) {
+          console.warn('Failed to update product images:', imageError)
+          // Don't throw here as the product was created successfully
+        }
+      }
+
+      return productId
+
+    } catch (functionError) {
+      // Fallback to original method with manual inventory creation
+      console.warn('Using fallback method for product creation:', functionError)
+
+      const productData: ProductInsert = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+        sku: formData.sku.trim() || null,
+        barcode: formData.barcode.trim() || null,
+        category_id: formData.category_id || null,
+        brand_id: formData.brand_id || null,
+        unit_of_measure: formData.unit_of_measure,
+        is_frozen: formData.is_frozen,
+        status: formData.status,
+        images: formData.images.map(img => ({
+          url: img.url,
+          path: img.path
+        }))
+      }
+
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .insert(productData)
+        .select()
+        .single()
+
+      if (productError) throw productError
+
+      // Create pricing tiers
+      if (formData.pricingTiers.length > 0) {
+        const pricingData = formData.pricingTiers.map(tier => ({
+          product_id: product.id,
+          tier_type: tier.tier_type,
+          price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
+          min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
+          max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
+          is_active: tier.is_active
+        }))
+
+        const { error: pricingError } = await supabase
+          .from('price_tiers')
+          .insert(pricingData)
+
+        if (pricingError) throw pricingError
+      }
+
+      // Manually create inventory record (fallback)
+      console.log('🔄 Creating inventory record manually (fallback)...')
+
+      // Get main branch ID
+      const { data: branchData, error: branchError } = await supabase
+        .from('branches')
+        .select('id')
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      if (branchError || !branchData) {
+        console.warn('Could not get branch for inventory creation:', branchError)
+        // Don't throw here as the product was created successfully
+        return product.id
+      }
+
+      const { error: inventoryError } = await supabase
+        .from('inventory')
+        .insert({
+          product_id: product.id,
+          branch_id: branchData.id,
+          quantity: 0,
+          reserved_quantity: 0,
+          min_stock_level: 10,
+          low_stock_threshold: 10,
+          cost_per_unit: 0,
+          location: 'Main Storage'
+        })
+
+      if (inventoryError) {
+        console.warn('Failed to create inventory record (fallback):', inventoryError)
+        // Don't throw here as the product was created successfully
+      } else {
+        console.log('✅ Inventory record created via fallback method')
+      }
+
+      return product.id
     }
   }
 
@@ -373,9 +511,9 @@ export default function ProductForm({
       const pricingData = formData.pricingTiers.map(tier => ({
         product_id: product.id,
         tier_type: tier.tier_type,
-        price: tier.price,
-        min_quantity: tier.min_quantity,
-        max_quantity: tier.max_quantity,
+        price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
+        min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
+        max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
         is_active: tier.is_active
       }))
 
@@ -450,27 +588,45 @@ export default function ProductForm({
               </button>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="border-b border-gray-200">
-              <nav className="px-6 -mb-px flex space-x-4">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon
+            {/* Step Progress Navigation */}
+            <div className="border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {steps.find(s => s.number === step)?.name}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Step {step} of 4: {steps.find(s => s.number === step)?.description}
+                </p>
+              </div>
+              <div className="flex items-center">
+                {steps.map((stepItem, index) => {
+                  const Icon = stepItem.icon
                   return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`py-2.5 px-1 border-b-2 font-medium text-sm transition-colors ${
-                        activeTab === tab.id
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 inline mr-2" />
-                      {tab.name}
-                    </button>
+                    <div key={stepItem.number} className="flex items-center">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+                        step > stepItem.number
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : step === stepItem.number
+                          ? 'border-blue-600 text-blue-600 bg-blue-50'
+                          : 'border-gray-300 text-gray-400 bg-gray-50'
+                      }`}>
+                        {step > stepItem.number ? (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <Icon className="w-4 h-4" />
+                        )}
+                      </div>
+                      {index < steps.length - 1 && (
+                        <div className={`w-12 h-0.5 mx-2 ${
+                          step > stepItem.number ? 'bg-blue-600' : 'bg-gray-300'
+                        }`} />
+                      )}
+                    </div>
                   )
                 })}
-              </nav>
+              </div>
             </div>
 
             {/* Form Content */}
@@ -481,8 +637,8 @@ export default function ProductForm({
                 </div>
               ) : (
                 <>
-                  {/* Basic Info Tab */}
-                  {activeTab === 'basic' && (
+                  {/* Step 1: Basic Info */}
+                  {step === 1 && (
                       <div className="space-y-6">
                         <div>
                           <h4 className="text-lg font-semibold text-gray-900 mb-4">Basic Product Information</h4>
@@ -613,8 +769,8 @@ export default function ProductForm({
                       </div>
                     )}
 
-                  {/* Images Tab */}
-                  {activeTab === 'images' && (
+                  {/* Step 2: Images */}
+                  {step === 2 && (
                       <div className="space-y-6">
                         <div>
                           <h4 className="text-lg font-semibold text-gray-900 mb-2">Product Images</h4>
@@ -629,8 +785,8 @@ export default function ProductForm({
                       </div>
                     )}
 
-                  {/* Pricing Tab */}
-                  {activeTab === 'pricing' && (
+                  {/* Step 3: Pricing */}
+                  {step === 3 && (
                       <div className="space-y-6">
                         <div>
                           <h4 className="text-lg font-semibold text-gray-900 mb-2">Pricing Configuration</h4>
@@ -643,8 +799,8 @@ export default function ProductForm({
                       </div>
                     )}
 
-                  {/* Review Tab */}
-                  {activeTab === 'review' && (
+                  {/* Step 4: Review */}
+                  {step === 4 && (
                       <div className="space-y-6">
                         <div>
                           <h4 className="text-lg font-semibold text-gray-900 mb-2">Review Product Details</h4>
@@ -719,24 +875,48 @@ export default function ProductForm({
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving}
-                isLoading={saving}
-                className="min-w-[140px]"
-              >
-                {mode === 'create' ? 'Create Product' : 'Update Product'}
-              </Button>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+              <div className="flex space-x-3">
+                {step > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={prevStep}
+                    disabled={saving}
+                  >
+                    Previous
+                  </Button>
+                )}
+              </div>
+              <div className="flex space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                {step < 4 ? (
+                  <Button
+                    type="button"
+                    onClick={nextStep}
+                    disabled={saving}
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={saving}
+                    isLoading={saving}
+                    className="min-w-[140px]"
+                  >
+                    {mode === 'create' ? 'Create Product' : 'Update Product'}
+                  </Button>
+                )}
+              </div>
             </div>
           </DialogPanel>
         </div>

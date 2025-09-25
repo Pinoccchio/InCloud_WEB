@@ -12,9 +12,9 @@ type PriceTierInsert = Database['public']['Tables']['price_tiers']['Insert']
 interface PriceTier {
   id?: string
   tier_type: PricingTier
-  price: number
-  min_quantity: number
-  max_quantity?: number
+  price: number | string
+  min_quantity: number | string
+  max_quantity?: number | string
   is_active: boolean
 }
 
@@ -45,26 +45,42 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
   }, [value])
 
   const validateTier = (tier: PriceTier, index: number): string | null => {
-    if (tier.price <= 0) {
+    // Parse string values to numbers for validation
+    const price = typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price
+    const minQuantity = typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) : tier.min_quantity
+    const maxQuantity = typeof tier.max_quantity === 'string' ? parseInt(tier.max_quantity) : tier.max_quantity
+
+    // Check for empty required fields
+    if (!tier.price || tier.price === '') {
+      return 'Price is required'
+    }
+    if (!tier.min_quantity || tier.min_quantity === '') {
+      return 'Minimum quantity is required'
+    }
+
+    if (isNaN(price) || price <= 0) {
       return 'Price must be greater than 0'
     }
 
-    if (tier.min_quantity <= 0) {
+    if (isNaN(minQuantity) || minQuantity <= 0) {
       return 'Minimum quantity must be greater than 0'
     }
 
-    if (tier.max_quantity && tier.max_quantity <= tier.min_quantity) {
+    if (tier.max_quantity && tier.max_quantity !== '' && (!isNaN(maxQuantity) && maxQuantity <= minQuantity)) {
       return 'Maximum quantity must be greater than minimum quantity'
     }
 
     // Check for overlapping quantity ranges with other tiers of the same type
     const otherTiers = tiers.filter((_, i) => i !== index && _.tier_type === tier.tier_type)
     for (const otherTier of otherTiers) {
-      const otherMin = otherTier.min_quantity
-      const otherMax = otherTier.max_quantity || Infinity
+      const otherMin = typeof otherTier.min_quantity === 'string' ? parseInt(otherTier.min_quantity) : otherTier.min_quantity
+      const otherMax = typeof otherTier.max_quantity === 'string' ? parseInt(otherTier.max_quantity) : otherTier.max_quantity || Infinity
 
-      const currentMin = tier.min_quantity
-      const currentMax = tier.max_quantity || Infinity
+      const currentMin = minQuantity
+      const currentMax = maxQuantity || Infinity
+
+      // Skip validation if other tier has invalid data
+      if (isNaN(otherMin)) continue
 
       // Check if ranges overlap
       if (
@@ -105,9 +121,9 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
   const addTier = () => {
     const newTier: PriceTier = {
       tier_type: 'retail',
-      price: 0,
-      min_quantity: 1,
-      max_quantity: undefined,
+      price: '',
+      min_quantity: '',
+      max_quantity: '',
       is_active: true
     }
 
@@ -246,13 +262,17 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                           min="0"
                           step="0.01"
                           value={tier.price}
-                          onChange={(e) => updateTier(index, { price: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            // Store raw string value during typing, like RestockModal
+                            updateTier(index, { price: e.target.value })
+                          }}
+                          placeholder="0.00"
                           disabled={disabled}
                           className={error ? 'border-red-300' : ''}
                         />
-                        {tier.price > 0 && (
+                        {tier.price && tier.price !== '' && !isNaN(typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price) && (typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price) > 0 && (
                           <p className="mt-1 text-xs text-gray-600">
-                            {formatCurrency(tier.price)}
+                            {formatCurrency(typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price)}
                           </p>
                         )}
                       </div>
@@ -265,7 +285,11 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                           type="number"
                           min="1"
                           value={tier.min_quantity}
-                          onChange={(e) => updateTier(index, { min_quantity: parseInt(e.target.value) || 1 })}
+                          onChange={(e) => {
+                            // Store raw string value during typing, like RestockModal
+                            updateTier(index, { min_quantity: e.target.value })
+                          }}
+                          placeholder="1"
                           disabled={disabled}
                           className={error ? 'border-red-300' : ''}
                         />
@@ -277,11 +301,12 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                         </label>
                         <Input
                           type="number"
-                          min={tier.min_quantity + 1}
+                          min={(typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity) + 1}
                           value={tier.max_quantity || ''}
-                          onChange={(e) => updateTier(index, {
-                            max_quantity: e.target.value ? parseInt(e.target.value) : undefined
-                          })}
+                          onChange={(e) => {
+                            // Store raw string value during typing, like RestockModal
+                            updateTier(index, { max_quantity: e.target.value })
+                          }}
                           disabled={disabled}
                           className={error ? 'border-red-300' : ''}
                           placeholder="Unlimited"
@@ -313,7 +338,7 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                   <div className="text-sm">
                     <span className="font-medium">Applies to orders of: </span>
                     <span className="text-gray-700">
-                      {tier.min_quantity} - {tier.max_quantity || '∞'} units
+                      {typeof tier.min_quantity === 'string' ? (tier.min_quantity || '?') : tier.min_quantity} - {tier.max_quantity && tier.max_quantity !== '' ? (typeof tier.max_quantity === 'string' ? tier.max_quantity : tier.max_quantity) : '∞'} units
                     </span>
                   </div>
                 </div>
@@ -330,18 +355,22 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
           <div className="space-y-2">
             {tiers
               .filter(tier => tier.is_active)
-              .sort((a, b) => a.min_quantity - b.min_quantity)
+              .sort((a, b) => {
+                const aMin = typeof a.min_quantity === 'string' ? parseInt(a.min_quantity) || 0 : a.min_quantity
+                const bMin = typeof b.min_quantity === 'string' ? parseInt(b.min_quantity) || 0 : b.min_quantity
+                return aMin - bMin
+              })
               .map((tier, index) => (
                 <div key={index} className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">
                     {TIER_LABELS[tier.tier_type].label}
-                    {tier.max_quantity
-                      ? ` (${tier.min_quantity}-${tier.max_quantity} units)`
-                      : ` (${tier.min_quantity}+ units)`
+                    {tier.max_quantity && tier.max_quantity !== ''
+                      ? ` (${typeof tier.min_quantity === 'string' ? tier.min_quantity : tier.min_quantity}-${typeof tier.max_quantity === 'string' ? tier.max_quantity : tier.max_quantity} units)`
+                      : ` (${typeof tier.min_quantity === 'string' ? tier.min_quantity : tier.min_quantity}+ units)`
                     }
                   </span>
                   <span className="font-medium text-gray-900">
-                    {formatCurrency(tier.price)}
+                    {formatCurrency(typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price)}
                   </span>
                 </div>
               ))}
