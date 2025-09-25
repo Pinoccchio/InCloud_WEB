@@ -6,9 +6,11 @@ import {
   ArrowLeftStartOnRectangleIcon,
   UserIcon,
   ChevronDownIcon,
-  BellIcon
+  BellIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSidebar } from '@/contexts/SidebarContext'
 
 interface AdminData {
   id: string
@@ -25,6 +27,7 @@ interface AdminHeaderProps {
 export default function AdminHeader({ adminData }: AdminHeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const { logout } = useAuth()
+  const { toggleSidebar } = useSidebar()
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -45,16 +48,35 @@ export default function AdminHeader({ adminData }: AdminHeaderProps) {
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="px-6 py-4">
+      <div className="px-4 md:px-6 py-3">
         <div className="flex items-center justify-between">
-          {/* Title and Branch Info */}
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              InCloud Admin
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Managing: {getManagingContext()}
-            </p>
+          {/* Left side - Menu toggle and title */}
+          <div className="flex items-center space-x-3">
+            {/* Hamburger Menu Toggle */}
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 active:scale-95"
+              aria-label="Toggle sidebar"
+            >
+              <Bars3Icon className="w-5 h-5" />
+            </button>
+
+            {/* Title */}
+            <div className="hidden md:block">
+              <h2 className="text-lg font-semibold text-gray-900">
+                InCloud Admin
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Managing: {getManagingContext()}
+              </p>
+            </div>
+
+            {/* Mobile title */}
+            <div className="md:hidden">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Admin
+              </h2>
+            </div>
           </div>
 
           {/* Actions */}

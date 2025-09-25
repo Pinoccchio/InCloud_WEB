@@ -1,0 +1,705 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
+import {
+  XMarkIcon,
+  ExclamationTriangleIcon,
+  CubeIcon,
+  PhotoIcon,
+  CurrencyDollarIcon,
+  DocumentCheckIcon
+} from '@heroicons/react/24/outline'
+import { Button, Input, LoadingSpinner } from '@/components/ui'
+import { supabase } from '@/lib/supabase/auth'
+import { Database } from '@/types/supabase'
+import ImageUploader from './ImageUploader'
+import PricingTiers from './PricingTiers'
+
+type Product = Database['public']['Tables']['products']['Row']
+type ProductInsert = Database['public']['Tables']['products']['Insert']
+type ProductUpdate = Database['public']['Tables']['products']['Update']
+type ProductStatus = Database['public']['Enums']['product_status']
+type Category = Database['public']['Tables']['categories']['Row']
+type Brand = Database['public']['Tables']['brands']['Row']
+
+interface PriceTier {
+  id?: string
+  tier_type: Database['public']['Enums']['pricing_tier']
+  price: number
+  min_quantity: number
+  max_quantity?: number
+  is_active: boolean
+}
+
+interface ProductFormProps {
+  product?: Product
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+  mode: 'create' | 'edit'
+}
+
+interface FormData {
+  name: string
+  description: string
+  sku: string
+  barcode: string
+  category_id: string
+  brand_id: string
+  unit_of_measure: string
+  is_frozen: boolean
+  status: ProductStatus
+  images: Array<{ id: string; url: string; path: string }>
+  pricingTiers: PriceTier[]
+}
+
+export default function ProductForm({
+  product,
+  isOpen,
+  onClose,
+  onSuccess,
+  mode
+}: ProductFormProps) {
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    description: '',
+    sku: '',
+    barcode: '',
+    category_id: '',
+    brand_id: '',
+    unit_of_measure: 'pieces',
+    is_frozen: true,
+    status: 'active',
+    images: [],
+    pricingTiers: []
+  })
+
+  const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'basic' | 'images' | 'pricing' | 'review'>('basic')
+
+  const tabs = [
+    { id: 'basic', name: 'Basic Info', icon: CubeIcon, description: 'Product details and classification' },
+    { id: 'images', name: 'Images', icon: PhotoIcon, description: 'Product photos and gallery' },
+    { id: 'pricing', name: 'Pricing', icon: CurrencyDollarIcon, description: 'Set pricing tiers and rules' },
+    { id: 'review', name: 'Review', icon: DocumentCheckIcon, description: 'Review and save product' }
+  ] as const
+
+  // Initialize form when product changes
+  useEffect(() => {
+    if (product && mode === 'edit') {
+      initializeFormFromProduct(product)
+    } else if (mode === 'create') {
+      resetForm()
+    }
+  }, [product, mode])
+
+  const loadFormData = useCallback(async () => {
+    try {
+      setLoading(true)
+
+      // Load categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('name')
+
+      if (categoriesError) throw categoriesError
+
+      // Load brands
+      const { data: brandsData, error: brandsError } = await supabase
+        .from('brands')
+        .select('*')
+        .eq('is_active', true)
+        .order('name')
+
+      if (brandsError) throw brandsError
+
+      setCategories(categoriesData || [])
+      setBrands(brandsData || [])
+
+      // Load pricing tiers if editing
+      if (product && mode === 'edit') {
+        const { data: priceTiersData } = await supabase
+          .from('price_tiers')
+          .select('*')
+          .eq('product_id', product.id)
+
+        const tiers = (priceTiersData || []).map(tier => ({
+          id: tier.id,
+          tier_type: tier.tier_type,
+          price: Number(tier.price),
+          min_quantity: tier.min_quantity || 1,
+          max_quantity: tier.max_quantity || undefined,
+          is_active: tier.is_active || false
+        }))
+
+        setFormData(prev => ({
+          ...prev,
+          pricingTiers: tiers
+        }))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load form data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Load categories and brands when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadFormData()
+    }
+  }, [isOpen, loadFormData])
+
+  const initializeFormFromProduct = (product: Product) => {
+    setFormData({
+      name: product.name,
+      description: product.description || '',
+      sku: product.sku || '',
+      barcode: product.barcode || '',
+      category_id: product.category_id || '',
+      brand_id: product.brand_id || '',
+      unit_of_measure: product.unit_of_measure || 'pieces',
+      is_frozen: product.is_frozen || true,
+      status: product.status || 'active',
+      images: Array.isArray(product.images) ? product.images.map((img: string | { url: string; path?: string }, index) => ({
+        id: `existing-${index}`,
+        url: typeof img === 'string' ? img : img.url,
+        path: typeof img === 'string' ? img : img.path || img.url
+      })) : [],
+      pricingTiers: []
+    })
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      sku: '',
+      barcode: '',
+      category_id: '',
+      brand_id: '',
+      unit_of_measure: 'pieces',
+      is_frozen: true,
+      status: 'active',
+      images: [],
+      pricingTiers: []
+    })
+    setActiveTab('basic')
+    setError(null)
+  }
+
+  const handleInputChange = (field: keyof FormData, value: string | boolean | Array<{ id: string; url: string; path: string }> | PriceTier[]) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    setError(null)
+  }
+
+  const validateForm = (): string | null => {
+    if (!formData.name.trim()) return 'Product name is required'
+    if (!formData.category_id) return 'Category is required'
+    if (!formData.brand_id) return 'Brand is required'
+    if (formData.pricingTiers.length === 0) return 'At least one pricing tier is required'
+
+    const hasActiveTiers = formData.pricingTiers.some(tier => tier.is_active)
+    if (!hasActiveTiers) return 'At least one pricing tier must be active'
+
+    return null
+  }
+
+  const handleSubmit = async () => {
+    // Validate the form
+    const validation = validateForm()
+    if (validation) {
+      setError(validation)
+      return
+    }
+
+    try {
+      setSaving(true)
+      setError(null)
+
+      if (mode === 'create') {
+        await createProduct()
+      } else {
+        await updateProduct()
+      }
+
+      onSuccess()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save product')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const createProduct = async () => {
+    const productData: ProductInsert = {
+      name: formData.name.trim(),
+      description: formData.description.trim() || null,
+      sku: formData.sku.trim() || null,
+      barcode: formData.barcode.trim() || null,
+      category_id: formData.category_id || null,
+      brand_id: formData.brand_id || null,
+      unit_of_measure: formData.unit_of_measure,
+      is_frozen: formData.is_frozen,
+      status: formData.status,
+      images: formData.images.map(img => ({
+        url: img.url,
+        path: img.path
+      }))
+    }
+
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .insert(productData)
+      .select()
+      .single()
+
+    if (productError) throw productError
+
+    // Create pricing tiers
+    if (formData.pricingTiers.length > 0) {
+      const pricingData = formData.pricingTiers.map(tier => ({
+        product_id: product.id,
+        tier_type: tier.tier_type,
+        price: tier.price,
+        min_quantity: tier.min_quantity,
+        max_quantity: tier.max_quantity,
+        is_active: tier.is_active
+      }))
+
+      const { error: pricingError } = await supabase
+        .from('price_tiers')
+        .insert(pricingData)
+
+      if (pricingError) throw pricingError
+    }
+  }
+
+  const updateProduct = async () => {
+    if (!product) return
+
+    const productData: ProductUpdate = {
+      name: formData.name.trim(),
+      description: formData.description.trim() || null,
+      sku: formData.sku.trim() || null,
+      barcode: formData.barcode.trim() || null,
+      category_id: formData.category_id || null,
+      brand_id: formData.brand_id || null,
+      unit_of_measure: formData.unit_of_measure,
+      is_frozen: formData.is_frozen,
+      status: formData.status,
+      images: formData.images.map(img => ({
+        url: img.url,
+        path: img.path
+      }))
+    }
+
+    const { error: productError } = await supabase
+      .from('products')
+      .update(productData)
+      .eq('id', product.id)
+
+    if (productError) throw productError
+
+    // Delete existing pricing tiers
+    await supabase
+      .from('price_tiers')
+      .delete()
+      .eq('product_id', product.id)
+
+    // Create new pricing tiers
+    if (formData.pricingTiers.length > 0) {
+      const pricingData = formData.pricingTiers.map(tier => ({
+        product_id: product.id,
+        tier_type: tier.tier_type,
+        price: tier.price,
+        min_quantity: tier.min_quantity,
+        max_quantity: tier.max_quantity,
+        is_active: tier.is_active
+      }))
+
+      const { error: pricingError } = await supabase
+        .from('price_tiers')
+        .insert(pricingData)
+
+      if (pricingError) throw pricingError
+    }
+  }
+
+  const getMainImage = () => {
+    if (formData.images && formData.images.length > 0) {
+      return formData.images[0].url
+    }
+    return null
+  }
+
+  const getStatusBadge = (status: ProductStatus) => {
+    switch (status) {
+      case 'active':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+      case 'inactive':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Inactive</span>
+      case 'discontinued':
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Discontinued</span>
+      default:
+        return <span className="text-gray-600">-</span>
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <div className="fixed inset-0 bg-black/25" />
+
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4 text-center">
+          <DialogPanel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-xl transition-all">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-4">
+                <div className="flex-shrink-0">
+                  {getMainImage() ? (
+                    <img
+                      className="h-12 w-12 rounded-lg object-cover border border-gray-200"
+                      src={getMainImage()!}
+                      alt={formData.name || 'Product'}
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
+                      <CubeIcon className="h-6 w-6 text-gray-600" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-semibold text-gray-900">
+                    {mode === 'create' ? 'Add New Product' : formData.name || 'Edit Product'}
+                  </DialogTitle>
+                  <div className="flex items-center space-x-2 mt-1">
+                    {formData.sku && (
+                      <span className="text-sm text-gray-600">SKU: {formData.sku}</span>
+                    )}
+                    {mode === 'edit' && getStatusBadge(formData.status)}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-gray-600 hover:text-gray-800 transition-colors p-1 rounded-md hover:bg-gray-100"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="border-b border-gray-200">
+              <nav className="px-6 -mb-px flex space-x-4">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`py-2.5 px-1 border-b-2 font-medium text-sm transition-colors ${
+                        activeTab === tab.id
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 inline mr-2" />
+                      {tab.name}
+                    </button>
+                  )
+                })}
+              </nav>
+            </div>
+
+            {/* Form Content */}
+            <div className="px-6 py-6">
+              {loading ? (
+                <div className="flex items-center justify-center py-16">
+                  <LoadingSpinner size="lg" />
+                </div>
+              ) : (
+                <>
+                  {/* Basic Info Tab */}
+                  {activeTab === 'basic' && (
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900 mb-4">Basic Product Information</h4>
+                          <div className="grid grid-cols-1 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Product Name *
+                              </label>
+                              <Input
+                                value={formData.name}
+                                onChange={(e) => handleInputChange('name', e.target.value)}
+                                placeholder="Enter product name"
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  SKU
+                                </label>
+                                <Input
+                                  value={formData.sku}
+                                  onChange={(e) => handleInputChange('sku', e.target.value)}
+                                  placeholder="Product SKU"
+                                  className="w-full"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  Barcode
+                                </label>
+                                <Input
+                                  value={formData.barcode}
+                                  onChange={(e) => handleInputChange('barcode', e.target.value)}
+                                  placeholder="Product barcode"
+                                  className="w-full"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Category *
+                              </label>
+                              <select
+                                value={formData.category_id}
+                                onChange={(e) => handleInputChange('category_id', e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <option value="">Select a category</option>
+                                {categories.map(category => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  Brand *
+                                </label>
+                                <select
+                                  value={formData.brand_id}
+                                  onChange={(e) => handleInputChange('brand_id', e.target.value)}
+                                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <option value="">Select a brand</option>
+                                  {brands.map(brand => (
+                                    <option key={brand.id} value={brand.id}>
+                                      {brand.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  Unit of Measure
+                                </label>
+                                <select
+                                  value={formData.unit_of_measure}
+                                  onChange={(e) => handleInputChange('unit_of_measure', e.target.value)}
+                                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <option value="pieces">Pieces</option>
+                                  <option value="boxes">Boxes</option>
+                                  <option value="kilograms">Kilograms</option>
+                                  <option value="grams">Grams</option>
+                                  <option value="liters">Liters</option>
+                                  <option value="packs">Packs</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Status
+                              </label>
+                              <select
+                                value={formData.status}
+                                onChange={(e) => handleInputChange('status', e.target.value as ProductStatus)}
+                                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="discontinued">Discontinued</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              Description
+                            </label>
+                            <textarea
+                              value={formData.description}
+                              onChange={(e) => handleInputChange('description', e.target.value)}
+                              placeholder="Product description"
+                              rows={4}
+                              className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white placeholder:text-gray-600 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                            />
+                          </div>
+
+                          <div className="flex items-center p-3 bg-blue-50 rounded-lg">
+                            <input
+                              id="is-frozen"
+                              type="checkbox"
+                              checked={formData.is_frozen}
+                              onChange={(e) => handleInputChange('is_frozen', e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor="is-frozen" className="ml-3 text-sm font-medium text-gray-700">
+                              This is a frozen product
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Images Tab */}
+                  {activeTab === 'images' && (
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900 mb-2">Product Images</h4>
+                          <p className="text-sm text-gray-600 mb-6">Upload up to 10 images to showcase your product</p>
+                          <ImageUploader
+                            productId={mode === 'edit' ? product?.id : undefined}
+                            onImagesChange={(images) => handleInputChange('images', images)}
+                            initialImages={formData.images}
+                            maxImages={10}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Pricing Tab */}
+                  {activeTab === 'pricing' && (
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900 mb-2">Pricing Configuration</h4>
+                          <p className="text-sm text-gray-600 mb-6">Set up pricing tiers for different customer segments</p>
+                          <PricingTiers
+                            value={formData.pricingTiers}
+                            onChange={(tiers) => handleInputChange('pricingTiers', tiers)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Review Tab */}
+                  {activeTab === 'review' && (
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900 mb-2">Review Product Details</h4>
+                          <p className="text-sm text-gray-600 mb-6">Please review all product information before saving</p>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-xl border border-gray-200 space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Product Name</span>
+                              <p className="text-base text-gray-900 font-medium">{formData.name}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Category</span>
+                              <p className="text-base text-gray-900 font-medium">
+                                {categories.find(c => c.id === formData.category_id)?.name || 'Not selected'}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Brand</span>
+                              <p className="text-base text-gray-900 font-medium">
+                                {brands.find(b => b.id === formData.brand_id)?.name || 'Not selected'}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Status</span>
+                              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium capitalize ${
+                                formData.status === 'active' ? 'bg-green-100 text-green-800' :
+                                formData.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {formData.status}
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Images</span>
+                              <p className="text-base text-gray-900 font-medium">{formData.images.length} uploaded</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Pricing Tiers</span>
+                              <p className="text-base text-gray-900 font-medium">
+                                {formData.pricingTiers.filter(t => t.is_active).length} active tiers
+                              </p>
+                            </div>
+                          </div>
+
+                          {formData.description && (
+                            <div className="space-y-2 pt-3 border-t border-gray-200">
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Description</span>
+                              <p className="text-sm text-gray-700 leading-relaxed">{formData.description}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Error Display */}
+                  {error && (
+                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex">
+                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5" />
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-red-800">{error}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                isLoading={saving}
+                className="min-w-[140px]"
+              >
+                {mode === 'create' ? 'Create Product' : 'Update Product'}
+              </Button>
+            </div>
+          </DialogPanel>
+        </div>
+      </div>
+    </Dialog>
+  )
+}

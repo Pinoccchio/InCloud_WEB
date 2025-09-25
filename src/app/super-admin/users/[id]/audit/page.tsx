@@ -14,9 +14,9 @@ import { Button, LoadingSpinner } from '@/components/ui'
 import { useToastActions } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase/auth'
-import AuditLogTable from '../../../audit/components/AuditLogTable'
-import AuditFilters from '../../../audit/components/AuditFilters'
-import AuditDetails from '../../../audit/components/AuditDetails'
+import AuditLogTable from '../../../audit/components/StreamlinedTable'
+import AuditFilters from '../../../audit/components/SmartFilters'
+import AuditDetails from '../../../audit/components/ModalDetails'
 
 interface AuditLog {
   id: string
