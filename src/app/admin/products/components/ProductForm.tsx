@@ -13,6 +13,7 @@ import {
 import { Button, Input, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { Database } from '@/types/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import ImageUploader from './ImageUploader'
 import PricingTiers from './PricingTiers'
 
@@ -61,6 +62,8 @@ export default function ProductForm({
   onSuccess,
   mode
 }: ProductFormProps) {
+  const { admin } = useAuth()
+
   // Generate temporary product ID for new products to enable image upload
   const [tempProductId] = useState(() => {
     if (mode === 'create') {
@@ -311,6 +314,12 @@ export default function ProductForm({
       return
     }
 
+    // Validate admin context for audit tracking
+    if (!admin?.id) {
+      setError('Admin session required for this operation. Please refresh and try again.')
+      return
+    }
+
     try {
       setSaving(true)
       setError(null)
@@ -400,6 +409,7 @@ export default function ProductForm({
         unit_of_measure: formData.unit_of_measure,
         is_frozen: formData.is_frozen,
         status: formData.status,
+        created_by: admin?.id || null,
         images: formData.images.map(img => ({
           url: img.url,
           path: img.path
@@ -422,7 +432,8 @@ export default function ProductForm({
           price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
           min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
           max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
-          is_active: tier.is_active
+          is_active: tier.is_active,
+          created_by: admin?.id
         }))
 
         const { error: pricingError } = await supabase
@@ -460,7 +471,8 @@ export default function ProductForm({
           min_stock_level: 10,
           low_stock_threshold: 10,
           cost_per_unit: 0,
-          location: 'Main Storage'
+          location: 'Main Storage',
+          created_by: admin?.id
         })
 
       if (inventoryError) {
@@ -514,7 +526,8 @@ export default function ProductForm({
         price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
         min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
         max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
-        is_active: tier.is_active
+        is_active: tier.is_active,
+        created_by: admin?.id
       }))
 
       const { error: pricingError } = await supabase

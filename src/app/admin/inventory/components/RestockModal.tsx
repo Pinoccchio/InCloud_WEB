@@ -459,7 +459,8 @@ export default function RestockModal({
             min_stock_level: 10,
             low_stock_threshold: 10,
             cost_per_unit: 0,
-            location: 'Main Storage'
+            location: 'Main Storage',
+            created_by: admin?.id
           }
 
           const { data: newInventory, error: createInventoryError } = await supabase
@@ -499,7 +500,8 @@ export default function RestockModal({
           purchase_order_ref: formData.purchaseOrderRef
         },
         status: 'active',
-        is_active: true
+        is_active: true,
+        created_by: admin?.id
       }
 
       console.log('🔄 Creating product batch...', batchData)
@@ -526,7 +528,8 @@ export default function RestockModal({
         quantity: newQuantity,
         cost_per_unit: Number(formData.costPerUnit),
         last_restock_date: formData.receivedDate,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        updated_by: admin?.id
       }
 
       console.log('🔄 Updating inventory quantities...', inventoryUpdateData)

@@ -72,6 +72,26 @@ After creating products, use the **"Add Stock"** button in the Inventory section
 
 ### For Pork Kawali (First Stock Addition):
 
+## Product 1: Pork Kawali
+
+### Basic Information:
+- **Product Name**: Pork Kawali Sliced 500g
+- **SKU**: PKW-500G-001
+- **Barcode**: 4800123456789 *(leave empty if you want to generate later)*
+- **Description**: Premium pork belly sliced for kawali, flash-frozen to preserve freshness and flavor. Perfect for crispy kawali dishes.
+- **Unit of Measure**: Pieces
+- **Category**: Frozen Meat *(from dropdown)*
+- **Brand**: Prime Cuts *(from dropdown)*
+- **Status**: Active *(auto-selected)*
+- **Is Frozen**: Yes *(auto-detected from "Frozen Meat" category)*
+
+### Pricing Tiers:
+- **Retail**: ₱280.00 per piece
+- **Wholesale**: ₱250.00 per piece *(min: 10 pieces)*
+- **Box**: ₱230.00 per piece *(min: 20 pieces)*
+
+//
+
 **Step 1 - Stock Details:**
 - **Product**: Pork Kawali Sliced 500g
 - **Quantity**: 50
