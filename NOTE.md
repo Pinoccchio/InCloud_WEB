@@ -24,3 +24,4 @@ Is it possible po ba for the analytics feature na maipakita yung revenue details
 also regarding po sa low stock, I asked our client and usually nagsisimula na sila magrestock kapag 10pcs or below na yung stock ng isang product. Is it possible din po ba maglagay ng feature na magbibigay ng warning/notification kapag low stock na yung product and also may setting na pwede si user magset ng limit kung kelan magsisimula magbigay ng warning/notif?
 
 For the analytics feature, since yung reason po niya sa system is to give detailed info on products most bought and to give recommendations, would it require/would it be necessary to include info about the client's restocking costs and compare it to the amount of revenue na nakukuha niya during customer purchases?
+

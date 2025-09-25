@@ -61,6 +61,16 @@ export default function ProductForm({
   onSuccess,
   mode
 }: ProductFormProps) {
+  // Generate temporary product ID for new products to enable image upload
+  const [tempProductId] = useState(() => {
+    if (mode === 'create') {
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+      console.log('🆔 Generated temporary product ID:', tempId)
+      return tempId
+    }
+    return null
+  })
+
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -98,6 +108,13 @@ export default function ProductForm({
     }
   }, [product, mode])
 
+  // Reset form when modal opens in create mode to ensure fresh start
+  useEffect(() => {
+    if (isOpen && mode === 'create') {
+      resetForm()
+    }
+  }, [isOpen, mode])
+
   const loadFormData = useCallback(async () => {
     try {
       setLoading(true)
@@ -123,27 +140,8 @@ export default function ProductForm({
       setCategories(categoriesData || [])
       setBrands(brandsData || [])
 
-      // Load pricing tiers if editing
-      if (product && mode === 'edit') {
-        const { data: priceTiersData } = await supabase
-          .from('price_tiers')
-          .select('*')
-          .eq('product_id', product.id)
-
-        const tiers = (priceTiersData || []).map(tier => ({
-          id: tier.id,
-          tier_type: tier.tier_type,
-          price: Number(tier.price),
-          min_quantity: tier.min_quantity || 1,
-          max_quantity: tier.max_quantity || undefined,
-          is_active: tier.is_active || false
-        }))
-
-        setFormData(prev => ({
-          ...prev,
-          pricingTiers: tiers
-        }))
-      }
+      // Pricing tiers are now loaded directly in initializeFormFromProduct()
+      // This prevents race conditions and ensures proper data loading
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load form data')
     } finally {
@@ -158,7 +156,10 @@ export default function ProductForm({
     }
   }, [isOpen, loadFormData])
 
-  const initializeFormFromProduct = (product: Product) => {
+  const initializeFormFromProduct = async (product: Product) => {
+    console.log('🔄 Initializing form from product:', product.id)
+
+    // Set basic form data first
     setFormData({
       name: product.name,
       description: product.description || '',
@@ -174,8 +175,43 @@ export default function ProductForm({
         url: typeof img === 'string' ? img : img.url,
         path: typeof img === 'string' ? img : img.path || img.url
       })) : [],
-      pricingTiers: []
+      pricingTiers: [] // Will be loaded below
     })
+
+    // Load pricing tiers for this product
+    try {
+      console.log('📊 Loading pricing tiers for product:', product.id)
+      const { data: priceTiersData, error } = await supabase
+        .from('price_tiers')
+        .select('*')
+        .eq('product_id', product.id)
+
+      if (error) {
+        console.error('❌ Error loading pricing tiers:', error)
+        setError('Failed to load pricing tiers')
+        return
+      }
+
+      const tiers = (priceTiersData || []).map(tier => ({
+        id: tier.id,
+        tier_type: tier.tier_type,
+        price: Number(tier.price),
+        min_quantity: tier.min_quantity || 1,
+        max_quantity: tier.max_quantity || undefined,
+        is_active: tier.is_active || false
+      }))
+
+      console.log('✅ Loaded pricing tiers:', tiers.length, 'tiers')
+
+      // Update form data with pricing tiers
+      setFormData(prev => ({
+        ...prev,
+        pricingTiers: tiers
+      }))
+    } catch (err) {
+      console.error('💥 Failed to load pricing tiers:', err)
+      setError('Failed to load pricing tiers')
+    }
   }
 
   const resetForm = () => {
@@ -198,6 +234,22 @@ export default function ProductForm({
 
   const handleInputChange = (field: keyof FormData, value: string | boolean | Array<{ id: string; url: string; path: string }> | PriceTier[]) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+    setError(null)
+  }
+
+  const handleCategoryChange = (categoryId: string) => {
+    // Find the selected category
+    const selectedCategory = categories.find(cat => cat.id === categoryId)
+
+    // Auto-detect frozen status from category name
+    const isFrozen = selectedCategory?.name?.toLowerCase().includes('frozen') || false
+
+    // Update both category and frozen status
+    setFormData(prev => ({
+      ...prev,
+      category_id: categoryId,
+      is_frozen: isFrozen
+    }))
     setError(null)
   }
 
@@ -422,7 +474,7 @@ export default function ProductForm({
             </div>
 
             {/* Form Content */}
-            <div className="px-6 py-6">
+            <div className="px-6 py-6 max-h-96 overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-16">
                   <LoadingSpinner size="lg" />
@@ -479,7 +531,7 @@ export default function ProductForm({
                               </label>
                               <select
                                 value={formData.category_id}
-                                onChange={(e) => handleInputChange('category_id', e.target.value)}
+                                onChange={(e) => handleCategoryChange(e.target.value)}
                                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 <option value="">Select a category</option>
@@ -545,7 +597,7 @@ export default function ProductForm({
                             </div>
                           </div>
 
-                          <div>
+                          <div className="mt-6">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Description
                             </label>
@@ -556,19 +608,6 @@ export default function ProductForm({
                               rows={4}
                               className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white placeholder:text-gray-600 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                             />
-                          </div>
-
-                          <div className="flex items-center p-3 bg-blue-50 rounded-lg">
-                            <input
-                              id="is-frozen"
-                              type="checkbox"
-                              checked={formData.is_frozen}
-                              onChange={(e) => handleInputChange('is_frozen', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor="is-frozen" className="ml-3 text-sm font-medium text-gray-700">
-                              This is a frozen product
-                            </label>
                           </div>
                         </div>
                       </div>
@@ -581,7 +620,7 @@ export default function ProductForm({
                           <h4 className="text-lg font-semibold text-gray-900 mb-2">Product Images</h4>
                           <p className="text-sm text-gray-600 mb-6">Upload up to 10 images to showcase your product</p>
                           <ImageUploader
-                            productId={mode === 'edit' ? product?.id : undefined}
+                            productId={mode === 'edit' ? product?.id : tempProductId}
                             onImagesChange={(images) => handleInputChange('images', images)}
                             initialImages={formData.images}
                             maxImages={10}
@@ -632,13 +671,15 @@ export default function ProductForm({
                             </div>
                             <div className="space-y-1">
                               <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Status</span>
-                              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium capitalize ${
-                                formData.status === 'active' ? 'bg-green-100 text-green-800' :
-                                formData.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {formData.status}
-                              </span>
+                              <div>
+                                <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium capitalize ${
+                                  formData.status === 'active' ? 'bg-green-100 text-green-800' :
+                                  formData.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {formData.status}
+                                </span>
+                              </div>
                             </div>
                             <div className="space-y-1">
                               <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Images</span>

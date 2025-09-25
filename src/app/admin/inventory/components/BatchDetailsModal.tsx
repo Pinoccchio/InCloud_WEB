@@ -7,9 +7,6 @@ import {
   ClockIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  TruckIcon,
-  CurrencyDollarIcon,
-  CalendarIcon,
   ArchiveBoxIcon
 } from '@heroicons/react/24/outline'
 import { LoadingSpinner } from '@/components/ui'
@@ -142,27 +139,11 @@ export default function BatchDetailsModal({
     })
   }
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-PH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP'
     }).format(price)
-  }
-
-  const calculateTotalValue = () => {
-    return batches.reduce((total, batch) => {
-      return total + (batch.quantity * Number(batch.cost_per_unit))
-    }, 0)
   }
 
   const calculateTotalQuantity = () => {
@@ -197,9 +178,9 @@ export default function BatchDetailsModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-4xl transform overflow-hidden rounded-xl bg-white text-left align-middle shadow-2xl transition-all">
+              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-xl bg-white text-left align-middle shadow-2xl transition-all">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 bg-white">
                   <div>
                     <Dialog.Title as="h3" className="text-xl font-semibold text-gray-900">
                       Batch Details - {inventoryItem.product_name}
@@ -217,7 +198,7 @@ export default function BatchDetailsModal({
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-6">
+                <div className="px-4 py-3">
                   {loading ? (
                     <div className="flex justify-center py-8">
                       <LoadingSpinner size="md" />
@@ -241,9 +222,9 @@ export default function BatchDetailsModal({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {/* Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                           <div className="flex items-center">
                             <ArchiveBoxIcon className="w-8 h-8 text-blue-600" />
@@ -259,131 +240,102 @@ export default function BatchDetailsModal({
                             <ArchiveBoxIcon className="w-8 h-8 text-green-600" />
                             <div className="ml-3">
                               <p className="text-sm font-medium text-green-900">Total Quantity</p>
-                              <p className="text-2xl font-bold text-green-900">{calculateTotalQuantity()}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                          <div className="flex items-center">
-                            <CurrencyDollarIcon className="w-8 h-8 text-purple-600" />
-                            <div className="ml-3">
-                              <p className="text-sm font-medium text-purple-900">Total Value</p>
-                              <p className="text-2xl font-bold text-purple-900">
-                                {formatPrice(calculateTotalValue())}
-                              </p>
+                              <p className="text-2xl font-bold text-green-900">{calculateTotalQuantity()} units</p>
                             </div>
                           </div>
                         </div>
                       </div>
 
                       {/* FIFO Priority Notice */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                         <div className="flex">
-                          <ClockIcon className="w-5 h-5 text-blue-400 mt-0.5" />
-                          <div className="ml-3">
-                            <h3 className="text-sm font-medium text-blue-800">FIFO (First-In-First-Out) System</h3>
-                            <p className="mt-1 text-sm text-blue-700">
-                              Batches are automatically prioritized by expiration date. Products from earlier expiring batches
-                              will be used first in order fulfillment to minimize waste.
+                          <ClockIcon className="w-4 h-4 text-blue-400 mt-0.5" />
+                          <div className="ml-2">
+                            <p className="text-sm text-blue-700">
+                              <span className="font-medium">FIFO System:</span> Batches are prioritized by expiration date (earliest first).
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Batches List */}
-                      <div className="space-y-4">
+                      {/* Batches Table */}
+                      <div className="space-y-2">
                         <h4 className="text-lg font-semibold text-gray-900">Inventory Batches</h4>
 
-                        <div className="space-y-3">
-                          {batches.map((batch) => (
-                            <div
-                              key={batch.id}
-                              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                                  {/* Batch Info */}
-                                  <div className="space-y-1">
+                        <div className="overflow-hidden rounded-lg border border-gray-200">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Batch / Priority
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Quantity
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Expiration
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Supplier
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {batches.map((batch) => (
+                                <tr key={batch.id} className="hover:bg-gray-50">
+                                  {/* Batch Number & Priority */}
+                                  <td className="px-4 py-3 whitespace-nowrap">
                                     <div className="flex items-center space-x-2">
-                                      <h5 className="text-sm font-semibold text-gray-900">
-                                        {batch.batch_number}
-                                      </h5>
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getPriorityBadgeColor(batch.priority_order)}`}>
-                                        Priority #{batch.priority_order}
-                                      </span>
+                                      <div>
+                                        <div className="text-sm font-medium text-gray-900">
+                                          {batch.batch_number}
+                                        </div>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getPriorityBadgeColor(batch.priority_order)}`}>
+                                          #{batch.priority_order}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <p className="text-sm text-gray-500">Quantity: {batch.quantity} units</p>
-                                    <p className="text-sm text-gray-500">
-                                      Value: {formatPrice(batch.quantity * Number(batch.cost_per_unit))}
-                                    </p>
-                                  </div>
+                                  </td>
 
-                                  {/* Expiration Status */}
-                                  <div className="space-y-1">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getExpirationStatusColor(batch.expiration_status)}`}>
-                                      {getExpirationIcon(batch.expiration_status)}
-                                      <span className="ml-1 capitalize">
-                                        {batch.expiration_status === 'expired' ? 'Expired' :
-                                         batch.expiration_status === 'expiring' ? 'Expiring Soon' : 'Fresh'}
+                                  {/* Quantity */}
+                                  <td className="px-4 py-3 whitespace-nowrap">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {batch.quantity} units
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {formatPrice(Number(batch.cost_per_unit))}/unit
+                                    </div>
+                                  </td>
+
+                                  {/* Expiration */}
+                                  <td className="px-4 py-3 whitespace-nowrap">
+                                    <div className="space-y-1">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getExpirationStatusColor(batch.expiration_status)}`}>
+                                        {getExpirationIcon(batch.expiration_status)}
+                                        <span className="ml-1 capitalize">
+                                          {batch.expiration_status === 'expired' ? 'Expired' :
+                                           batch.expiration_status === 'expiring' ? 'Expiring Soon' : 'Fresh'}
+                                        </span>
                                       </span>
-                                    </span>
-                                    <p className="text-sm text-gray-600">
-                                      Expires: {formatDate(batch.expiration_date)}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      {batch.days_until_expiration >= 0
-                                        ? `${batch.days_until_expiration} days remaining`
-                                        : `Expired ${Math.abs(batch.days_until_expiration)} days ago`
-                                      }
-                                    </p>
-                                  </div>
+                                      <div className="text-xs text-gray-500">
+                                        {formatDate(batch.expiration_date)}
+                                      </div>
+                                    </div>
+                                  </td>
 
-                                  {/* Supplier Info */}
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium text-gray-900 flex items-center">
-                                      <TruckIcon className="w-4 h-4 mr-1" />
-                                      {batch.supplier_name || 'Unknown Supplier'}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                      Cost: {formatPrice(Number(batch.cost_per_unit))} per unit
-                                    </p>
-                                    <p className="text-sm text-gray-500">
+                                  {/* Supplier */}
+                                  <td className="px-4 py-3 whitespace-nowrap">
+                                    <div className="text-sm text-gray-900">
+                                      {batch.supplier_name || 'Unknown'}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
                                       Received: {formatDate(batch.received_date)}
-                                    </p>
-                                  </div>
-
-                                  {/* Timestamps */}
-                                  <div className="space-y-1">
-                                    <p className="text-xs text-gray-500 flex items-center">
-                                      <CalendarIcon className="w-3 h-3 mr-1" />
-                                      Created: {formatDateTime(batch.created_at)}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      Updated: {formatDateTime(batch.updated_at)}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      Status: <span className="capitalize font-medium">{batch.status}</span>
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Additional Supplier Info */}
-                              {batch.supplier_info && Object.keys(batch.supplier_info).length > 0 && (
-                                <div className="mt-4 pt-4 border-t border-gray-100">
-                                  <p className="text-xs font-medium text-gray-500 mb-2">Additional Supplier Information:</p>
-                                  <div className="text-xs text-gray-400 space-y-1">
-                                    {Object.entries(batch.supplier_info).map(([key, value]) => (
-                                      <p key={key}>
-                                        <span className="capitalize font-medium">{key}:</span> {String(value)}
-                                      </p>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     </div>
@@ -391,7 +343,7 @@ export default function BatchDetailsModal({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
                   <button
                     onClick={onClose}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

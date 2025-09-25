@@ -75,105 +75,54 @@ export default function InventoryTable({
   const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const dropdownContentRef = useRef<HTMLDivElement | null>(null)
 
-  // Enhanced dropdown positioning with precise coordinates (copied from ProductsTable)
+  // Simplified dropdown positioning to fix "jump to top" issue
   const calculateDropdownPosition = (itemId: string) => {
     const buttonRef = dropdownRefs.current[itemId]
     if (!buttonRef) return
 
     const buttonRect = buttonRef.getBoundingClientRect()
-    const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
 
-    // Dropdown dimensions
-    const dropdownWidth = 192 // w-48 = 12rem = 192px
-    const dropdownMinHeight = 120
-    const dropdownMaxHeight = 256
-
-    // Calculate available space in all directions
-    const spaceAbove = buttonRect.top
+    // Simple positioning logic
+    const dropdownWidth = 192 // w-48
     const spaceBelow = viewportHeight - buttonRect.bottom
-    const spaceLeft = buttonRect.left
-    const spaceRight = viewportWidth - buttonRect.right
 
-    // Determine vertical position
+    // Default to bottom positioning with small gap
     let position: 'top' | 'bottom' = 'bottom'
-    let y = buttonRect.bottom + 8 // 8px gap below button
+    let y = buttonRect.bottom + 4
 
-    if (spaceBelow < dropdownMinHeight && spaceAbove > spaceBelow) {
+    // Only flip to top if clearly insufficient space below (less than 150px)
+    if (spaceBelow < 150) {
       position = 'top'
-      y = buttonRect.top - 8 // 8px gap above button
+      y = buttonRect.top - 4
     }
 
-    // Determine horizontal alignment
-    let align: 'left' | 'right' = 'right'
-    let x = buttonRect.right - dropdownWidth // Align right edge with button right edge
+    // Simple horizontal positioning - align dropdown right edge with button right edge
+    let x = buttonRect.right - dropdownWidth
 
-    // If dropdown would go off the left edge, align to the left
+    // Ensure dropdown stays within viewport
     if (x < 8) {
-      align = 'left'
-      x = buttonRect.left
+      x = 8 // Minimum left margin
     }
-
-    // Ensure dropdown doesn't go off the right edge
     if (x + dropdownWidth > viewportWidth - 8) {
-      x = viewportWidth - dropdownWidth - 8
-    }
-
-    // Ensure minimum margins from viewport edges
-    x = Math.max(8, Math.min(x, viewportWidth - dropdownWidth - 8))
-
-    if (position === 'top') {
-      y = Math.max(8, y - dropdownMaxHeight)
-    } else {
-      y = Math.min(y, viewportHeight - dropdownMinHeight - 8)
+      x = viewportWidth - dropdownWidth - 8 // Minimum right margin
     }
 
     setDropdownPosition({
       x,
       y,
       position,
-      align
+      align: 'right'
     })
   }
 
-  // Calculate position when dropdown opens and after content renders
+  // Calculate position when dropdown opens (simplified)
   useLayoutEffect(() => {
     if (openDropdown) {
-      setTimeout(() => calculateDropdownPosition(openDropdown), 0)
+      calculateDropdownPosition(openDropdown)
     }
   }, [openDropdown])
-
-  // Recalculate position after dropdown content is rendered
-  useLayoutEffect(() => {
-    if (dropdownPosition && dropdownContentRef.current) {
-      const content = dropdownContentRef.current
-      const actualHeight = content.scrollHeight
-
-      const buttonRef = dropdownRefs.current[openDropdown!]
-      if (buttonRef) {
-        const buttonRect = buttonRef.getBoundingClientRect()
-        const viewportHeight = window.innerHeight
-        const spaceBelow = viewportHeight - buttonRect.bottom
-        const spaceAbove = buttonRect.top
-
-        let needsRepositioning = false
-
-        if (dropdownPosition.position === 'bottom' && spaceBelow < actualHeight + 16) {
-          if (spaceAbove > spaceBelow) {
-            needsRepositioning = true
-          }
-        } else if (dropdownPosition.position === 'top' && spaceAbove < actualHeight + 16) {
-          if (spaceBelow > spaceAbove) {
-            needsRepositioning = true
-          }
-        }
-
-        if (needsRepositioning) {
-          calculateDropdownPosition(openDropdown!)
-        }
-      }
-    }
-  }, [dropdownPosition, openDropdown])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -416,8 +365,8 @@ export default function InventoryTable({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Last Updated
               </th>
-              <th className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
               </th>
             </tr>
           </thead>

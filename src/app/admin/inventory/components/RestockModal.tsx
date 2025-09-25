@@ -51,8 +51,8 @@ interface Product {
 
 interface RestockFormData {
   selectedProductId: string
-  quantity: number
-  costPerUnit: number
+  quantity: string
+  costPerUnit: string
   expirationDate: string
   supplierName: string
   supplierContact: string
@@ -71,8 +71,8 @@ export default function RestockModal({
 }: RestockModalProps) {
   const [formData, setFormData] = useState<RestockFormData>({
     selectedProductId: '',
-    quantity: 0,
-    costPerUnit: 0,
+    quantity: '',
+    costPerUnit: '',
     expirationDate: '',
     supplierName: '',
     supplierContact: '',
@@ -98,41 +98,75 @@ export default function RestockModal({
   const loadAvailableProducts = async () => {
     try {
       setLoadingProducts(true)
-      const branchId = await getMainBranchId()
+      console.log('🔄 RestockModal: Loading available products')
 
-      const { data, error } = await supabase
-        .from('inventory')
+      // Get all active products (not just those with existing inventory)
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
         .select(`
           id,
-          quantity,
-          cost_per_unit,
-          products!inner (
-            id,
-            name,
-            sku,
-            brands (name),
-            categories (name)
+          name,
+          sku,
+          status,
+          brands!inner (
+            name
+          ),
+          categories!inner (
+            name
           )
         `)
+        .eq('status', 'active')
+        .order('name')
+
+      if (productsError) throw productsError
+
+      console.log('📦 Found active products:', productsData?.length || 0)
+
+      // Get existing inventory records to show current stock levels
+      const branchId = await getMainBranchId()
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from('inventory')
+        .select(`
+          product_id,
+          id,
+          quantity,
+          cost_per_unit
+        `)
         .eq('branch_id', branchId)
-        .order('products(name)')
 
-      if (error) throw error
+      if (inventoryError) {
+        console.warn('⚠️ Could not load inventory data:', inventoryError)
+      }
 
-      const products: Product[] = data?.map(inv => ({
-        id: inv.products.id,
-        name: inv.products.name,
-        sku: inv.products.sku,
-        brand_name: inv.products.brands?.name || 'Unknown',
-        category_name: inv.products.categories?.name || 'Unknown',
-        inventory_id: inv.id,
-        current_stock: inv.quantity,
-        cost_per_unit: inv.cost_per_unit
-      })) || []
+      // Create inventory lookup map
+      const inventoryMap = new Map()
+      inventoryData?.forEach(inv => {
+        inventoryMap.set(inv.product_id, {
+          inventory_id: inv.id,
+          current_stock: inv.quantity,
+          cost_per_unit: inv.cost_per_unit
+        })
+      })
 
+      // Map products with optional inventory data
+      const products: Product[] = productsData?.map(product => {
+        const inventoryInfo = inventoryMap.get(product.id)
+        return {
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          brand_name: product.brands?.name || 'Unknown',
+          category_name: product.categories?.name || 'Unknown',
+          inventory_id: inventoryInfo?.inventory_id,
+          current_stock: inventoryInfo?.current_stock || 0,
+          cost_per_unit: inventoryInfo?.cost_per_unit || 0
+        }
+      }) || []
+
+      console.log('✅ Processed products for dropdown:', products)
       setAvailableProducts(products)
     } catch (error) {
-      console.error('Error loading products:', error)
+      console.error('❌ Error loading products:', error)
       setError(error instanceof Error ? `Failed to load products: ${error.message}` : 'Failed to load available products. Please try again.')
       setAvailableProducts([])
     } finally {
@@ -158,8 +192,8 @@ export default function RestockModal({
         setSelectedProduct(product)
         setFormData({
           selectedProductId: item.product_id || item.id,
-          quantity: 0,
-          costPerUnit: item.cost_per_unit ? Number(item.cost_per_unit) : 0,
+          quantity: '',
+          costPerUnit: item.cost_per_unit ? item.cost_per_unit.toString() : '',
           expirationDate: '',
           supplierName: '',
           supplierContact: '',
@@ -174,8 +208,8 @@ export default function RestockModal({
         setSelectedProduct(null)
         setFormData({
           selectedProductId: '',
-          quantity: 0,
-          costPerUnit: 0,
+          quantity: '',
+          costPerUnit: '',
           expirationDate: '',
           supplierName: '',
           supplierContact: '',
@@ -192,7 +226,7 @@ export default function RestockModal({
     }
   }, [isOpen, item])
 
-  const handleInputChange = (field: keyof RestockFormData, value: string | number) => {
+  const handleInputChange = (field: keyof RestockFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     setError(null)
   }
@@ -204,7 +238,7 @@ export default function RestockModal({
       setFormData(prev => ({
         ...prev,
         selectedProductId: productId,
-        costPerUnit: product.cost_per_unit ? Number(product.cost_per_unit) : 0,
+        costPerUnit: product.cost_per_unit ? product.cost_per_unit.toString() : '',
         batchNumber: `${product.sku || 'BATCH'}-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`
       }))
     }
@@ -214,8 +248,16 @@ export default function RestockModal({
     switch (stepNumber) {
       case 1:
         if (!item && !formData.selectedProductId) return 'Please select a product to restock'
-        if (formData.quantity <= 0) return 'Quantity must be greater than 0. Please enter a valid amount to add.'
-        if (formData.costPerUnit <= 0) return 'Cost per unit must be greater than ₱0.00. Please enter a valid cost.'
+
+        const quantity = Number(formData.quantity)
+        if (!formData.quantity || isNaN(quantity) || quantity <= 0) {
+          return 'Quantity must be greater than 0. Please enter a valid amount to add.'
+        }
+
+        const costPerUnit = Number(formData.costPerUnit)
+        if (!formData.costPerUnit || isNaN(costPerUnit) || costPerUnit <= 0) {
+          return 'Cost per unit must be greater than ₱0.00. Please enter a valid cost.'
+        }
         if (!formData.expirationDate) return 'Expiration date is required for inventory tracking'
         if (new Date(formData.expirationDate) <= new Date()) {
           return 'Expiration date must be in the future. Please select a valid date.'
@@ -290,10 +332,10 @@ export default function RestockModal({
       const batchData = {
         inventory_id: targetItem.id,
         batch_number: formData.batchNumber,
-        quantity: formData.quantity,
+        quantity: Number(formData.quantity),
         received_date: formData.receivedDate,
         expiration_date: formData.expirationDate,
-        cost_per_unit: formData.costPerUnit,
+        cost_per_unit: Number(formData.costPerUnit),
         supplier_name: formData.supplierName,
         supplier_info: {
           contact: formData.supplierContact,
@@ -317,8 +359,8 @@ export default function RestockModal({
       const { error: inventoryError } = await supabase
         .from('inventory')
         .update({
-          quantity: targetItem.quantity + formData.quantity,
-          cost_per_unit: formData.costPerUnit, // Update with latest cost
+          quantity: targetItem.quantity + Number(formData.quantity),
+          cost_per_unit: Number(formData.costPerUnit), // Update with latest cost
           last_restock_date: formData.receivedDate,
           updated_at: new Date().toISOString()
         })
@@ -349,8 +391,8 @@ export default function RestockModal({
       const restockHistoryData = {
         inventory_id: targetItem.id,
         batch_id: batchResult.id,
-        quantity: formData.quantity,
-        cost_per_unit: formData.costPerUnit,
+        quantity: Number(formData.quantity),
+        cost_per_unit: Number(formData.costPerUnit),
         supplier_info: {
           name: formData.supplierName,
           contact: formData.supplierContact,
@@ -397,7 +439,9 @@ export default function RestockModal({
   }
 
   const calculateTotalCost = () => {
-    return formData.quantity * formData.costPerUnit
+    const quantity = Number(formData.quantity) || 0
+    const costPerUnit = Number(formData.costPerUnit) || 0
+    return quantity * costPerUnit
   }
 
   const formatPrice = (price: number) => {
@@ -465,7 +509,7 @@ export default function RestockModal({
                             ? 'border-blue-600 bg-blue-600 text-white'
                             : 'border-gray-300 text-gray-500'
                         }`}>
-                          <span className="text-sm font-medium">{stepNumber}</span>
+                          <span className="text-sm font-semibold">{stepNumber}</span>
                         </div>
                         {stepNumber < 3 && (
                           <div className={`w-12 h-0.5 mx-2 ${
@@ -478,17 +522,17 @@ export default function RestockModal({
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-6">
+                <div className="px-6 py-6 max-h-96 overflow-y-auto">
                   {/* Step 1: Stock Details */}
                   {step === 1 && (
                     <div className="space-y-6">
                       <div>
-                        <h4 className="text-lg font-medium text-gray-900 mb-4">Stock Details</h4>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Stock Details</h4>
 
                         {/* Product Selection (only for general restocking) */}
                         {!item && (
                           <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Select Product *
                             </label>
                             {loadingProducts ? (
@@ -516,10 +560,10 @@ export default function RestockModal({
                             {selectedProduct && (
                               <div className="mt-2 p-3 bg-blue-50 rounded-lg">
                                 <div className="text-sm text-blue-900">
-                                  <p><span className="font-medium">Product:</span> {selectedProduct.name}</p>
-                                  <p><span className="font-medium">SKU:</span> {selectedProduct.sku}</p>
-                                  <p><span className="font-medium">Current Stock:</span> {selectedProduct.current_stock} units</p>
-                                  <p><span className="font-medium">Category:</span> {selectedProduct.category_name}</p>
+                                  <p><span className="font-semibold">Product:</span> {selectedProduct.name}</p>
+                                  <p><span className="font-semibold">SKU:</span> {selectedProduct.sku}</p>
+                                  <p><span className="font-semibold">Current Stock:</span> {selectedProduct.current_stock} units</p>
+                                  <p><span className="font-semibold">Category:</span> {selectedProduct.category_name}</p>
                                 </div>
                               </div>
                             )}
@@ -528,13 +572,13 @@ export default function RestockModal({
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Quantity to Add *
                             </label>
                             <Input
                               type="number"
                               value={formData.quantity}
-                              onChange={(e) => handleInputChange('quantity', Number(e.target.value))}
+                              onChange={(e) => handleInputChange('quantity', e.target.value)}
                               placeholder="Enter quantity"
                               min="1"
                               className="w-full"
@@ -545,7 +589,7 @@ export default function RestockModal({
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Cost per Unit *
                             </label>
                             <div className="relative">
@@ -553,7 +597,7 @@ export default function RestockModal({
                               <Input
                                 type="number"
                                 value={formData.costPerUnit}
-                                onChange={(e) => handleInputChange('costPerUnit', Number(e.target.value))}
+                                onChange={(e) => handleInputChange('costPerUnit', e.target.value)}
                                 placeholder="0.00"
                                 min="0"
                                 step="0.01"
@@ -563,7 +607,7 @@ export default function RestockModal({
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Expiration Date *
                             </label>
                             <div className="relative">
@@ -579,9 +623,9 @@ export default function RestockModal({
                           </div>
                         </div>
 
-                        {formData.quantity > 0 && formData.costPerUnit > 0 && (
+                        {Number(formData.quantity) > 0 && Number(formData.costPerUnit) > 0 && (
                           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <h5 className="text-sm font-medium text-blue-900 mb-2">Restock Summary</h5>
+                            <h5 className="text-sm font-semibold text-blue-900 mb-2">Restock Summary</h5>
                             <div className="grid grid-cols-2 gap-4 text-sm">
                               <div>
                                 <span className="text-blue-700">Total Cost:</span>
@@ -592,7 +636,7 @@ export default function RestockModal({
                               <div>
                                 <span className="text-blue-700">New Total Stock:</span>
                                 <span className="font-semibold text-blue-900 ml-2">
-                                  {currentStock + formData.quantity} units
+                                  {currentStock + (Number(formData.quantity) || 0)} units
                                 </span>
                               </div>
                             </div>
@@ -606,11 +650,11 @@ export default function RestockModal({
                   {step === 2 && (
                     <div className="space-y-6">
                       <div>
-                        <h4 className="text-lg font-medium text-gray-900 mb-4">Supplier Information</h4>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Supplier Information</h4>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <div className="md:col-span-2 mt-6">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Supplier Name *
                             </label>
                             <div className="relative">
@@ -626,7 +670,7 @@ export default function RestockModal({
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Supplier Contact
                             </label>
                             <Input
@@ -639,7 +683,7 @@ export default function RestockModal({
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Supplier Email
                             </label>
                             <Input
@@ -652,7 +696,7 @@ export default function RestockModal({
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Batch Number *
                             </label>
                             <Input
@@ -665,7 +709,7 @@ export default function RestockModal({
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Received Date *
                             </label>
                             <Input
@@ -676,8 +720,8 @@ export default function RestockModal({
                             />
                           </div>
 
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <div className="md:col-span-2 mt-6">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Purchase Order Reference
                             </label>
                             <div className="relative">
@@ -693,7 +737,7 @@ export default function RestockModal({
                           </div>
 
                           <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Notes
                             </label>
                             <textarea
@@ -701,7 +745,7 @@ export default function RestockModal({
                               onChange={(e) => handleInputChange('notes', e.target.value)}
                               placeholder="Additional notes about this restock..."
                               rows={3}
-                              className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 resize-none"
+                              className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white placeholder:text-gray-600 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                             />
                           </div>
                         </div>
@@ -713,42 +757,42 @@ export default function RestockModal({
                   {step === 3 && (
                     <div className="space-y-6">
                       <div>
-                        <h4 className="text-lg font-medium text-gray-900 mb-4">Review Restock Details</h4>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Review Restock Details</h4>
 
                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Product:</span>
-                              <p className="text-sm text-gray-900 font-medium">{displayItem?.product_name || displayItem?.name}</p>
+                              <span className="text-sm font-semibold text-gray-500">Product:</span>
+                              <p className="text-sm text-gray-900 font-semibold">{displayItem?.product_name || displayItem?.name}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">SKU:</span>
+                              <span className="text-sm font-semibold text-gray-500">SKU:</span>
                               <p className="text-sm text-gray-900">{displayItem?.sku}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Quantity to Add:</span>
-                              <p className="text-sm text-gray-900 font-medium">{formData.quantity} units</p>
+                              <span className="text-sm font-semibold text-gray-500">Quantity to Add:</span>
+                              <p className="text-sm text-gray-900 font-semibold">{formData.quantity || 0} units</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Cost per Unit:</span>
-                              <p className="text-sm text-gray-900">{formatPrice(formData.costPerUnit)}</p>
+                              <span className="text-sm font-semibold text-gray-500">Cost per Unit:</span>
+                              <p className="text-sm text-gray-900">{formatPrice(Number(formData.costPerUnit) || 0)}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Total Cost:</span>
+                              <span className="text-sm font-semibold text-gray-500">Total Cost:</span>
                               <p className="text-sm text-gray-900 font-bold text-blue-600">
                                 {formatPrice(calculateTotalCost())}
                               </p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Expiration Date:</span>
+                              <span className="text-sm font-semibold text-gray-500">Expiration Date:</span>
                               <p className="text-sm text-gray-900">{new Date(formData.expirationDate).toLocaleDateString()}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Supplier:</span>
+                              <span className="text-sm font-semibold text-gray-500">Supplier:</span>
                               <p className="text-sm text-gray-900">{formData.supplierName}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-500">Batch Number:</span>
+                              <span className="text-sm font-semibold text-gray-500">Batch Number:</span>
                               <p className="text-sm text-gray-900">{formData.batchNumber}</p>
                             </div>
                           </div>
@@ -756,13 +800,13 @@ export default function RestockModal({
                           <div className="pt-4 border-t border-gray-200">
                             <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <span className="text-sm font-medium text-gray-500">Current Stock:</span>
+                                <span className="text-sm font-semibold text-gray-500">Current Stock:</span>
                                 <p className="text-sm text-gray-900">{currentStock} units</p>
                               </div>
                               <div>
-                                <span className="text-sm font-medium text-gray-500">New Total Stock:</span>
+                                <span className="text-sm font-semibold text-gray-500">New Total Stock:</span>
                                 <p className="text-sm text-gray-900 font-bold text-green-600">
-                                  {currentStock + formData.quantity} units
+                                  {currentStock + (Number(formData.quantity) || 0)} units
                                 </p>
                               </div>
                             </div>
@@ -778,7 +822,7 @@ export default function RestockModal({
                       <div className="flex">
                         <ExclamationTriangleIcon className="w-5 h-5 text-red-400 mt-0.5" />
                         <div className="ml-3">
-                          <p className="text-sm font-medium text-red-800">{error}</p>
+                          <p className="text-sm font-semibold text-red-800">{error}</p>
                         </div>
                       </div>
                     </div>

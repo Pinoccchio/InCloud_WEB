@@ -48,7 +48,20 @@ export default function ImageUploader({
   }, [onImagesChange])
 
   const handleFileSelect = useCallback(async (files: File[]) => {
+    console.log('📤 ImageUploader: Starting file selection', {
+      fileCount: files.length,
+      productId,
+      fileNames: Array.from(files).map(f => f.name)
+    })
+
     if (!files.length) return
+
+    // Check if productId is available
+    if (!productId) {
+      console.error('❌ ImageUploader: No productId provided - upload will fail')
+      alert('Cannot upload images: Product ID not available')
+      return
+    }
 
     // Validate files
     const validFiles: File[] = []
@@ -61,6 +74,12 @@ export default function ImageUploader({
       } else {
         invalidFiles.push({ file, error: validation.error || 'Invalid file' })
       }
+    })
+
+    console.log('✅ File validation completed', {
+      validCount: validFiles.length,
+      invalidCount: invalidFiles.length,
+      invalidErrors: invalidFiles.map(f => f.error)
     })
 
     // Check if adding these files would exceed the limit
@@ -94,10 +113,16 @@ export default function ImageUploader({
 
     // If we have a productId, upload to Supabase
     if (productId) {
+      console.log('🚀 Starting upload to Supabase', { productId, fileCount: validFiles.length })
       setIsUploading(true)
 
       try {
         const uploadResults = await uploadMultipleProductImages(validFiles, productId, 'gallery')
+        console.log('📊 Upload results received', {
+          successful: uploadResults.successful.length,
+          failed: uploadResults.failed.length,
+          failedReasons: uploadResults.failed.map(f => f.error)
+        })
 
         // Update images with upload results
         const finalImages = updatedImages.map(img => {
@@ -106,6 +131,7 @@ export default function ImageUploader({
             const failResult = uploadResults.failed.find(r => r.file === img.file)
 
             if (successResult) {
+              console.log('✅ Upload successful for', img.file.name, successResult.result.url)
               // Replace preview URL with actual URL
               URL.revokeObjectURL(img.url)
               return {
@@ -115,6 +141,7 @@ export default function ImageUploader({
                 isUploading: false
               }
             } else if (failResult) {
+              console.error('❌ Upload failed for', img.file.name, failResult.error)
               return {
                 ...img,
                 isUploading: false,
@@ -126,7 +153,9 @@ export default function ImageUploader({
         })
 
         updateImages(finalImages)
+        console.log('🏁 Image upload process completed')
       } catch (error) {
+        console.error('💥 Upload process crashed:', error)
         // Mark all uploading images as failed
         const failedImages = updatedImages.map(img =>
           img.isUploading

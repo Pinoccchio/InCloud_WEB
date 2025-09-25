@@ -32,9 +32,18 @@ export async function uploadProductImage(
   productId: string,
   folder: 'main' | 'gallery' | 'thumbnails' = 'gallery'
 ): Promise<UploadResult> {
+  console.log('🔄 Storage: Starting upload', {
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type,
+    productId,
+    folder
+  })
+
   try {
     // Validate file
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      console.error('❌ Storage: Invalid file type', file.type)
       return {
         success: false,
         error: 'Invalid file type. Please upload JPEG, PNG, or WebP images.'
@@ -42,6 +51,7 @@ export async function uploadProductImage(
     }
 
     if (file.size > MAX_FILE_SIZE) {
+      console.error('❌ Storage: File too large', { size: file.size, maxSize: MAX_FILE_SIZE })
       return {
         success: false,
         error: 'File size too large. Maximum size is 5MB.'
@@ -55,6 +65,8 @@ export async function uploadProductImage(
     const fileName = `${timestamp}_${randomId}.${fileExt}`
     const filePath = `products/${productId}/${folder}/${fileName}`
 
+    console.log('📂 Storage: Generated file path', filePath)
+
     // Upload to storage
     const { data, error } = await supabase.storage
       .from(PRODUCT_IMAGES_BUCKET)
@@ -64,16 +76,25 @@ export async function uploadProductImage(
       })
 
     if (error) {
+      console.error('💾 Storage: Upload failed', {
+        error: error.message,
+        code: error.statusCode,
+        filePath
+      })
       return {
         success: false,
         error: error.message
       }
     }
 
+    console.log('✅ Storage: Upload successful', { filePath, fullPath: data?.fullPath })
+
     // Get public URL
     const { data: urlData } = supabase.storage
       .from(PRODUCT_IMAGES_BUCKET)
       .getPublicUrl(filePath)
+
+    console.log('🔗 Storage: Generated public URL', urlData.publicUrl)
 
     return {
       success: true,
@@ -84,6 +105,7 @@ export async function uploadProductImage(
       }
     }
   } catch (error) {
+    console.error('💥 Storage: Unexpected error', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed'
