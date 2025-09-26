@@ -31,6 +31,7 @@ interface ProductsTableProps {
   categoryFilter?: string
   brandFilter?: string
   statusFilter?: string
+  stockFilter?: string
   onEdit?: (product: Product) => void
   onDelete?: (product: Product) => void
   onView?: (product: Product) => void
@@ -41,6 +42,7 @@ export default function ProductsTable({
   categoryFilter = '',
   brandFilter = '',
   statusFilter = '',
+  stockFilter = '',
   onEdit,
   onDelete,
   onView
@@ -147,13 +149,35 @@ export default function ProductsTable({
         })
       )
 
-      setProducts(productsWithInventory)
+      // Apply stock level filtering if stockFilter is specified
+      let filteredProducts = productsWithInventory
+      if (stockFilter) {
+        filteredProducts = productsWithInventory.filter(product => {
+          const quantity = product.total_stock || 0
+          const threshold = 10 // Default threshold, could be made configurable
+
+          switch (stockFilter) {
+            case 'in-stock':
+              return quantity > threshold
+            case 'low-stock':
+              return quantity > 0 && quantity <= threshold
+            case 'out-of-stock':
+              return quantity === 0
+            case 'no-inventory':
+              return product.inventory_count === 0
+            default:
+              return true
+          }
+        })
+      }
+
+      setProducts(filteredProducts)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch products')
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, categoryFilter, brandFilter, statusFilter, sortConfig])
+  }, [searchQuery, categoryFilter, brandFilter, statusFilter, stockFilter, sortConfig])
 
   // Enhanced dropdown positioning with precise coordinates (similar to super admin)
   const calculateDropdownPosition = (productId: string) => {

@@ -158,12 +158,12 @@ export default function InventoryFilters({
                 <select
                   value={categoryFilter}
                   onChange={(e) => onCategoryChange(e.target.value)}
-                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
                   disabled={loading}
                 >
-                  <option value="">All Categories</option>
+                  <option value="" className="text-gray-900 font-medium">All Categories</option>
                   {categories.map(category => (
-                    <option key={category.id} value={category.name}>
+                    <option key={category.id} value={category.name} className="text-gray-900 font-medium">
                       {category.name}
                     </option>
                   ))}
@@ -178,12 +178,12 @@ export default function InventoryFilters({
                 <select
                   value={brandFilter}
                   onChange={(e) => onBrandChange(e.target.value)}
-                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
                   disabled={loading}
                 >
-                  <option value="">All Brands</option>
+                  <option value="" className="text-gray-900 font-medium">All Brands</option>
                   {brands.map(brand => (
-                    <option key={brand.id} value={brand.name}>
+                    <option key={brand.id} value={brand.name} className="text-gray-900 font-medium">
                       {brand.name}
                     </option>
                   ))}
@@ -198,11 +198,11 @@ export default function InventoryFilters({
                 <select
                   value={stockStatusFilter}
                   onChange={(e) => onStockStatusChange(e.target.value)}
-                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
                 >
-                  <option value="">All Statuses</option>
+                  <option value="" className="text-gray-900 font-medium">All Statuses</option>
                   {stockStatusOptions.map(option => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="text-gray-900 font-medium">
                       {option.label}
                     </option>
                   ))}
@@ -217,11 +217,11 @@ export default function InventoryFilters({
                 <select
                   value={expirationFilter}
                   onChange={(e) => onExpirationChange(e.target.value)}
-                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
                 >
-                  <option value="">All Products</option>
+                  <option value="" className="text-gray-900 font-medium">All Products</option>
                   {expirationOptions.map(option => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="text-gray-900 font-medium">
                       {option.label}
                     </option>
                   ))}

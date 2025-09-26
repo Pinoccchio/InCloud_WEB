@@ -149,11 +149,11 @@ export default function ProductFilters({
                 value={categoryFilter}
                 onChange={(e) => onCategoryChange(e.target.value)}
                 disabled={loading}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
               >
-                <option value="">All Categories</option>
+                <option value="" className="text-gray-900 font-medium">All Categories</option>
                 {categories.map(category => (
-                  <option key={category.id} value={category.id}>
+                  <option key={category.id} value={category.id} className="text-gray-900 font-medium">
                     {category.name}
                   </option>
                 ))}
@@ -169,11 +169,11 @@ export default function ProductFilters({
                 value={brandFilter}
                 onChange={(e) => onBrandChange(e.target.value)}
                 disabled={loading}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
               >
-                <option value="">All Brands</option>
+                <option value="" className="text-gray-900 font-medium">All Brands</option>
                 {brands.map(brand => (
-                  <option key={brand.id} value={brand.id}>
+                  <option key={brand.id} value={brand.id} className="text-gray-900 font-medium">
                     {brand.name}
                   </option>
                 ))}
@@ -188,12 +188,12 @@ export default function ProductFilters({
               <select
                 value={statusFilter}
                 onChange={(e) => onStatusChange(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
               >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="discontinued">Discontinued</option>
+                <option value="" className="text-gray-900 font-medium">All Status</option>
+                <option value="active" className="text-gray-900 font-medium">Active</option>
+                <option value="inactive" className="text-gray-900 font-medium">Inactive</option>
+                <option value="discontinued" className="text-gray-900 font-medium">Discontinued</option>
               </select>
             </div>
 
@@ -205,13 +205,13 @@ export default function ProductFilters({
               <select
                 value={stockFilter}
                 onChange={(e) => onStockFilterChange(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
               >
-                <option value="">All Stock Levels</option>
-                <option value="in-stock">In Stock</option>
-                <option value="low-stock">Low Stock</option>
-                <option value="out-of-stock">Out of Stock</option>
-                <option value="no-inventory">No Inventory Setup</option>
+                <option value="" className="text-gray-900 font-medium">All Stock Levels</option>
+                <option value="in-stock" className="text-gray-900 font-medium">In Stock</option>
+                <option value="low-stock" className="text-gray-900 font-medium">Low Stock</option>
+                <option value="out-of-stock" className="text-gray-900 font-medium">Out of Stock</option>
+                <option value="no-inventory" className="text-gray-900 font-medium">No Inventory Setup</option>
               </select>
             </div>
           </div>

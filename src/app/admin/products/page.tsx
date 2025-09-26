@@ -172,6 +172,7 @@ export default function ProductsPage() {
         categoryFilter={categoryFilter}
         brandFilter={brandFilter}
         statusFilter={statusFilter}
+        stockFilter={stockFilter}
         onEdit={handleEditProduct}
         onDelete={handleDeleteProduct}
         onView={handleViewProduct}
