@@ -70,28 +70,69 @@ export default function ProductsPage() {
   }
 
   const confirmDeleteProduct = async () => {
-    if (!productToDelete) return
+    if (!productToDelete || !admin) return
 
     try {
       setIsDeleting(true)
 
-      // Delete product (this will cascade delete related records)
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productToDelete.id)
+      // Use API endpoint for proper cascade handling
+      const response = await fetch('/api/products/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: productToDelete.id,
+          reason: `Product deleted via admin interface by ${admin.fullName || 'admin'}`,
+          currentAdminId: admin.id,
+          currentAdminRole: admin.role
+        }),
+      })
 
-      if (error) throw error
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete product')
+      }
+
+      // Show success message with cascade information
+      let message = `${productToDelete.name} has been successfully deleted.`
+      if (result.cascadeInfo) {
+        const cascadeDetails = []
+        if (result.cascadeInfo.inventory_records > 0) {
+          cascadeDetails.push(`${result.cascadeInfo.inventory_records} inventory record(s)`)
+        }
+        if (result.cascadeInfo.price_tiers > 0) {
+          cascadeDetails.push(`${result.cascadeInfo.price_tiers} price tier(s)`)
+        }
+        if (result.cascadeInfo.alerts > 0) {
+          cascadeDetails.push(`${result.cascadeInfo.alerts} alert(s)`)
+        }
+
+        if (cascadeDetails.length > 0) {
+          message += ` Related data removed: ${cascadeDetails.join(', ')}.`
+        }
+      }
+
+      // Show warning if product had business history
+      if (result.warningMessage) {
+        addToast({
+          type: 'warning',
+          title: 'Product Deleted with History',
+          message: result.warningMessage
+        })
+      }
 
       addToast({
         type: 'success',
         title: 'Product Deleted',
-        message: `${productToDelete.name} has been successfully deleted.`
+        message: message
       })
 
       // Refresh the table
       setRefreshTrigger(prev => prev + 1)
     } catch (error) {
+      console.error('Error deleting product:', error)
       addToast({
         type: 'error',
         title: 'Delete Failed',
@@ -216,7 +257,14 @@ export default function ProductsPage() {
         title="Delete Product"
         message={
           productToDelete
-            ? `Are you sure you want to delete "${productToDelete.name}"? This action cannot be undone and will remove all associated pricing and inventory data.`
+            ? `Are you sure you want to delete "${productToDelete.name}"? This action cannot be undone and will cascade delete:
+
+• All inventory records and stock levels
+• All price tiers (wholesale, retail, box)
+• All product-specific alerts and configurations
+• All product batches and expiration data
+
+Note: Order history and transfer records will be preserved for audit purposes.`
             : ''
         }
         confirmText="Delete Product"

@@ -865,7 +865,15 @@ export default function AdminUsersPage() {
         title="Delete Admin Account"
         message={
           adminToDelete
-            ? `Are you sure you want to delete ${adminToDelete.full_name}? This action cannot be undone and will permanently remove their account and all associated data.`
+            ? `Are you sure you want to delete "${adminToDelete.full_name}"? This action cannot be undone and will:
+
+• Delete the admin account permanently
+• Reassign all audit trail records to system admin
+• Remove user-specific settings and preferences
+• Preserve historical records for compliance
+• Delete authentication credentials
+
+Note: All business records created by this admin will be preserved and reassigned to maintain data integrity.`
             : ''
         }
         confirmText="Delete Account"

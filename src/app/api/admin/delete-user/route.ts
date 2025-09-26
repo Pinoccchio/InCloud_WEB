@@ -47,7 +47,113 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Step 1: Delete from admins table
+    // Step 1: Get system admin ID for reassignment
+    const { data: systemAdmin, error: systemAdminError } = await client
+      .from('admins')
+      .select('id')
+      .eq('full_name', 'Pinocchio Incloud Super Admin')
+      .eq('role', 'super_admin')
+      .single()
+
+    if (systemAdminError || !systemAdmin) {
+      console.error('System admin not found:', systemAdminError)
+      return NextResponse.json(
+        { error: 'System admin not found for record reassignment' },
+        { status: 500 }
+      )
+    }
+
+    const systemAdminId = systemAdmin.id
+
+    // Step 2: Handle dependent records before deletion
+    console.log(`Reassigning records from admin ${adminId} to system admin ${systemAdminId}`)
+
+    // Delete user-specific records (these should be removed, not reassigned)
+    const userSpecificTables = ['user_preferences', 'notification_settings']
+    for (const table of userSpecificTables) {
+      try {
+        const { error } = await client
+          .from(table)
+          .delete()
+          .eq('admin_id', adminId)
+
+        if (error) {
+          console.warn(`Failed to delete from ${table}:`, error)
+        }
+      } catch (error) {
+        console.warn(`Error deleting from ${table}:`, error)
+      }
+    }
+
+    // Reassign audit trail records to system admin (preserve history)
+    const auditTrailUpdates = [
+      // Tables with created_by field
+      { table: 'alert_rules', field: 'created_by' },
+      { table: 'analytics_reports', field: 'generated_by' },
+      { table: 'brands', field: 'created_by' },
+      { table: 'brands', field: 'updated_by' },
+      { table: 'categories', field: 'created_by' },
+      { table: 'categories', field: 'updated_by' },
+      { table: 'inventory', field: 'created_by' },
+      { table: 'inventory', field: 'updated_by' },
+      { table: 'inventory_movements', field: 'performed_by' },
+      { table: 'order_fulfillment', field: 'packed_by' },
+      { table: 'order_fulfillment', field: 'picked_by' },
+      { table: 'order_fulfillment', field: 'delivered_by' },
+      { table: 'order_status_history', field: 'changed_by' },
+      { table: 'orders', field: 'assigned_to' },
+      { table: 'orders', field: 'created_by' },
+      { table: 'price_tiers', field: 'created_by' },
+      { table: 'price_tiers', field: 'updated_by' },
+      { table: 'product_batches', field: 'created_by' },
+      { table: 'product_batches', field: 'updated_by' },
+      { table: 'products', field: 'created_by' },
+      { table: 'products', field: 'updated_by' },
+      { table: 'restock_history', field: 'performed_by' },
+      { table: 'stock_transfers', field: 'approved_by' },
+      { table: 'stock_transfers', field: 'requested_by' },
+      { table: 'system_settings', field: 'updated_by' }
+    ]
+
+    // Reassign records to system admin
+    for (const { table, field } of auditTrailUpdates) {
+      try {
+        const { error } = await client
+          .from(table)
+          .update({ [field]: systemAdminId })
+          .eq(field, adminId)
+
+        if (error) {
+          console.warn(`Failed to reassign ${table}.${field}:`, error)
+        }
+      } catch (error) {
+        console.warn(`Error reassigning ${table}.${field}:`, error)
+      }
+    }
+
+    // Handle nullable foreign keys - set to null instead of reassigning
+    const nullifyUpdates = [
+      { table: 'alerts', field: 'acknowledged_by' }
+    ]
+
+    for (const { table, field } of nullifyUpdates) {
+      try {
+        const { error } = await client
+          .from(table)
+          .update({ [field]: null })
+          .eq(field, adminId)
+
+        if (error) {
+          console.warn(`Failed to nullify ${table}.${field}:`, error)
+        }
+      } catch (error) {
+        console.warn(`Error nullifying ${table}.${field}:`, error)
+      }
+    }
+
+    // Keep audit_logs for historical purposes (don't reassign admin_id)
+
+    // Step 3: Now delete from admins table
     const { error: deleteAdminError } = await client
       .from('admins')
       .delete()
@@ -56,12 +162,12 @@ export async function DELETE(request: NextRequest) {
     if (deleteAdminError) {
       console.error('Error deleting admin record:', deleteAdminError)
       return NextResponse.json(
-        { error: 'Failed to delete admin record' },
+        { error: 'Failed to delete admin record after cleanup' },
         { status: 400 }
       )
     }
 
-    // Step 2: Delete from auth.users if user_id exists (for real accounts)
+    // Step 4: Delete from auth.users if user_id exists (for real accounts)
     if (adminToDelete.user_id) {
       const { error: deleteAuthError } = await client.auth.admin.deleteUser(adminToDelete.user_id)
 
@@ -72,7 +178,7 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // Step 3: Add audit log entry
+    // Step 5: Add audit log entry
     try {
       await client
         .from('audit_logs')
@@ -86,8 +192,11 @@ export async function DELETE(request: NextRequest) {
             deleted_admin_name: adminToDelete.full_name,
             deleted_admin_role: adminToDelete.role,
             had_auth_user: !!adminToDelete.user_id,
+            reassigned_to_system_admin: systemAdminId,
+            records_reassigned: true,
+            user_specific_records_deleted: true,
             reason: reason || null,
-            action_context: 'admin_deletion',
+            action_context: 'admin_deletion_with_cascade_cleanup',
             timestamp: auditMetadata.timestamp
           }
         })

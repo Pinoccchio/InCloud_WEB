@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Logo } from '@/components/ui'
-import { loginAdmin, checkSuperAdminExists, type LoginCredentials } from '@/lib/supabase/auth'
+import { loginAdmin, type LoginCredentials } from '@/lib/supabase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 
 const loginSchema = z.object({
@@ -20,7 +20,6 @@ type LoginFormData = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showSuperAdminSetup, setShowSuperAdminSetup] = useState(false)
   const router = useRouter()
   const { login } = useAuth()
 
@@ -32,16 +31,6 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   })
 
-  // Check if super admin exists on component mount
-  useEffect(() => {
-    const checkSuperAdmin = async () => {
-      const result = await checkSuperAdminExists()
-      if (result.success && result.data) {
-        setShowSuperAdminSetup(!result.data.exists)
-      }
-    }
-    checkSuperAdmin()
-  }, [])
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
@@ -178,24 +167,6 @@ export default function LoginPage() {
             </CardContent>
           </Card>
 
-          {showSuperAdminSetup && (
-            <div className="mt-8">
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 shadow-sm">
-                <p className="text-yellow-800 font-bold text-base mb-2">🔧 Initial Setup Required</p>
-                <p className="text-yellow-700 text-sm mb-4">
-                  No super administrator account found. Create the initial super admin to get started.
-                </p>
-                <Link href="/super-admin-setup">
-                  <Button
-                    variant="outline"
-                    className="w-full text-yellow-800 border-yellow-300 hover:bg-yellow-100"
-                  >
-                    Create Super Admin Account
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          )}
 
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-800 font-medium">

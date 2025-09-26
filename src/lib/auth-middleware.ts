@@ -51,6 +51,18 @@ export async function getCurrentAdminContext(request: NextRequest) {
   }
 }
 
+// Validate admin permissions with context (admin or super_admin)
+export async function validateAdminWithContext(request: NextRequest) {
+  const context = await getCurrentAdminContext(request)
+
+  // Both admin and super_admin roles are valid
+  if (!['admin', 'super_admin'].includes(context.currentAdminRole)) {
+    throw new Error('Admin access required')
+  }
+
+  return context
+}
+
 // Validate super admin permissions with context
 export async function validateSuperAdminWithContext(request: NextRequest) {
   const context = await getCurrentAdminContext(request)
