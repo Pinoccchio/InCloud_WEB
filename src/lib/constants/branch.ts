@@ -60,7 +60,8 @@ export async function validateBranchAccess(userBranches: string[], targetBranchI
   }
 
   // Regular admins must have main branch in their access list
-  return userBranches.includes(branchToCheck) && branchToCheck === mainBranchId
+  // For single-branch operations, only check if they have access to the main branch
+  return userBranches.includes(mainBranchId) && branchToCheck === mainBranchId
 }
 
 // Synchronous version for cases where we already have the ID cached
@@ -74,4 +75,36 @@ export function getMainBranchIdSync(): string {
 // Initialize cache - call this on app startup
 export async function initializeBranchCache(): Promise<void> {
   await getMainBranchId()
+}
+
+// Helper function to ensure regular admins have proper branch access
+export async function ensureAdminBranchAccess(adminId: string, role: 'admin' | 'super_admin'): Promise<void> {
+  if (role !== 'admin') return // Only regular admins need branch assignment
+
+  const mainBranchId = await getMainBranchId()
+
+  // Check if admin already has proper branch access
+  const { data: admin, error } = await supabase
+    .from('admins')
+    .select('branches')
+    .eq('id', adminId)
+    .single()
+
+  if (error || !admin) {
+    console.error('Failed to check admin branch access:', error)
+    return
+  }
+
+  // If admin has empty branches or missing main branch, fix it
+  const branches = admin.branches as string[]
+  if (!branches || branches.length === 0 || !branches.includes(mainBranchId)) {
+    const { error: updateError } = await supabase
+      .from('admins')
+      .update({ branches: [mainBranchId] })
+      .eq('id', adminId)
+
+    if (updateError) {
+      console.error('Failed to update admin branch access:', updateError)
+    }
+  }
 }
