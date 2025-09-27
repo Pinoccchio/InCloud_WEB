@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import {
   XMarkIcon,
@@ -36,14 +36,7 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
 
   const { addToast } = useToast()
 
-  // Load alert settings
-  useEffect(() => {
-    if (isOpen) {
-      loadAlertSettings()
-    }
-  }, [isOpen])
-
-  const loadAlertSettings = async () => {
+  const loadAlertSettings = useCallback(async () => {
     try {
       setIsLoading(true)
       const branchId = await getMainBranchId()
@@ -73,8 +66,14 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
+  // Load alert settings
+  useEffect(() => {
+    if (isOpen) {
+      loadAlertSettings()
+    }
+  }, [isOpen, loadAlertSettings])
 
   const saveAlertSettings = async () => {
     try {

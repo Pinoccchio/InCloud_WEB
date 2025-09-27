@@ -7,10 +7,11 @@ import {
   ExclamationTriangleIcon,
   ChartBarIcon,
   AdjustmentsHorizontalIcon,
-  DocumentArrowDownIcon
+  DocumentArrowDownIcon,
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui'
-import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
@@ -21,6 +22,7 @@ import InventoryFilters from './components/InventoryFilters'
 import RestockModal from './components/RestockModal'
 import InventoryAnalytics from './components/InventoryAnalytics'
 import BatchDetailsModal from './components/BatchDetailsModal'
+import InventoryImportModal from './components/InventoryImportModal'
 
 interface InventoryItem {
   id: string
@@ -54,6 +56,7 @@ export default function InventoryPage() {
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false)
   const [isBatchDetailsModalOpen, setIsBatchDetailsModalOpen] = useState(false)
+  const [isInventoryImportOpen, setIsInventoryImportOpen] = useState(false)
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
 
   // Table refresh trigger
@@ -68,7 +71,6 @@ export default function InventoryPage() {
   })
   const [isLoadingStats, setIsLoadingStats] = useState(true)
 
-  const { admin } = useAuth()
   const { addToast } = useToast()
 
   const handleRestock = () => {
@@ -91,6 +93,17 @@ export default function InventoryPage() {
     setRefreshTrigger(prev => prev + 1)
   }
 
+  const handleImportSuccess = (result: { successCount: number; errorCount: number }) => {
+    addToast({
+      type: 'success',
+      title: 'Import Completed',
+      message: `Successfully restocked ${result.successCount} products. ${result.errorCount > 0 ? `${result.errorCount} errors encountered.` : ''}`
+    })
+
+    // Refresh the table
+    setRefreshTrigger(prev => prev + 1)
+  }
+
   const handleRefreshData = () => {
     setRefreshTrigger(prev => prev + 1)
     // loadInventoryStats() // Disabled for now
@@ -101,12 +114,70 @@ export default function InventoryPage() {
     })
   }
 
-  const handleExportData = () => {
-    addToast({
-      type: 'info',
-      title: 'Export Started',
-      message: 'Inventory data export is being prepared. You will be notified when ready.'
-    })
+  const handleImportInventory = () => {
+    setIsInventoryImportOpen(true)
+  }
+
+  const handleExportInventory = async () => {
+    try {
+      const response = await fetch('/api/inventory/export')
+      if (!response.ok) {
+        throw new Error('Failed to export inventory')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `InCloud_Inventory_Export_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      addToast({
+        type: 'success',
+        title: 'Export Successful',
+        message: 'Inventory has been exported to Excel successfully.'
+      })
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Export Failed',
+        message: error instanceof Error ? error.message : 'Failed to export inventory'
+      })
+    }
+  }
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/templates?type=inventory')
+      if (!response.ok) {
+        throw new Error('Failed to download template')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'InCloud_Inventory_Import_Template.xlsx'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      addToast({
+        type: 'success',
+        title: 'Template Downloaded',
+        message: 'Import template has been downloaded successfully.'
+      })
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Download Failed',
+        message: error instanceof Error ? error.message : 'Failed to download template'
+      })
+    }
   }
 
   const clearAllFilters = () => {
@@ -230,11 +301,27 @@ export default function InventoryPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={handleExportData}
+            onClick={handleDownloadTemplate}
             className="flex items-center"
           >
             <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-            Export
+            Download Template
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleImportInventory}
+            className="flex items-center"
+          >
+            <ArrowUpTrayIcon className="w-4 h-4 mr-2" />
+            Import Stock
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportInventory}
+            className="flex items-center"
+          >
+            <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+            Export Inventory
           </Button>
           <Button
             onClick={handleRestock}
@@ -378,6 +465,13 @@ export default function InventoryPage() {
           setIsBatchDetailsModalOpen(false)
           setSelectedInventoryItem(null)
         }}
+      />
+
+      {/* Inventory Import Modal */}
+      <InventoryImportModal
+        isOpen={isInventoryImportOpen}
+        onClose={() => setIsInventoryImportOpen(false)}
+        onSuccess={handleImportSuccess}
       />
 
       {/* Analytics Modal */}

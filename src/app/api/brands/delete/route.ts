@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
+import { createClient } from '@supabase/supabase-js'
+
+type SupabaseClient = ReturnType<typeof createClient<any>>
 
 // Constants
 const HTTP_STATUS = {
@@ -87,8 +90,8 @@ const validateInput = (brandId: string | undefined): NextResponse | null => {
  * @param brandId - The brand ID to fetch
  * @returns Promise resolving to brand data and potential errors
  */
-const fetchBrandDetails = async (client: unknown, brandId: string) => {
-  return await (client as { from: (table: string) => unknown })
+const fetchBrandDetails = async (client: SupabaseClient, brandId: string) => {
+  return await client
     .from('brands')
     .select(`
       id,
@@ -109,8 +112,8 @@ const fetchBrandDetails = async (client: unknown, brandId: string) => {
  * @param brandId - The brand ID to check
  * @returns Promise resolving to associated products data and potential errors
  */
-const checkAssociatedProducts = async (client: unknown, brandId: string) => {
-  return await (client as { from: (table: string) => unknown })
+const checkAssociatedProducts = async (client: SupabaseClient, brandId: string) => {
+  return await client
     .from('products')
     .select('id, name, sku')
     .eq('brand_id', brandId) as { data: ProductRecord[] | null; error: unknown }
@@ -125,14 +128,14 @@ const checkAssociatedProducts = async (client: unknown, brandId: string) => {
  * @param auditMetadata - Metadata for the audit log
  */
 const createAuditLog = async (
-  client: unknown,
+  client: SupabaseClient,
   currentAdminId: string,
   brandToDelete: BrandRecord,
   reason: string | undefined,
   auditMetadata: { timestamp: string }
 ) => {
   try {
-    await (client as { from: (table: string) => unknown })
+    await client
       .from('audit_logs')
       .insert({
         admin_id: currentAdminId,

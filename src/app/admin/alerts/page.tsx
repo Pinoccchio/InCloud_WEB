@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   BellIcon,
   Cog6ToothIcon,
@@ -48,11 +48,7 @@ export default function AlertsPage() {
 
   const { addToast } = useToast()
 
-  useEffect(() => {
-    loadAlertSummary()
-  }, [refreshTrigger])
-
-  const loadAlertSummary = async () => {
+  const loadAlertSummary = useCallback(async () => {
     try {
       setIsLoading(true)
       const branchId = await getMainBranchId()
@@ -109,7 +105,11 @@ export default function AlertsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadAlertSummary()
+  }, [refreshTrigger, loadAlertSummary])
 
   const handleRefreshData = () => {
     setRefreshTrigger(prev => prev + 1)
