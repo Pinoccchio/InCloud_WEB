@@ -53,6 +53,66 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_configurations: {
+        Row: {
+          branch_id: string | null
+          created_at: string | null
+          critical_expiry_days: number | null
+          critical_stock_threshold: number | null
+          email_notifications: boolean | null
+          expiry_warning_days: number | null
+          id: string
+          in_app_notifications: boolean | null
+          is_active: boolean | null
+          low_stock_threshold: number | null
+          product_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string | null
+          critical_expiry_days?: number | null
+          critical_stock_threshold?: number | null
+          email_notifications?: boolean | null
+          expiry_warning_days?: number | null
+          id?: string
+          in_app_notifications?: boolean | null
+          is_active?: boolean | null
+          low_stock_threshold?: number | null
+          product_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string | null
+          critical_expiry_days?: number | null
+          critical_stock_threshold?: number | null
+          email_notifications?: boolean | null
+          expiry_warning_days?: number | null
+          id?: string
+          in_app_notifications?: boolean | null
+          is_active?: boolean | null
+          low_stock_threshold?: number | null
+          product_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_configurations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_configurations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alert_rules: {
         Row: {
           alert_type: Database["public"]["Enums"]["alert_type"]
@@ -110,6 +170,53 @@ export type Database = {
           },
         ]
       }
+      alert_settings: {
+        Row: {
+          branch_id: string | null
+          created_at: string | null
+          critical_expiry_days: number | null
+          critical_stock_threshold: number | null
+          email_notifications: boolean | null
+          expiry_warning_days: number | null
+          id: string
+          in_app_notifications: boolean | null
+          low_stock_threshold: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string | null
+          critical_expiry_days?: number | null
+          critical_stock_threshold?: number | null
+          email_notifications?: boolean | null
+          expiry_warning_days?: number | null
+          id?: string
+          in_app_notifications?: boolean | null
+          low_stock_threshold?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string | null
+          critical_expiry_days?: number | null
+          critical_stock_threshold?: number | null
+          email_notifications?: boolean | null
+          expiry_warning_days?: number | null
+          id?: string
+          in_app_notifications?: boolean | null
+          low_stock_threshold?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_settings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           acknowledged_at: string | null
@@ -128,6 +235,7 @@ export type Database = {
           order_id: string | null
           product_id: string | null
           severity: Database["public"]["Enums"]["alert_severity"]
+          status: string | null
           title: string
           type: Database["public"]["Enums"]["alert_type"]
         }
@@ -148,6 +256,7 @@ export type Database = {
           order_id?: string | null
           product_id?: string | null
           severity: Database["public"]["Enums"]["alert_severity"]
+          status?: string | null
           title: string
           type: Database["public"]["Enums"]["alert_type"]
         }
@@ -168,6 +277,7 @@ export type Database = {
           order_id?: string | null
           product_id?: string | null
           severity?: Database["public"]["Enums"]["alert_severity"]
+          status?: string | null
           title?: string
           type?: Database["public"]["Enums"]["alert_type"]
         }
@@ -338,6 +448,45 @@ export type Database = {
           },
         ]
       }
+      batch_order_fulfillments: {
+        Row: {
+          batch_id: string | null
+          created_at: string | null
+          id: string
+          order_item_id: string | null
+          quantity_fulfilled: number
+        }
+        Insert: {
+          batch_id?: string | null
+          created_at?: string | null
+          id?: string
+          order_item_id?: string | null
+          quantity_fulfilled: number
+        }
+        Update: {
+          batch_id?: string | null
+          created_at?: string | null
+          id?: string
+          order_item_id?: string | null
+          quantity_fulfilled?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_order_fulfillments_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "product_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "batch_order_fulfillments_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           address: string
@@ -371,61 +520,102 @@ export type Database = {
       brands: {
         Row: {
           created_at: string | null
+          created_by: string | null
           description: string | null
           id: string
           is_active: boolean | null
           logo_url: string | null
           name: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
           name: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
           name?: string
+          updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brands_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brands_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
           created_at: string | null
+          created_by: string | null
           description: string | null
           id: string
           is_active: boolean | null
           name: string
           parent_id: string | null
+          updated_by: string | null
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           name: string
           parent_id?: string | null
+          updated_by?: string | null
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
           parent_id?: string | null
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "categories_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
             referencedColumns: ["id"]
           },
         ]
@@ -442,6 +632,7 @@ export type Database = {
           phone: string | null
           preferred_branch_id: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           address?: Json | null
@@ -454,6 +645,7 @@ export type Database = {
           phone?: string | null
           preferred_branch_id?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           address?: Json | null
@@ -466,6 +658,7 @@ export type Database = {
           phone?: string | null
           preferred_branch_id?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -536,52 +729,64 @@ export type Database = {
       }
       inventory: {
         Row: {
+          auto_reorder: boolean | null
           available_quantity: number | null
           branch_id: string
           cost_per_unit: number | null
           created_at: string | null
+          created_by: string | null
           id: string
           last_counted_date: string | null
           last_restock_date: string | null
           location: string | null
+          low_stock_threshold: number | null
           max_stock_level: number | null
           min_stock_level: number | null
           product_id: string
           quantity: number
           reserved_quantity: number | null
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
+          auto_reorder?: boolean | null
           available_quantity?: number | null
           branch_id: string
           cost_per_unit?: number | null
           created_at?: string | null
+          created_by?: string | null
           id?: string
           last_counted_date?: string | null
           last_restock_date?: string | null
           location?: string | null
+          low_stock_threshold?: number | null
           max_stock_level?: number | null
           min_stock_level?: number | null
           product_id: string
           quantity?: number
           reserved_quantity?: number | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
+          auto_reorder?: boolean | null
           available_quantity?: number | null
           branch_id?: string
           cost_per_unit?: number | null
           created_at?: string | null
+          created_by?: string | null
           id?: string
           last_counted_date?: string | null
           last_restock_date?: string | null
           location?: string | null
+          low_stock_threshold?: number | null
           max_stock_level?: number | null
           min_stock_level?: number | null
           product_id?: string
           quantity?: number
           reserved_quantity?: number | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -592,10 +797,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "inventory_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "inventory_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
             referencedColumns: ["id"]
           },
         ]
@@ -831,6 +1050,7 @@ export type Database = {
       order_items: {
         Row: {
           created_at: string | null
+          fulfillment_status: string | null
           id: string
           order_id: string
           pricing_tier: Database["public"]["Enums"]["pricing_tier"]
@@ -841,6 +1061,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          fulfillment_status?: string | null
           id?: string
           order_id: string
           pricing_tier: Database["public"]["Enums"]["pricing_tier"]
@@ -851,6 +1072,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          fulfillment_status?: string | null
           id?: string
           order_id?: string
           pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
@@ -878,7 +1100,7 @@ export type Database = {
       }
       order_status_history: {
         Row: {
-          changed_by: string | null
+          changed_by_user_id: string | null
           created_at: string | null
           id: string
           new_status: Database["public"]["Enums"]["order_status"]
@@ -887,7 +1109,7 @@ export type Database = {
           order_id: string
         }
         Insert: {
-          changed_by?: string | null
+          changed_by_user_id?: string | null
           created_at?: string | null
           id?: string
           new_status: Database["public"]["Enums"]["order_status"]
@@ -896,7 +1118,7 @@ export type Database = {
           order_id: string
         }
         Update: {
-          changed_by?: string | null
+          changed_by_user_id?: string | null
           created_at?: string | null
           id?: string
           new_status?: Database["public"]["Enums"]["order_status"]
@@ -905,13 +1127,6 @@ export type Database = {
           order_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "order_status_history_changed_by_fkey"
-            columns: ["changed_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "order_status_history_order_id_fkey"
             columns: ["order_id"]
@@ -926,7 +1141,7 @@ export type Database = {
           assigned_to: string | null
           branch_id: string
           created_at: string | null
-          created_by: string | null
+          created_by_user_id: string | null
           customer_id: string | null
           delivery_address: Json | null
           delivery_date: string | null
@@ -946,7 +1161,7 @@ export type Database = {
           assigned_to?: string | null
           branch_id: string
           created_at?: string | null
-          created_by?: string | null
+          created_by_user_id?: string | null
           customer_id?: string | null
           delivery_address?: Json | null
           delivery_date?: string | null
@@ -966,7 +1181,7 @@ export type Database = {
           assigned_to?: string | null
           branch_id?: string
           created_at?: string | null
-          created_by?: string | null
+          created_by_user_id?: string | null
           customer_id?: string | null
           delivery_address?: Json | null
           delivery_date?: string | null
@@ -995,13 +1210,6 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
             referencedColumns: ["id"]
           },
           {
@@ -1063,6 +1271,7 @@ export type Database = {
       price_tiers: {
         Row: {
           created_at: string | null
+          created_by: string | null
           id: string
           is_active: boolean | null
           max_quantity: number | null
@@ -1071,9 +1280,11 @@ export type Database = {
           product_id: string
           tier_type: Database["public"]["Enums"]["pricing_tier"]
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           id?: string
           is_active?: boolean | null
           max_quantity?: number | null
@@ -1082,9 +1293,11 @@ export type Database = {
           product_id: string
           tier_type: Database["public"]["Enums"]["pricing_tier"]
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           id?: string
           is_active?: boolean | null
           max_quantity?: number | null
@@ -1093,8 +1306,16 @@ export type Database = {
           product_id?: string
           tier_type?: Database["public"]["Enums"]["pricing_tier"]
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "price_tiers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "price_tiers_product_id_fkey"
             columns: ["product_id"]
@@ -1102,46 +1323,75 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "price_tiers_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
         ]
       }
       product_batches: {
         Row: {
           batch_number: string
+          cost_per_unit: number | null
           created_at: string | null
+          created_by: string | null
           expiration_date: string
           id: string
           inventory_id: string
+          is_active: boolean | null
           quantity: number
           received_date: string | null
           status: string | null
           supplier_info: Json | null
+          supplier_name: string | null
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           batch_number: string
+          cost_per_unit?: number | null
           created_at?: string | null
+          created_by?: string | null
           expiration_date: string
           id?: string
           inventory_id: string
+          is_active?: boolean | null
           quantity: number
           received_date?: string | null
           status?: string | null
           supplier_info?: Json | null
+          supplier_name?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           batch_number?: string
+          cost_per_unit?: number | null
           created_at?: string | null
+          created_by?: string | null
           expiration_date?: string
           id?: string
           inventory_id?: string
+          is_active?: boolean | null
           quantity?: number
           received_date?: string | null
           status?: string | null
           supplier_info?: Json | null
+          supplier_name?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "product_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_batches_inventory_id_fkey"
             columns: ["inventory_id"]
@@ -1149,14 +1399,19 @@ export type Database = {
             referencedRelation: "inventory"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_batches_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products: {
         Row: {
           barcode: string | null
-          brand: string | null
           brand_id: string | null
-          category: string | null
           category_id: string | null
           created_at: string | null
           created_by: string | null
@@ -1169,12 +1424,11 @@ export type Database = {
           status: Database["public"]["Enums"]["product_status"] | null
           unit_of_measure: string | null
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           barcode?: string | null
-          brand?: string | null
           brand_id?: string | null
-          category?: string | null
           category_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -1187,12 +1441,11 @@ export type Database = {
           status?: Database["public"]["Enums"]["product_status"] | null
           unit_of_measure?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           barcode?: string | null
-          brand?: string | null
           brand_id?: string | null
-          category?: string | null
           category_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -1205,6 +1458,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["product_status"] | null
           unit_of_measure?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1224,6 +1478,83 @@ export type Database = {
           {
             foreignKeyName: "products_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restock_history: {
+        Row: {
+          batch_id: string | null
+          cost_per_unit: number
+          created_at: string | null
+          id: string
+          inventory_id: string | null
+          notes: string | null
+          performed_by: string | null
+          purchase_order_ref: string | null
+          quantity: number
+          received_date: string | null
+          supplier_info: Json | null
+          total_cost: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          cost_per_unit: number
+          created_at?: string | null
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          performed_by?: string | null
+          purchase_order_ref?: string | null
+          quantity: number
+          received_date?: string | null
+          supplier_info?: Json | null
+          total_cost?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          cost_per_unit?: number
+          created_at?: string | null
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          performed_by?: string | null
+          purchase_order_ref?: string | null
+          quantity?: number
+          received_date?: string | null
+          supplier_info?: Json | null
+          total_cost?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restock_history_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "product_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restock_history_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restock_history_performed_by_fkey"
+            columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "admins"
             referencedColumns: ["id"]
@@ -1419,6 +1750,92 @@ export type Database = {
           },
         ]
       }
+      user_preferences: {
+        Row: {
+          admin_id: string
+          auto_reorder: boolean | null
+          created_at: string | null
+          currency_format: string | null
+          dashboard_layout: Json | null
+          date_format: string | null
+          decimal_places: number | null
+          default_date_range: string | null
+          default_pricing_tier:
+            | Database["public"]["Enums"]["pricing_tier"]
+            | null
+          enable_fifo: boolean | null
+          expiry_warning_days: number | null
+          export_format: string | null
+          id: string
+          include_images: boolean | null
+          language: string | null
+          low_stock_threshold: number | null
+          phone: string | null
+          profile_picture_url: string | null
+          time_format: string | null
+          timezone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          auto_reorder?: boolean | null
+          created_at?: string | null
+          currency_format?: string | null
+          dashboard_layout?: Json | null
+          date_format?: string | null
+          decimal_places?: number | null
+          default_date_range?: string | null
+          default_pricing_tier?:
+            | Database["public"]["Enums"]["pricing_tier"]
+            | null
+          enable_fifo?: boolean | null
+          expiry_warning_days?: number | null
+          export_format?: string | null
+          id?: string
+          include_images?: boolean | null
+          language?: string | null
+          low_stock_threshold?: number | null
+          phone?: string | null
+          profile_picture_url?: string | null
+          time_format?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          auto_reorder?: boolean | null
+          created_at?: string | null
+          currency_format?: string | null
+          dashboard_layout?: Json | null
+          date_format?: string | null
+          decimal_places?: number | null
+          default_date_range?: string | null
+          default_pricing_tier?:
+            | Database["public"]["Enums"]["pricing_tier"]
+            | null
+          enable_fifo?: boolean | null
+          expiry_warning_days?: number | null
+          export_format?: string | null
+          id?: string
+          include_images?: boolean | null
+          language?: string | null
+          low_stock_threshold?: number | null
+          phone?: string | null
+          profile_picture_url?: string | null
+          time_format?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: true
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1435,6 +1852,30 @@ export type Database = {
       calculate_sales_metrics: {
         Args: { p_date?: string }
         Returns: number
+      }
+      can_access_branch_data: {
+        Args: { target_branch_id: string }
+        Returns: boolean
+      }
+      cancel_order_fifo: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
+      check_and_create_alerts: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      check_fifo_system_integrity: {
+        Args: { p_branch_id?: string; p_product_id?: string }
+        Returns: Json
+      }
+      check_inventory_availability: {
+        Args: {
+          p_branch_id: string
+          p_product_id: string
+          p_quantity_needed: number
+        }
+        Returns: Json
       }
       create_admin_profile: {
         Args: {
@@ -1462,6 +1903,8 @@ export type Database = {
         Args: {
           p_admin_id: string
           p_expires_in?: unknown
+          p_ip_address?: unknown
+          p_user_agent?: string
         }
         Returns: string
       }
@@ -1503,6 +1946,20 @@ export type Database = {
         }
         Returns: string
       }
+      create_product_with_inventory: {
+        Args: {
+          p_barcode?: string
+          p_brand_id?: string
+          p_category_id?: string
+          p_description?: string
+          p_is_frozen?: boolean
+          p_name: string
+          p_pricing_tiers?: Json
+          p_sku?: string
+          p_unit_of_measure?: string
+        }
+        Returns: string
+      }
       deactivate_admin_safely: {
         Args: { p_admin_id: string }
         Returns: Json
@@ -1523,6 +1980,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_admin_branches: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_admin_dashboard_data: {
         Args: { p_branch_id?: string }
         Returns: Json
@@ -1539,8 +2000,31 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_current_customer_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_fifo_batches: {
+        Args: {
+          p_branch_id: string
+          p_product_id: string
+          p_quantity_needed?: number
+        }
+        Returns: {
+          available_qty: number
+          batch_id: string
+          batch_number: string
+          cost_per_unit: number
+          days_until_expiry: number
+          expiry_date: string
+        }[]
+      }
       has_branch_access: {
         Args: { branch_id: string }
+        Returns: boolean
+      }
+      is_admin: {
+        Args: Record<PropertyKey, never>
         Returns: boolean
       }
       is_super_admin: {
@@ -1561,6 +2045,10 @@ export type Database = {
         }
         Returns: Json
       }
+      process_order_with_fifo: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       reset_admin_password: {
         Args: { p_admin_id: string }
         Returns: Json
@@ -1571,6 +2059,19 @@ export type Database = {
           p_current_admin_id: string
           p_current_admin_role: Database["public"]["Enums"]["admin_role"]
         }
+        Returns: Json
+      }
+      sync_admin_display_name: {
+        Args: {
+          p_admin_id: string
+          p_current_admin_id: string
+          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+          p_new_full_name: string
+        }
+        Returns: Json
+      }
+      test_concurrent_fifo_safety: {
+        Args: Record<PropertyKey, never>
         Returns: Json
       }
       toggle_admin_status: {
@@ -1597,14 +2098,24 @@ export type Database = {
         Returns: Json
       }
       update_admin_details_service_role: {
-        Args: {
-          p_admin_id: string
-          p_branches: Json
-          p_current_admin_id: string
-          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-          p_full_name: string
-          p_role: Database["public"]["Enums"]["admin_role"]
-        }
+        Args:
+          | {
+              p_admin_id: string
+              p_branches: Json
+              p_current_admin_id: string
+              p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+              p_full_name: string
+              p_is_active: boolean
+              p_role: Database["public"]["Enums"]["admin_role"]
+            }
+          | {
+              p_admin_id: string
+              p_branches: Json
+              p_current_admin_id: string
+              p_current_admin_role: Database["public"]["Enums"]["admin_role"]
+              p_full_name: string
+              p_role: Database["public"]["Enums"]["admin_role"]
+            }
         Returns: Json
       }
       update_admin_last_login: {
@@ -1661,6 +2172,10 @@ export type Database = {
           p_record_id?: string
           p_table_name: string
         }
+        Returns: boolean
+      }
+      validate_batch_integrity: {
+        Args: { p_batch_id: string }
         Returns: boolean
       }
     }

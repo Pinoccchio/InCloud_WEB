@@ -1,21 +1,21 @@
-Import Inventory from Excel
+Console Error
 
-Import Completed
-50
-Total Rows
-50
-Successful
-0
-Errors
-Import Summary:
-50
-Products Restocked
-50
-Batch Records Created
-50
-Inventory Records Updated
-✓ All batch numbers were processed successfully
 
-✓ Inventory quantities have been updated
+Error updating order status: {}
 
-✓ Movement records created for audit trail 
+src/app/admin/orders/components/OrderDetailsModal.tsx (368:15) @ updateOrderStatus
+
+
+  366 |
+  367 |     } catch (err) {
+> 368 |       console.error('Error updating order status:', err)
+      |               ^
+  369 |       addToast({
+  370 |         type: 'error',
+  371 |         title: 'Failed to update order status',
+Call Stack
+4
+
+Show 3 ignore-listed frame(s)
+updateOrderStatus
+src/app/admin/orders/components/OrderDetailsModal.tsx (368:15)
