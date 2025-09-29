@@ -6,11 +6,11 @@ import {
   ArrowLeftStartOnRectangleIcon,
   UserIcon,
   ChevronDownIcon,
-  BellIcon,
   Bars3Icon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSidebar } from '@/contexts/SidebarContext'
+import NotificationDropdown from '@/components/ui/NotificationDropdown'
 
 interface AdminData {
   id: string
@@ -26,6 +26,7 @@ interface AdminHeaderProps {
 
 export default function AdminHeader({ adminData }: AdminHeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
   const { logout } = useAuth()
   const { toggleSidebar } = useSidebar()
   const router = useRouter()
@@ -82,10 +83,11 @@ export default function AdminHeader({ adminData }: AdminHeaderProps) {
           {/* Actions */}
           <div className="flex items-center space-x-3">
             {/* Notifications */}
-            <button className="relative p-2 text-gray-400 hover:text-gray-600">
-              <BellIcon className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+            <NotificationDropdown
+              isOpen={showNotifications}
+              onToggle={() => setShowNotifications(!showNotifications)}
+              onClose={() => setShowNotifications(false)}
+            />
 
             {/* User Menu */}
             <div className="relative">

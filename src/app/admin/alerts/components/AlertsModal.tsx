@@ -11,20 +11,22 @@ import { useToast } from '@/contexts/ToastContext'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
 
-interface AlertsModalProps {
+interface NotificationSettingsModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
-interface AlertSettings {
+interface NotificationSettings {
+  // Essential Business Settings Only
   low_stock_threshold: number
   critical_stock_threshold: number
   expiry_warning_days: number
   critical_expiry_days: number
 }
 
-export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
-  const [alertSettings, setAlertSettings] = useState<AlertSettings>({
+export default function NotificationSettingsModal({ isOpen, onClose }: NotificationSettingsModalProps) {
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    // Essential Business Settings Only
     low_stock_threshold: 10,
     critical_stock_threshold: 3,
     expiry_warning_days: 7,
@@ -36,20 +38,23 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
 
   const { addToast } = useToast()
 
-  const loadAlertSettings = useCallback(async () => {
+  const loadNotificationSettings = useCallback(async () => {
     try {
       setIsLoading(true)
       const branchId = await getMainBranchId()
+      const adminId = (await supabase.auth.getUser()).data.user?.id
 
-      // Load alert settings
+      // Load notification settings for current admin and branch
       const { data: settingsData } = await supabase
-        .from('alert_settings')
+        .from('notification_settings')
         .select('*')
         .eq('branch_id', branchId)
+        .eq('admin_id', adminId)
         .single()
 
       if (settingsData) {
-        setAlertSettings({
+        setNotificationSettings({
+          // Essential Business Settings Only
           low_stock_threshold: settingsData.low_stock_threshold || 10,
           critical_stock_threshold: settingsData.critical_stock_threshold || 3,
           expiry_warning_days: settingsData.expiry_warning_days || 7,
@@ -57,37 +62,55 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
         })
       }
     } catch (error) {
-      console.error('Error loading alert settings:', error)
+      console.error('Error loading notification settings:', error)
       addToast({
         type: 'error',
         title: 'Load Failed',
-        message: 'Failed to load alert settings.'
+        message: 'Failed to load notification settings.'
       })
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [addToast])
 
-  // Load alert settings
+  // Load notification settings
   useEffect(() => {
     if (isOpen) {
-      loadAlertSettings()
+      loadNotificationSettings()
     }
-  }, [isOpen, loadAlertSettings])
+  }, [isOpen, loadNotificationSettings])
 
-  const saveAlertSettings = async () => {
+  const saveNotificationSettings = async () => {
     try {
       setIsSaving(true)
       const branchId = await getMainBranchId()
+      const adminId = (await supabase.auth.getUser()).data.user?.id
 
       const { error } = await supabase
-        .from('alert_settings')
+        .from('notification_settings')
         .upsert({
           branch_id: branchId,
-          low_stock_threshold: alertSettings.low_stock_threshold,
-          critical_stock_threshold: alertSettings.critical_stock_threshold,
-          expiry_warning_days: alertSettings.expiry_warning_days,
-          critical_expiry_days: alertSettings.critical_expiry_days,
+          admin_id: adminId,
+          // Essential settings
+          low_stock_threshold: notificationSettings.low_stock_threshold,
+          critical_stock_threshold: notificationSettings.critical_stock_threshold,
+          expiry_warning_days: notificationSettings.expiry_warning_days,
+          critical_expiry_days: notificationSettings.critical_expiry_days,
+          // Auto-set sensible defaults for other fields
+          stock_alerts_enabled: true,
+          expiry_alerts_enabled: true,
+          order_created_notifications: true,
+          order_status_change_notifications: true,
+          order_payment_notifications: true,
+          order_delivery_notifications: true,
+          system_maintenance_notifications: true,
+          security_notifications: true,
+          backup_notifications: false,
+          email_notifications: false,
+          push_notifications: true,
+          sms_notifications: false,
+          notification_frequency: 'immediate',
+          group_similar_notifications: true,
           updated_at: new Date().toISOString()
         })
 
@@ -96,14 +119,14 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
       addToast({
         type: 'success',
         title: 'Settings Saved',
-        message: 'Alert settings have been updated successfully.'
+        message: 'Notification settings have been updated successfully.'
       })
     } catch (error) {
-      console.error('Error saving alert settings:', error)
+      console.error('Error saving notification settings:', error)
       addToast({
         type: 'error',
         title: 'Save Failed',
-        message: 'Failed to save alert settings.'
+        message: 'Failed to save notification settings.'
       })
     } finally {
       setIsSaving(false)
@@ -147,7 +170,7 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
                     </div>
                     <div>
                       <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
-                        Alert Settings
+                        Alert & Notifications Settings
                       </Dialog.Title>
                       <p className="text-sm text-gray-500">
                         Configure alert thresholds for stock and expiration warnings
@@ -169,93 +192,93 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Stock Thresholds */}
-                          <div className="space-y-4">
-                            <h4 className="font-medium text-gray-900">Stock Alert Thresholds</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Stock Thresholds */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-gray-900">Stock Alert Thresholds</h4>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Low Stock Threshold (units)
-                              </label>
-                              <Input
-                                type="number"
-                                value={alertSettings.low_stock_threshold}
-                                onChange={(e) => setAlertSettings({
-                                  ...alertSettings,
-                                  low_stock_threshold: parseInt(e.target.value) || 0
-                                })}
-                                className="w-full"
-                                min="1"
-                              />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Alert when stock falls below this number
-                              </p>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Critical Stock Threshold (units)
-                              </label>
-                              <Input
-                                type="number"
-                                value={alertSettings.critical_stock_threshold}
-                                onChange={(e) => setAlertSettings({
-                                  ...alertSettings,
-                                  critical_stock_threshold: parseInt(e.target.value) || 0
-                                })}
-                                className="w-full"
-                                min="1"
-                              />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Urgent alert when stock falls below this number
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Expiry Thresholds */}
-                          <div className="space-y-4">
-                            <h4 className="font-medium text-gray-900">Expiry Alert Thresholds</h4>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Expiry Warning (days)
-                              </label>
-                              <Input
-                                type="number"
-                                value={alertSettings.expiry_warning_days}
-                                onChange={(e) => setAlertSettings({
-                                  ...alertSettings,
-                                  expiry_warning_days: parseInt(e.target.value) || 0
-                                })}
-                                className="w-full"
-                                min="1"
-                              />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Alert when products expire within this many days
-                              </p>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Critical Expiry (days)
-                              </label>
-                              <Input
-                                type="number"
-                                value={alertSettings.critical_expiry_days}
-                                onChange={(e) => setAlertSettings({
-                                  ...alertSettings,
-                                  critical_expiry_days: parseInt(e.target.value) || 0
-                                })}
-                                className="w-full"
-                                min="1"
-                              />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Urgent alert when products expire within this many days
-                              </p>
-                            </div>
-                          </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Low Stock Threshold (units)
+                          </label>
+                          <Input
+                            type="number"
+                            value={notificationSettings.low_stock_threshold}
+                            onChange={(e) => setNotificationSettings({
+                              ...notificationSettings,
+                              low_stock_threshold: parseInt(e.target.value) || 0
+                            })}
+                            className="w-full"
+                            min="1"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Alert when stock falls below this number
+                          </p>
                         </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Critical Stock Threshold (units)
+                          </label>
+                          <Input
+                            type="number"
+                            value={notificationSettings.critical_stock_threshold}
+                            onChange={(e) => setNotificationSettings({
+                              ...notificationSettings,
+                              critical_stock_threshold: parseInt(e.target.value) || 0
+                            })}
+                            className="w-full"
+                            min="1"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Urgent alert when stock falls below this number
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Expiry Thresholds */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-gray-900">Expiry Alert Thresholds</h4>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Expiry Warning (days)
+                          </label>
+                          <Input
+                            type="number"
+                            value={notificationSettings.expiry_warning_days}
+                            onChange={(e) => setNotificationSettings({
+                              ...notificationSettings,
+                              expiry_warning_days: parseInt(e.target.value) || 0
+                            })}
+                            className="w-full"
+                            min="1"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Alert when products expire within this many days
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Critical Expiry (days)
+                          </label>
+                          <Input
+                            type="number"
+                            value={notificationSettings.critical_expiry_days}
+                            onChange={(e) => setNotificationSettings({
+                              ...notificationSettings,
+                              critical_expiry_days: parseInt(e.target.value) || 0
+                            })}
+                            className="w-full"
+                            min="1"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Urgent alert when products expire within this many days
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
                   </div>
                 )}
@@ -270,7 +293,7 @@ export default function AlertsModal({ isOpen, onClose }: AlertsModalProps) {
                     Close
                   </Button>
                   <Button
-                    onClick={saveAlertSettings}
+                    onClick={saveNotificationSettings}
                     disabled={isSaving}
                     className="flex items-center"
                   >

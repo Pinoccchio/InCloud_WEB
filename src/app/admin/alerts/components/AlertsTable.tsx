@@ -8,17 +8,17 @@ import {
   BellIcon,
   CheckCircleIcon,
   EyeIcon,
-  CheckIcon,
-  XMarkIcon
+  CheckIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Alert {
   id: string
-  type: 'low_stock' | 'expiring_soon' | 'expired' | 'out_of_stock' | 'overstock' | 'order_status' | 'system'
+  type: 'order' | 'alert' | 'system' | 'inventory'
   severity: 'low' | 'medium' | 'high' | 'critical'
   title: string
   message: string
@@ -26,8 +26,12 @@ interface Alert {
   metadata: Record<string, unknown>
   is_read: boolean
   is_acknowledged: boolean
+  is_resolved: boolean
+  acknowledged_at: string | null
+  resolved_at: string | null
   created_at: string
-  status: string
+  related_entity_type?: string
+  related_entity_id?: string
 }
 
 interface AlertsTableProps {
@@ -71,6 +75,7 @@ export default function AlertsTable({
   const dropdownContentRef = useRef<HTMLDivElement | null>(null)
 
   const { addToast } = useToast()
+  const { admin } = useAuth()
 
   // Fetch alerts with filters applied
   const fetchAlerts = useCallback(async () => {
@@ -81,7 +86,7 @@ export default function AlertsTable({
       const branchId = await getMainBranchId()
 
       let query = supabase
-        .from('alerts')
+        .from('notifications')
         .select(`
           id,
           type,
@@ -91,15 +96,14 @@ export default function AlertsTable({
           metadata,
           is_read,
           is_acknowledged,
+          is_resolved,
+          acknowledged_at,
+          resolved_at,
           created_at,
-          status,
-          products (
-            name,
-            sku
-          )
+          related_entity_type,
+          related_entity_id
         `)
         .eq('branch_id', branchId)
-        .eq('status', 'active')
 
       // Apply filters
       if (searchQuery) {
@@ -120,9 +124,11 @@ export default function AlertsTable({
         } else if (statusFilter === 'unread') {
           query = query.eq('is_read', false)
         } else if (statusFilter === 'acknowledged') {
-          query = query.eq('is_acknowledged', true)
+          query = query.eq('is_acknowledged', true).eq('is_resolved', false)
         } else if (statusFilter === 'unacknowledged') {
           query = query.eq('is_acknowledged', false)
+        } else if (statusFilter === 'resolved') {
+          query = query.eq('is_resolved', true)
         }
       }
 
@@ -151,23 +157,27 @@ export default function AlertsTable({
       // Sort
       query = query.order(sortConfig.key as string, { ascending: sortConfig.direction === 'asc' })
 
-      const { data: alertsData, error: alertsError } = await query
+      const { data: notificationsData, error: notificationsError } = await query
 
-      if (alertsError) throw alertsError
+      if (notificationsError) throw notificationsError
 
-      // Process alerts data
-      const processedAlerts: Alert[] = (alertsData || []).map((alert) => ({
-        id: alert.id,
-        type: alert.type,
-        severity: alert.severity,
-        title: alert.title,
-        message: alert.message,
-        product_name: alert.products?.name || null,
-        metadata: alert.metadata || {},
-        is_read: alert.is_read,
-        is_acknowledged: alert.is_acknowledged,
-        created_at: alert.created_at,
-        status: alert.status
+      // Process notifications data
+      const processedAlerts: Alert[] = (notificationsData || []).map((notification) => ({
+        id: notification.id,
+        type: notification.type,
+        severity: notification.severity,
+        title: notification.title,
+        message: notification.message,
+        product_name: notification.metadata?.product_name || null,
+        metadata: notification.metadata || {},
+        is_read: notification.is_read,
+        is_acknowledged: notification.is_acknowledged,
+        is_resolved: notification.is_resolved,
+        acknowledged_at: notification.acknowledged_at,
+        resolved_at: notification.resolved_at,
+        created_at: notification.created_at,
+        related_entity_type: notification.related_entity_type,
+        related_entity_id: notification.related_entity_id
       }))
 
       setAlerts(processedAlerts)
@@ -280,8 +290,8 @@ export default function AlertsTable({
   const markAsRead = async (alertId: string) => {
     try {
       const { error } = await supabase
-        .from('alerts')
-        .update({ is_read: true })
+        .from('notifications')
+        .update({ is_read: true, updated_at: new Date().toISOString() })
         .eq('id', alertId)
 
       if (error) throw error
@@ -305,11 +315,13 @@ export default function AlertsTable({
   const acknowledgeAlert = async (alertId: string) => {
     try {
       const { error } = await supabase
-        .from('alerts')
+        .from('notifications')
         .update({
           is_acknowledged: true,
           is_read: true,
-          acknowledged_at: new Date().toISOString()
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: admin?.id,
+          updated_at: new Date().toISOString()
         })
         .eq('id', alertId)
 
@@ -333,13 +345,14 @@ export default function AlertsTable({
 
   const resolveAlert = async (alertId: string) => {
     try {
+      const now = new Date().toISOString()
       const { error } = await supabase
-        .from('alerts')
+        .from('notifications')
         .update({
-          status: 'resolved',
-          is_acknowledged: true,
-          is_read: true,
-          acknowledged_at: new Date().toISOString()
+          is_resolved: true,
+          resolved_at: now,
+          resolved_by: admin?.id,
+          updated_at: now
         })
         .eq('id', alertId)
 
@@ -368,8 +381,8 @@ export default function AlertsTable({
 
     try {
       const { error } = await supabase
-        .from('alerts')
-        .update({ is_read: true })
+        .from('notifications')
+        .update({ is_read: true, updated_at: new Date().toISOString() })
         .in('id', Array.from(selectedAlerts))
 
       if (error) throw error
@@ -396,11 +409,13 @@ export default function AlertsTable({
 
     try {
       const { error } = await supabase
-        .from('alerts')
+        .from('notifications')
         .update({
           is_acknowledged: true,
           is_read: true,
-          acknowledged_at: new Date().toISOString()
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: admin?.id,
+          updated_at: new Date().toISOString()
         })
         .in('id', Array.from(selectedAlerts))
 
@@ -427,13 +442,14 @@ export default function AlertsTable({
     if (selectedAlerts.size === 0) return
 
     try {
+      const now = new Date().toISOString()
       const { error } = await supabase
-        .from('alerts')
+        .from('notifications')
         .update({
-          status: 'resolved',
-          is_acknowledged: true,
-          is_read: true,
-          acknowledged_at: new Date().toISOString()
+          is_resolved: true,
+          resolved_at: now,
+          resolved_by: admin?.id,
+          updated_at: now
         })
         .in('id', Array.from(selectedAlerts))
 
@@ -459,18 +475,16 @@ export default function AlertsTable({
 
   const getAlertIcon = (severity: Alert['severity'], type: Alert['type']) => {
     switch (type) {
-      case 'low_stock':
-      case 'out_of_stock':
+      case 'inventory':
         return <ExclamationTriangleIcon className={`w-5 h-5 ${
           severity === 'critical' ? 'text-red-600' :
           severity === 'high' ? 'text-orange-600' : 'text-yellow-600'
         }`} />
-      case 'expiring_soon':
-      case 'expired':
+      case 'alert':
         return <ExclamationTriangleIcon className={`w-5 h-5 ${
           severity === 'critical' ? 'text-red-600' : 'text-orange-600'
         }`} />
-      case 'order_status':
+      case 'order':
         return <InformationCircleIcon className={`w-5 h-5 ${
           severity === 'high' ? 'text-orange-600' : 'text-blue-600'
         }`} />
@@ -505,17 +519,11 @@ export default function AlertsTable({
     const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
 
     switch (type) {
-      case 'low_stock':
+      case 'inventory':
         return `${baseClasses} bg-orange-100 text-orange-800`
-      case 'out_of_stock':
-        return `${baseClasses} bg-red-100 text-red-800`
-      case 'expiring_soon':
+      case 'alert':
         return `${baseClasses} bg-yellow-100 text-yellow-800`
-      case 'expired':
-        return `${baseClasses} bg-red-100 text-red-800`
-      case 'overstock':
-        return `${baseClasses} bg-green-100 text-green-800`
-      case 'order_status':
+      case 'order':
         return `${baseClasses} bg-blue-100 text-blue-800`
       case 'system':
         return `${baseClasses} bg-purple-100 text-purple-800`
@@ -691,7 +699,12 @@ export default function AlertsTable({
                 {/* Status */}
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex flex-col space-y-1">
-                    {alert.is_acknowledged ? (
+                    {alert.is_resolved ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <CheckCircleIcon className="w-3 h-3 mr-1" />
+                        Resolved
+                      </span>
+                    ) : alert.is_acknowledged ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <CheckCircleIcon className="w-3 h-3 mr-1" />
                         Acknowledged
@@ -799,7 +812,7 @@ export default function AlertsTable({
                       </button>
                     )}
 
-                    {!alert.is_acknowledged && (
+                    {!alert.is_acknowledged && !alert.is_resolved && (
                       <button
                         onClick={() => closeDropdownAndExecute(() => acknowledgeAlert(alert.id))}
                         disabled={isOpeningModal}
@@ -814,20 +827,35 @@ export default function AlertsTable({
                       </button>
                     )}
 
-                    <div className="border-t border-gray-100 my-1"></div>
+                    {(!alert.is_read || !alert.is_acknowledged || !alert.is_resolved) && (
+                      <div className="border-t border-gray-100 my-1"></div>
+                    )}
 
-                    <button
-                      onClick={() => closeDropdownAndExecute(() => resolveAlert(alert.id))}
-                      disabled={isOpeningModal}
-                      className={`w-full text-left px-4 py-2 text-sm flex items-center transition-colors ${
-                        isOpeningModal
-                          ? 'text-green-400 cursor-not-allowed bg-green-25'
-                          : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                      }`}
-                    >
-                      <CheckCircleIcon className="w-4 h-4 mr-2" />
-                      Resolve Alert
-                    </button>
+                    {!alert.is_resolved && (
+                      <button
+                        onClick={() => closeDropdownAndExecute(() => resolveAlert(alert.id))}
+                        disabled={isOpeningModal}
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center transition-colors ${
+                          isOpeningModal
+                            ? 'text-green-400 cursor-not-allowed bg-green-25'
+                            : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                        }`}
+                      >
+                        <CheckCircleIcon className="w-4 h-4 mr-2" />
+                        Resolve Alert
+                      </button>
+                    )}
+
+                    {alert.is_resolved && (
+                      <div className="px-4 py-2 text-sm text-gray-500 italic">
+                        Alert already resolved
+                        {alert.resolved_at && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            {formatDate(alert.resolved_at)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )
               })()}

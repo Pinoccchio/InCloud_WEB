@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { LoadingSpinner } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
 import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
 import AdminSidebar from './components/AdminSidebar'
 import AdminHeader from './components/AdminHeader'
 
@@ -85,9 +86,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <SidebarProvider>
-      <AdminLayoutInner admin={admin}>
-        {children}
-      </AdminLayoutInner>
+      <NotificationProvider>
+        <AdminLayoutInner admin={admin}>
+          {children}
+        </AdminLayoutInner>
+      </NotificationProvider>
     </SidebarProvider>
   )
 }

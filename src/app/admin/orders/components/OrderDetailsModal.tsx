@@ -330,18 +330,28 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
       const { data: adminData } = await supabase.auth.getUser()
       if (!adminData.user) throw new Error('Not authenticated')
 
+      // Prepare update data
+      const updateData: any = {
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      }
+
+      // Add status notes to order notes if provided
+      if (statusNotes.trim()) {
+        updateData.notes = order.notes
+          ? `${order.notes}\n\nStatus Update: ${statusNotes.trim()}`
+          : `Status Update: ${statusNotes.trim()}`
+      }
+
+      // Set delivery date when marking as delivered
+      if (newStatus === 'delivered') {
+        updateData.delivery_date = new Date().toISOString()
+      }
+
       // Update order status - database trigger will automatically create status history
       const { error: updateError } = await supabase
         .from('orders')
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-          // Add notes to order so trigger can access them for status history
-          notes: statusNotes.trim() ?
-            (order.notes ? `${order.notes}\n\nStatus Update: ${statusNotes.trim()}` : `Status Update: ${statusNotes.trim()}`)
-            : order.notes,
-          ...(newStatus === 'delivered' && { delivery_date: new Date().toISOString() })
-        })
+        .update(updateData)
         .eq('id', order.id)
 
       if (updateError) {

@@ -5,7 +5,6 @@ import {
   BellIcon,
   Cog6ToothIcon,
   ArrowPathIcon,
-  DocumentArrowDownIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline'
@@ -13,7 +12,7 @@ import { Button } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
-import AlertsModal from './components/AlertsModal'
+import NotificationSettingsModal from './components/AlertsModal'
 import AlertsTable from './components/AlertsTable'
 import AlertFilters from './components/AlertFilters'
 
@@ -53,25 +52,24 @@ export default function AlertsPage() {
       setIsLoading(true)
       const branchId = await getMainBranchId()
 
-      // Load alert summary from database
-      const { data: alertsData, error } = await supabase
-        .from('alerts')
+      // Load alert summary from unified notifications table
+      const { data: notificationsData, error } = await supabase
+        .from('notifications')
         .select('severity')
         .eq('branch_id', branchId)
-        .eq('status', 'active')
 
       if (error) throw error
 
-      if (alertsData) {
+      if (notificationsData) {
         // Calculate alert summary by severity
-        const totalAlerts = alertsData.length
+        const totalAlerts = notificationsData.length
         let criticalAlerts = 0
         let highAlerts = 0
         let mediumAlerts = 0
         let lowAlerts = 0
 
-        alertsData.forEach((alert) => {
-          switch (alert.severity) {
+        notificationsData.forEach((notification) => {
+          switch (notification.severity) {
             case 'critical':
               criticalAlerts++
               break
@@ -120,13 +118,6 @@ export default function AlertsPage() {
     })
   }
 
-  const handleExportData = () => {
-    addToast({
-      type: 'info',
-      title: 'Export Started',
-      message: 'Alert data export is being prepared. You will be notified when ready.'
-    })
-  }
 
   const clearAllFilters = () => {
     setSearchQuery('')
@@ -159,14 +150,6 @@ export default function AlertsPage() {
               <ArrowPathIcon className="w-4 h-4 mr-2" />
             )}
             Refresh
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportData}
-            className="flex items-center"
-          >
-            <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-            Export
           </Button>
           <Button
             onClick={() => setIsModalOpen(true)}
@@ -277,8 +260,8 @@ export default function AlertsPage() {
         onRefresh={() => setRefreshTrigger(prev => prev + 1)}
       />
 
-      {/* Alert Settings Modal */}
-      <AlertsModal
+      {/* Notification Settings Modal */}
+      <NotificationSettingsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />

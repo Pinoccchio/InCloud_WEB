@@ -1,0 +1,23 @@
+name: Generate Alerts
+
+on:
+  schedule:
+    # Run every 6 hours at :00 minutes
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  generate-alerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate Alerts
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            ${{ secrets.APP_URL }}/api/cron/alert-generation
+        continue-on-error: true
+
+      - name: Log completion
+        run: echo "Alert generation cron job completed at $(date)"

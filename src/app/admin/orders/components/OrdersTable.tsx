@@ -193,13 +193,25 @@ export default function OrdersTable({
   useEffect(() => {
     fetchOrders()
 
-    // Subscribe to real-time changes
+    // Subscribe to real-time changes with unique channel name
+    const channelName = `orders-table-${Date.now()}`
     const channel = supabase
-      .channel('orders-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders'
+        },
+        () => {
+          fetchOrders() // Refetch when changes occur
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
           schema: 'public',
           table: 'orders'
         },

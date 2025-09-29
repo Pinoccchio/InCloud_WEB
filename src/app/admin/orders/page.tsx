@@ -103,13 +103,25 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchStats()
 
-    // Subscribe to real-time changes
+    // Subscribe to real-time changes with unique channel name
+    const channelName = `orders-stats-${Date.now()}`
     const channel = supabase
-      .channel('orders-stats-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders'
+        },
+        () => {
+          fetchStats()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
           schema: 'public',
           table: 'orders'
         },

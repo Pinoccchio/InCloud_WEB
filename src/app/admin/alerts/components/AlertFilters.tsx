@@ -49,12 +49,9 @@ export default function AlertFilters({
 
   const alertTypes = [
     { value: '', label: 'All Types' },
-    { value: 'low_stock', label: 'Low Stock' },
-    { value: 'out_of_stock', label: 'Out of Stock' },
-    { value: 'expiring_soon', label: 'Expiring Soon' },
-    { value: 'expired', label: 'Expired' },
-    { value: 'overstock', label: 'Overstock' },
-    { value: 'order_status', label: 'Order Status' },
+    { value: 'inventory', label: 'Inventory' },
+    { value: 'alert', label: 'Alert' },
+    { value: 'order', label: 'Order' },
     { value: 'system', label: 'System' }
   ]
 
