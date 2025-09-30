@@ -26,59 +26,13 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Determine branches to assign
-    let branchesToAssign: string[] = []
-
-    if (branches !== undefined) {
-      // If branches are explicitly provided, use them
-      branchesToAssign = branches
-    } else {
-      // If branches not provided, fetch current admin's branches to preserve them
-      const { data: currentAdminData, error: fetchError } = await client
-        .from('admins')
-        .select('branches, role')
-        .eq('id', adminId)
-        .single()
-
-      if (fetchError) {
-        console.error('Error fetching current admin branches:', fetchError)
-        return NextResponse.json(
-          { error: 'Failed to fetch admin data' },
-          { status: 400 }
-        )
-      }
-
-      branchesToAssign = (currentAdminData?.branches as string[]) || []
-    }
-
-    // Ensure regular admins have at least the main branch
-    if (role === 'admin' && branchesToAssign.length === 0) {
-      const { data: mainBranch, error: branchError } = await client
-        .from('branches')
-        .select('id')
-        .eq('is_active', true)
-        .limit(1)
-        .single()
-
-      if (!branchError && mainBranch) {
-        branchesToAssign = [mainBranch.id]
-        console.log('🔧 [update-user] Assigned main branch to admin:', mainBranch.id)
-      }
-    }
-
-    console.log('🔵 [update-user] Updating admin:', {
-      adminId,
-      role,
-      branchesCount: branchesToAssign.length
-    })
-
     // Call the service role function with permission validation
     const { data: result, error } = await client
       .rpc('update_admin_details_service_role', {
         p_admin_id: adminId,
         p_full_name: fullName,
         p_role: role,
-        p_branches: branchesToAssign,
+        p_branches: branches || [],
         p_is_active: isActive,
         p_current_admin_id: currentAdminId,
         p_current_admin_role: currentAdminRole

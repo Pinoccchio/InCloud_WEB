@@ -60,7 +60,7 @@ export default function AdminUsersPage() {
   const dropdownContentRef = useRef<HTMLDivElement | null>(null)
   const searchParams = useSearchParams()
   const { success, error } = useToastActions()
-  const { admin: currentAdmin } = useAuth()
+  const { admin: currentAdmin, refreshAuth } = useAuth()
 
   // Permission checking functions
   const canEditAdmin = (targetAdmin: AdminUser) => {
@@ -365,8 +365,10 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleModalSuccess = () => {
+  const handleModalSuccess = async () => {
     loadAdmins()
+    // Refresh auth context to sync with database changes
+    await refreshAuth()
   }
 
   // Helper function to safely close dropdown and open modal
