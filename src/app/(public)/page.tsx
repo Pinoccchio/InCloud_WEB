@@ -71,13 +71,8 @@ export default function Home() {
 
               {/* Enhanced call-to-action buttons */}
               <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
-                <Link href="/signup">
-                  <Button size="lg" className="w-full sm:w-auto px-8 py-4 text-lg shadow-lg hover:shadow-xl">
-                    🚀 Get Started Free
-                  </Button>
-                </Link>
                 <Link href="/login">
-                  <Button variant="outline" size="lg" className="w-full sm:w-auto px-8 py-4 text-lg">
+                  <Button size="lg" className="w-full sm:w-auto px-8 py-4 text-lg shadow-lg hover:shadow-xl">
                     👤 Admin Login
                   </Button>
                 </Link>

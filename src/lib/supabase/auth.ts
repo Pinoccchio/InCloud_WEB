@@ -399,3 +399,57 @@ export async function createInitialSuperAdmin(adminData: InitialSuperAdminData):
     }
   }
 }
+
+/**
+ * Send password reset email using Supabase's built-in password reset
+ */
+export async function sendPasswordResetEmail(email: string): Promise<AuthResult<void>> {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
+    })
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message || 'Failed to send reset email'
+      }
+    }
+
+    return {
+      success: true
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to send reset email'
+    }
+  }
+}
+
+/**
+ * Update password for currently authenticated user
+ */
+export async function updatePassword(newPassword: string): Promise<AuthResult<void>> {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    })
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message || 'Failed to update password'
+      }
+    }
+
+    return {
+      success: true
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update password'
+    }
+  }
+}

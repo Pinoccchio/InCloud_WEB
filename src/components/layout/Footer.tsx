@@ -8,7 +8,7 @@ export function Footer() {
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500 via-accent-500 to-secondary-500"></div>
 
       <div className="container mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           {/* Company Info */}
           <div className="space-y-6">
             <Logo size="lg" />
@@ -27,11 +27,11 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Product Links */}
+          {/* Navigation Links */}
           <div className="space-y-6">
             <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
               <div className="w-3 h-3 bg-primary-500 rounded-full"></div>
-              <span>Product</span>
+              <span>Navigation</span>
             </h3>
             <ul className="space-y-3">
               <li>
@@ -41,89 +41,31 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="#pricing" className="text-gray-800 hover:text-primary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
+                <Link href="#about" className="text-gray-800 hover:text-primary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
                   <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-primary-500 transition-colors"></span>
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link href="#analytics" className="text-gray-800 hover:text-primary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-primary-500 transition-colors"></span>
-                  Analytics
-                </Link>
-              </li>
-              <li>
-                <Link href="#mobile" className="text-gray-800 hover:text-primary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-primary-500 transition-colors"></span>
-                  Mobile App
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Company Links */}
-          <div className="space-y-6">
-            <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-              <div className="w-3 h-3 bg-secondary-500 rounded-full"></div>
-              <span>Company</span>
-            </h3>
-            <ul className="space-y-3">
-              <li>
-                <Link href="#about" className="text-gray-800 hover:text-secondary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-secondary-500 transition-colors"></span>
                   About Us
                 </Link>
               </li>
-              <li>
-                <Link href="#contact" className="text-gray-800 hover:text-secondary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-secondary-500 transition-colors"></span>
-                  Contact
-                </Link>
-              </li>
-              <li>
-                <Link href="#careers" className="text-gray-800 hover:text-secondary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-secondary-500 transition-colors"></span>
-                  Careers
-                </Link>
-              </li>
-              <li>
-                <Link href="#news" className="text-gray-800 hover:text-secondary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-secondary-500 transition-colors"></span>
-                  News
-                </Link>
-              </li>
             </ul>
           </div>
 
-          {/* Legal Links */}
+          {/* Quick Links */}
           <div className="space-y-6">
             <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-              <div className="w-3 h-3 bg-accent-500 rounded-full"></div>
-              <span>Legal</span>
+              <div className="w-3 h-3 bg-secondary-500 rounded-full"></div>
+              <span>Quick Links</span>
             </h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/privacy" className="text-gray-800 hover:text-accent-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-accent-500 transition-colors"></span>
-                  Privacy Policy
+                <Link href="/login" className="text-gray-800 hover:text-secondary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-secondary-500 transition-colors"></span>
+                  Admin Login
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="text-gray-800 hover:text-accent-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-accent-500 transition-colors"></span>
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link href="/security" className="text-gray-800 hover:text-accent-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-accent-500 transition-colors"></span>
-                  Security
-                </Link>
-              </li>
-              <li>
-                <Link href="/compliance" className="text-gray-800 hover:text-accent-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-accent-500 transition-colors"></span>
-                  Compliance
+                <Link href="/signup" className="text-gray-800 hover:text-secondary-600 transition-all duration-200 hover:translate-x-1 flex items-center group">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-3 group-hover:bg-secondary-500 transition-colors"></span>
+                  Sign Up
                 </Link>
               </li>
             </ul>
@@ -141,19 +83,6 @@ export function Footer() {
               <div className="text-sm text-gray-700">
                 Powered by InCloud Technology
               </div>
-            </div>
-            <div className="flex items-center space-x-6">
-              <Link href="/privacy" className="text-sm font-medium text-gray-700 hover:text-primary-600 transition-all duration-200 hover:scale-105">
-                Privacy
-              </Link>
-              <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-              <Link href="/terms" className="text-sm font-medium text-gray-700 hover:text-primary-600 transition-all duration-200 hover:scale-105">
-                Terms
-              </Link>
-              <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-              <Link href="/contact" className="text-sm font-medium text-gray-700 hover:text-primary-600 transition-all duration-200 hover:scale-105">
-                Contact
-              </Link>
             </div>
           </div>
         </div>
