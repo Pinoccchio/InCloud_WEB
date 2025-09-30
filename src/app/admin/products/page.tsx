@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PlusIcon, EyeIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline'
 import { Button, ConfirmDialog } from '@/components/ui'
 import { Database } from '@/types/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -252,13 +252,6 @@ export default function ProductsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            className="flex items-center"
-          >
-            <EyeIcon className="w-4 h-4 mr-2" />
-            Analytics
-          </Button>
           <Button
             variant="outline"
             onClick={handleDownloadTemplate}

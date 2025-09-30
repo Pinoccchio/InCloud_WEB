@@ -16,6 +16,7 @@ import { Database } from '@/types/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import ImageUploader from './ImageUploader'
 import PricingTiers from './PricingTiers'
+import { getErrorReport, logSupabaseError } from '@/lib/utils/supabase-errors'
 
 type Product = Database['public']['Tables']['products']['Row']
 type ProductInsert = Database['public']['Tables']['products']['Insert']
@@ -93,6 +94,7 @@ export default function ProductForm({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [step, setStep] = useState(1)
 
   const steps = [
@@ -233,6 +235,7 @@ export default function ProductForm({
     })
     setStep(1)
     setError(null)
+    setErrorDetails(null)
   }
 
   const validateStep = (currentStep: number): string | null => {
@@ -311,18 +314,21 @@ export default function ProductForm({
     const validation = validateForm()
     if (validation) {
       setError(validation)
+      setErrorDetails(null)
       return
     }
 
     // Validate admin context for audit tracking
     if (!admin?.id) {
       setError('Admin session required for this operation. Please refresh and try again.')
+      setErrorDetails('No admin ID found in session context. Please log out and log back in.')
       return
     }
 
     try {
       setSaving(true)
       setError(null)
+      setErrorDetails(null)
 
       if (mode === 'create') {
         await createProduct()
@@ -333,7 +339,17 @@ export default function ProductForm({
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save product')
+      // Use enhanced error reporting
+      const errorReport = getErrorReport(err, `Product ${mode === 'create' ? 'Creation' : 'Update'}`)
+
+      // Log detailed error to console for debugging
+      console.error(errorReport.consoleLog)
+
+      // Set user-friendly error message
+      setError(errorReport.userMessage)
+
+      // Set technical details for expandable view
+      setErrorDetails(errorReport.parsed.fullError)
     } finally {
       setSaving(false)
     }
@@ -341,6 +357,13 @@ export default function ProductForm({
 
   const createProduct = async () => {
     console.log('🔄 Creating product with automatic inventory integration...')
+    console.log('📋 Form data:', {
+      name: formData.name,
+      category_id: formData.category_id,
+      brand_id: formData.brand_id,
+      pricing_tiers_count: formData.pricingTiers.length,
+      admin_id: admin?.id
+    })
 
     // Try using the enhanced database function first for better integration
     try {
@@ -351,6 +374,14 @@ export default function ProductForm({
         max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
         is_active: tier.is_active
       }))
+
+      console.log('📊 Calling create_product_with_inventory with:', {
+        p_name: formData.name.trim(),
+        p_category_id: formData.category_id,
+        p_brand_id: formData.brand_id,
+        p_pricing_tiers: pricingTiersForFunction,
+        p_admin_id: admin?.id
+      })
 
       const { data: functionResult, error: functionError } = await supabase.rpc(
         'create_product_with_inventory',
@@ -363,12 +394,14 @@ export default function ProductForm({
           p_brand_id: formData.brand_id || null,
           p_unit_of_measure: formData.unit_of_measure,
           p_is_frozen: formData.is_frozen,
-          p_pricing_tiers: JSON.stringify(pricingTiersForFunction)
+          p_pricing_tiers: pricingTiersForFunction,
+          p_admin_id: admin?.id || null
         }
       )
 
       if (functionError) {
-        console.warn('Database function failed, falling back to direct insert:', functionError)
+        console.error('❌ Database function failed:', functionError)
+        logSupabaseError(functionError, 'create_product_with_inventory RPC call')
         throw functionError
       }
 
@@ -397,7 +430,8 @@ export default function ProductForm({
 
     } catch (functionError) {
       // Fallback to original method with manual inventory creation
-      console.warn('Using fallback method for product creation:', functionError)
+      console.warn('⚠️ Database function failed, using fallback direct insert method')
+      logSupabaseError(functionError, 'Database function fallback')
 
       const productData: ProductInsert = {
         name: formData.name.trim(),
@@ -416,13 +450,21 @@ export default function ProductForm({
         }))
       }
 
+      console.log('📝 Inserting product directly:', productData)
+
       const { data: product, error: productError } = await supabase
         .from('products')
         .insert(productData)
         .select()
         .single()
 
-      if (productError) throw productError
+      if (productError) {
+        console.error('❌ Product insert failed:', productError)
+        logSupabaseError(productError, 'Direct product insert')
+        throw productError
+      }
+
+      console.log('✅ Product inserted:', product.id)
 
       // Create pricing tiers
       if (formData.pricingTiers.length > 0) {
@@ -436,11 +478,19 @@ export default function ProductForm({
           created_by: admin?.id
         }))
 
+        console.log('📊 Creating pricing tiers:', pricingData.length, 'tiers')
+
         const { error: pricingError } = await supabase
           .from('price_tiers')
           .insert(pricingData)
 
-        if (pricingError) throw pricingError
+        if (pricingError) {
+          console.error('❌ Pricing tiers insert failed:', pricingError)
+          logSupabaseError(pricingError, 'Price tiers insert')
+          throw pricingError
+        }
+
+        console.log('✅ Pricing tiers created')
       }
 
       // Manually create inventory record (fallback)
@@ -489,6 +539,8 @@ export default function ProductForm({
   const updateProduct = async () => {
     if (!product) return
 
+    console.log('🔄 Updating product:', product.id)
+
     const productData: ProductUpdate = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
@@ -505,18 +557,35 @@ export default function ProductForm({
       }))
     }
 
+    console.log('📝 Updating product data:', productData)
+
     const { error: productError } = await supabase
       .from('products')
       .update(productData)
       .eq('id', product.id)
 
-    if (productError) throw productError
+    if (productError) {
+      console.error('❌ Product update failed:', productError)
+      logSupabaseError(productError, 'Product update')
+      throw productError
+    }
+
+    console.log('✅ Product updated')
 
     // Delete existing pricing tiers
-    await supabase
+    console.log('🗑️ Deleting existing pricing tiers')
+    const { error: deleteError } = await supabase
       .from('price_tiers')
       .delete()
       .eq('product_id', product.id)
+
+    if (deleteError) {
+      console.error('❌ Failed to delete existing pricing tiers:', deleteError)
+      logSupabaseError(deleteError, 'Delete existing price tiers')
+      throw deleteError
+    }
+
+    console.log('✅ Existing pricing tiers deleted')
 
     // Create new pricing tiers
     if (formData.pricingTiers.length > 0) {
@@ -530,12 +599,22 @@ export default function ProductForm({
         created_by: admin?.id
       }))
 
+      console.log('📊 Creating new pricing tiers:', pricingData.length, 'tiers')
+
       const { error: pricingError } = await supabase
         .from('price_tiers')
         .insert(pricingData)
 
-      if (pricingError) throw pricingError
+      if (pricingError) {
+        console.error('❌ Failed to create new pricing tiers:', pricingError)
+        logSupabaseError(pricingError, 'Insert new price tiers')
+        throw pricingError
+      }
+
+      console.log('✅ New pricing tiers created')
     }
+
+    console.log('✅ Product update complete')
   }
 
   const getMainImage = () => {
@@ -876,9 +955,28 @@ export default function ProductForm({
                   {error && (
                     <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                       <div className="flex">
-                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5" />
-                        <div className="ml-3">
-                          <p className="text-sm font-medium text-red-800">{error}</p>
+                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div className="ml-3 flex-1">
+                          <p className="text-sm font-medium text-red-800 mb-2">{error}</p>
+                          {errorDetails && (
+                            <details className="mt-3">
+                              <summary className="text-xs font-semibold text-red-700 cursor-pointer hover:text-red-900">
+                                View Technical Details
+                              </summary>
+                              <div className="mt-2 p-3 bg-red-100 rounded text-xs font-mono text-red-900 overflow-x-auto max-h-48 overflow-y-auto">
+                                <pre className="whitespace-pre-wrap break-words">{errorDetails}</pre>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(errorDetails)
+                                    // Optional: show a toast notification
+                                  }}
+                                  className="mt-2 px-2 py-1 bg-red-200 hover:bg-red-300 rounded text-xs font-sans"
+                                >
+                                  Copy to Clipboard
+                                </button>
+                              </div>
+                            </details>
+                          )}
                         </div>
                       </div>
                     </div>

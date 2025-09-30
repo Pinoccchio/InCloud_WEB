@@ -10,6 +10,7 @@ import { Button, Input } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
+import { getErrorReport, logSupabaseError } from '@/lib/utils/supabase-errors'
 
 interface NotificationSettingsModalProps {
   isOpen: boolean
@@ -42,7 +43,16 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
     try {
       setIsLoading(true)
       const branchId = await getMainBranchId()
-      const adminId = (await supabase.auth.getUser()).data.user?.id
+
+      // Get admin ID from admins table using auth user_id
+      const authUser = (await supabase.auth.getUser()).data.user
+      const { data: adminData } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('user_id', authUser?.id)
+        .single()
+
+      const adminId = adminData?.id
 
       // Load notification settings for current admin and branch
       const { data: settingsData } = await supabase
@@ -62,11 +72,12 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
         })
       }
     } catch (error) {
-      console.error('Error loading notification settings:', error)
+      const errorReport = getErrorReport(error, 'Load Notification Settings')
+      console.error(errorReport.consoleLog)
       addToast({
         type: 'error',
         title: 'Load Failed',
-        message: 'Failed to load notification settings.'
+        message: errorReport.userMessage
       })
     } finally {
       setIsLoading(false)
@@ -84,7 +95,16 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
     try {
       setIsSaving(true)
       const branchId = await getMainBranchId()
-      const adminId = (await supabase.auth.getUser()).data.user?.id
+
+      // Get admin ID from admins table using auth user_id
+      const authUser = (await supabase.auth.getUser()).data.user
+      const { data: adminData } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('user_id', authUser?.id)
+        .single()
+
+      const adminId = adminData?.id
 
       const { error } = await supabase
         .from('notification_settings')
@@ -112,6 +132,8 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
           notification_frequency: 'immediate',
           group_similar_notifications: true,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'branch_id,admin_id'  // Specify which columns make the record unique
         })
 
       if (error) throw error
@@ -122,11 +144,12 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
         message: 'Notification settings have been updated successfully.'
       })
     } catch (error) {
-      console.error('Error saving notification settings:', error)
+      const errorReport = getErrorReport(error, 'Save Notification Settings')
+      console.error(errorReport.consoleLog)
       addToast({
         type: 'error',
         title: 'Save Failed',
-        message: 'Failed to save notification settings.'
+        message: errorReport.userMessage
       })
     } finally {
       setIsSaving(false)

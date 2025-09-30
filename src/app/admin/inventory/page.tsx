@@ -20,7 +20,6 @@ import { getMainBranchId } from '@/lib/constants/branch'
 import InventoryTable from './components/InventoryTable'
 import InventoryFilters from './components/InventoryFilters'
 import RestockModal from './components/RestockModal'
-import InventoryAnalytics from './components/InventoryAnalytics'
 import BatchDetailsModal from './components/BatchDetailsModal'
 import InventoryImportModal from './components/InventoryImportModal'
 
@@ -54,7 +53,6 @@ export default function InventoryPage() {
 
   // Modal states
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
-  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false)
   const [isBatchDetailsModalOpen, setIsBatchDetailsModalOpen] = useState(false)
   const [isInventoryImportOpen, setIsInventoryImportOpen] = useState(false)
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
@@ -293,14 +291,6 @@ export default function InventoryPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setIsAnalyticsModalOpen(true)}
-            className="flex items-center"
-          >
-            <ChartBarIcon className="w-4 h-4 mr-2" />
-            Analytics
-          </Button>
-          <Button
-            variant="outline"
             onClick={handleDownloadTemplate}
             className="flex items-center"
           >
@@ -474,11 +464,6 @@ export default function InventoryPage() {
         onSuccess={handleImportSuccess}
       />
 
-      {/* Analytics Modal */}
-      <InventoryAnalytics
-        isOpen={isAnalyticsModalOpen}
-        onClose={() => setIsAnalyticsModalOpen(false)}
-      />
     </div>
   )
 }

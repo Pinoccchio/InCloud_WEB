@@ -259,7 +259,7 @@ export default function OrdersPage() {
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-gray-500 truncate">Today's Revenue</dt>
+                <dt className="text-sm font-medium text-gray-500 truncate">Today&apos;s Revenue</dt>
                 <dd className="flex items-baseline">
                   <div className="text-xl font-semibold text-gray-900">
                     {loadingStats ? '...' : formatCurrency(stats.todaysRevenue)}

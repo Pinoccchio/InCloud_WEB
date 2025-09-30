@@ -448,7 +448,8 @@ export async function POST(request: NextRequest) {
                 p_brand_id: brandId,
                 p_unit_of_measure: unitOfMeasure,
                 p_is_frozen: isFrozen,
-                p_pricing_tiers: JSON.stringify(pricingTiers)
+                p_pricing_tiers: JSON.stringify(pricingTiers),
+                p_admin_id: adminId
               }
             )
 

@@ -331,7 +331,11 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
       if (!adminData.user) throw new Error('Not authenticated')
 
       // Prepare update data
-      const updateData: any = {
+      const updateData: {
+        status: string
+        updated_at: string
+        notes?: string
+      } = {
         status: newStatus,
         updated_at: new Date().toISOString()
       }

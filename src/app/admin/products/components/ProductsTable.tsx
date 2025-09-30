@@ -386,7 +386,7 @@ export default function ProductsTable({
 
   const getMainImage = (product: Product) => {
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-      const firstImage = product.images[0] as any
+      const firstImage = product.images[0] as string | { url?: string; path?: string }
       return typeof firstImage === 'string' ? firstImage : firstImage?.url || null
     }
     return null

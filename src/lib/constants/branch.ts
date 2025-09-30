@@ -1,7 +1,7 @@
 // Single Branch Configuration for J.A's Food Trading
 // Since the client operates as a single location, we centralize all operations to the main branch
 
-import { supabase } from '@/lib/supabase/auth'
+import { createClient } from '@/lib/supabase/client'
 
 export const MAIN_BRANCH_NAME = "J.A's Food Trading - Main Branch"
 
@@ -12,8 +12,12 @@ let cachedMainBranchId: string | null = null
 export async function getMainBranchId(): Promise<string> {
   // Return cached value if available
   if (cachedMainBranchId) {
+    console.log('🏢 [Branch] Using cached branch ID:', cachedMainBranchId)
     return cachedMainBranchId
   }
+
+  console.log('🔍 [Branch] Fetching main branch from database...')
+  const supabase = createClient()
 
   // Query database for the main branch (first active branch, or by name pattern)
   const { data: branches, error } = await supabase
@@ -22,12 +26,16 @@ export async function getMainBranchId(): Promise<string> {
     .eq('is_active', true)
     .limit(1)
 
+  console.log('🔍 [Branch] Query result:', { branches, error: error?.message })
+
   if (error || !branches || branches.length === 0) {
+    console.error('❌ [Branch] No active branch found:', error)
     throw new Error('No active branch found in database')
   }
 
   // In single-branch mode, the first (and only) active branch is the main branch
   cachedMainBranchId = branches[0].id
+  console.log('✅ [Branch] Main branch cached:', { id: cachedMainBranchId, name: branches[0].name })
   return cachedMainBranchId
 }
 
@@ -81,6 +89,7 @@ export async function initializeBranchCache(): Promise<void> {
 export async function ensureAdminBranchAccess(adminId: string, role: 'admin' | 'super_admin'): Promise<void> {
   if (role !== 'admin') return // Only regular admins need branch assignment
 
+  const supabase = createClient()
   const mainBranchId = await getMainBranchId()
 
   // Check if admin already has proper branch access
@@ -98,7 +107,8 @@ export async function ensureAdminBranchAccess(adminId: string, role: 'admin' | '
   // If admin has empty branches or missing main branch, fix it
   const branches = admin.branches as string[]
   if (!branches || branches.length === 0 || !branches.includes(mainBranchId)) {
-    const { error: updateError } = await supabase
+    const supabaseForUpdate = createClient()
+    const { error: updateError } = await supabaseForUpdate
       .from('admins')
       .update({ branches: [mainBranchId] })
       .eq('id', adminId)

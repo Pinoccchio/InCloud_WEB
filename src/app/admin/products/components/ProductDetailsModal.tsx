@@ -182,7 +182,7 @@ export default function ProductDetailsModal({
 
   const getMainImage = () => {
     if (product?.images && Array.isArray(product.images) && product.images.length > 0) {
-      const firstImage = product.images[0] as any
+      const firstImage = product.images[0] as string | { url?: string; path?: string }
       return typeof firstImage === 'string' ? firstImage : firstImage?.url || null
     }
     return null
@@ -286,7 +286,7 @@ export default function ProductDetailsModal({
                     <div>
                       <h4 className="text-sm font-medium text-gray-900 mb-3">Product Images</h4>
                       <div className="grid grid-cols-4 gap-3">
-                        {(product.images as any[]).slice(0, 8).map((image, index) => {
+                        {(product.images as Array<string | { url?: string; path?: string }>).slice(0, 8).map((image, index) => {
                           const imageUrl = typeof image === 'string' ? image : image?.url
                           return imageUrl ? (
                             <img

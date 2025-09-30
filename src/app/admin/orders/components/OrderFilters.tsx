@@ -195,7 +195,7 @@ export default function OrderFilters({
 
               {searchQuery.trim() && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  Search: "{searchQuery.trim()}"
+                  Search: &quot;{searchQuery.trim()}&quot;
                   <button
                     onClick={() => onSearchChange('')}
                     className="ml-1 text-blue-600 hover:text-blue-800"
