@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button, Card, CardDescription, CardHeader, CardTitle, LoadingSpinner } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
+import QRCode from 'react-qr-code'
 
 export default function Home() {
   const { isAuthenticated, isLoading, admin } = useAuth()
@@ -64,7 +65,7 @@ export default function Home() {
               <p className="text-xl lg:text-2xl text-gray-700 mb-10 max-w-3xl mx-auto leading-relaxed font-medium">
                 Transform your frozen food distribution with our comprehensive cloud-based platform.
                 <span className="block mt-2 text-primary-600 font-semibold">
-                  Real-time tracking • Advanced analytics • Multi-branch coordination
+                  Real-time tracking • Advanced analytics • Centralized operations
                 </span>
               </p>
 
@@ -85,8 +86,8 @@ export default function Home() {
               {/* Trust indicators */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-primary-600 mb-1">3</div>
-                  <div className="text-sm text-gray-600 font-medium">Active Branches</div>
+                  <div className="text-3xl font-bold text-primary-600 mb-1">35+</div>
+                  <div className="text-sm text-gray-600 font-medium">Active Products</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-secondary-600 mb-1">2018</div>
@@ -207,6 +208,127 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Mobile App Download Section */}
+        <section className="py-24 bg-gradient-to-br from-gray-50 to-white relative overflow-hidden">
+          <div className="container mx-auto px-4">
+            <div className="max-w-6xl mx-auto">
+              {/* Section header */}
+              <div className="text-center mb-12">
+                <div className="inline-block px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold mb-4">
+                  📱 Mobile App Available
+                </div>
+                <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-6">
+                  Download the
+                  <span className="block text-primary-600">InCloud Mobile App</span>
+                </h2>
+                <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                  Access your inventory on the go. Browse products, manage orders, and track stock levels from your mobile device.
+                </p>
+              </div>
+
+              {/* Download content */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                {/* Left side - QR Code and Download Link */}
+                <div className="flex flex-col items-center lg:items-start space-y-6">
+                  <Card variant="elevated" className="p-8 bg-white">
+                    <div className="text-center">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-4">Scan to Download</h3>
+                      <div className="bg-white p-6 rounded-xl inline-block shadow-lg">
+                        <QRCode
+                          value="https://drive.google.com/drive/folders/1b_-4JENADwl0j6C6cJJk9X-kUNZbaDWq?usp=sharing"
+                          size={200}
+                          level="H"
+                          style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                        />
+                      </div>
+                      <p className="text-sm text-gray-500 mt-4">Scan with your phone camera</p>
+                    </div>
+                  </Card>
+
+                  <div className="w-full">
+                    <a
+                      href="https://drive.google.com/drive/folders/1b_-4JENADwl0j6C6cJJk9X-kUNZbaDWq?usp=sharing"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <Button
+                        size="lg"
+                        className="w-full px-8 py-4 text-lg shadow-lg hover:shadow-xl"
+                      >
+                        📥 Download APK from Google Drive
+                      </Button>
+                    </a>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      Direct download link • Compatible with Android devices
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right side - Features and Instructions */}
+                <div className="space-y-6">
+                  <Card variant="surface" className="p-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">📲 Installation Instructions</h3>
+                    <ol className="space-y-3 text-gray-700">
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold mr-3">1</span>
+                        <span><strong>Download</strong> the APK file from the link above or scan the QR code</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold mr-3">2</span>
+                        <span><strong>Enable</strong> &ldquo;Install from unknown sources&rdquo; in your phone settings if prompted</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold mr-3">3</span>
+                        <span><strong>Open</strong> the downloaded APK file and follow the installation steps</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold mr-3">4</span>
+                        <span><strong>Launch</strong> InCloud and sign in with your account credentials</span>
+                      </li>
+                    </ol>
+                  </Card>
+
+                  <Card variant="surface" className="p-6 bg-primary-50 border-primary-200">
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">✨ Mobile App Features</h3>
+                    <ul className="space-y-2 text-gray-700">
+                      <li className="flex items-center">
+                        <span className="text-primary-600 mr-2">✓</span>
+                        Browse complete product catalog with images
+                      </li>
+                      <li className="flex items-center">
+                        <span className="text-primary-600 mr-2">✓</span>
+                        Real-time inventory stock levels
+                      </li>
+                      <li className="flex items-center">
+                        <span className="text-primary-600 mr-2">✓</span>
+                        Place and track orders on the go
+                      </li>
+                      <li className="flex items-center">
+                        <span className="text-primary-600 mr-2">✓</span>
+                        Receive instant notifications
+                      </li>
+                      <li className="flex items-center">
+                        <span className="text-primary-600 mr-2">✓</span>
+                        Manage your shopping cart
+                      </li>
+                    </ul>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Note about Android */}
+              <div className="mt-12 text-center">
+                <div className="inline-block bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-2xl">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> Currently available for Android devices. iOS version coming soon. Make sure to download from the official Google Drive link provided above.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* About Section - Enhanced Flat Design 2.0 */}
         <section id="about" className="py-24 bg-white relative overflow-hidden">
           {/* Background decoration */}
@@ -232,10 +354,10 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                 <Card variant="elevated" interactive className="text-center p-8">
                   <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                    <span className="text-3xl font-extrabold text-white">3</span>
+                    <span className="text-3xl font-extrabold text-white">1</span>
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Active Branches</h3>
-                  <p className="text-gray-600 font-medium">Strategically located across Sampaloc, Manila</p>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Main Branch</h3>
+                  <p className="text-gray-600 font-medium">Centralized operations in Sampaloc, Manila</p>
                 </Card>
 
                 <Card variant="elevated" interactive className="text-center p-8">
@@ -277,74 +399,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CTA Section - Enhanced Flat Design 2.0 */}
-        <section id="contact" className="py-24 bg-gradient-to-br from-primary-600 to-primary-700 text-white relative overflow-hidden">
-          {/* Background decoration */}
-          <div className="absolute top-0 right-0 w-1/3 h-full bg-secondary-500 opacity-10 transform skew-x-12 translate-x-1/4"></div>
-          <div className="absolute bottom-0 left-0 w-1/4 h-2/3 bg-accent-500 opacity-15 transform -skew-x-12 -translate-x-1/4"></div>
-
-          <div className="container mx-auto px-4 text-center relative z-10">
-            <div className="max-w-4xl mx-auto">
-              {/* Header badge */}
-              <div className="inline-block px-4 py-2 bg-white/20 text-white rounded-full text-sm font-semibold mb-6">
-                🚀 Ready to Transform?
-              </div>
-
-              {/* Main CTA headline */}
-              <h2 className="text-4xl lg:text-6xl font-extrabold mb-6 leading-tight">
-                Modernize Your
-                <span className="block text-accent-300">Inventory Management</span>
-                <span className="block text-secondary-300 text-3xl lg:text-4xl">Today</span>
-              </h2>
-
-              {/* Enhanced description */}
-              <p className="text-xl lg:text-2xl mb-10 opacity-90 max-w-3xl mx-auto leading-relaxed">
-                Join the digital transformation of food trading with InCloud&apos;s comprehensive solution.
-                <span className="block mt-2 font-semibold text-accent-200">
-                  Start your free trial and see the difference in 24 hours.
-                </span>
-              </p>
-
-              {/* Enhanced CTA buttons */}
-              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
-                <Link href="/signup">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="w-full sm:w-auto px-10 py-5 text-lg font-bold shadow-2xl hover:shadow-3xl bg-white text-primary-800 hover:bg-primary-50 hover:text-primary-900 border-2 border-white"
-                  >
-                    🎯 Start Free Trial
-                  </Button>
-                </Link>
-                <Link href="#contact">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="w-full sm:w-auto px-10 py-5 text-lg font-bold border-2 border-white text-white bg-black/10 hover:bg-white hover:text-primary-600 transition-all backdrop-blur-sm"
-                  >
-                    💬 Contact Sales
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Trust indicators */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl mx-auto opacity-90">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-accent-200 mb-1">✅ No Setup Fees</div>
-                  <div className="text-sm text-white/80">Get started immediately</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-accent-200 mb-1">🔒 Enterprise Security</div>
-                  <div className="text-sm text-white/80">Your data is protected</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-accent-200 mb-1">📞 24/7 Support</div>
-                  <div className="text-sm text-white/80">We&apos;re here to help</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
     </>
   )
 }
