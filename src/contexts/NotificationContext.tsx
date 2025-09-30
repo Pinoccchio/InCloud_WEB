@@ -67,7 +67,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           severity,
           title,
           message,
-          is_read,
+          admin_is_read,
           is_acknowledged,
           is_resolved,
           acknowledged_at,
@@ -92,7 +92,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         title: notification.title,
         message: notification.message,
         data: notification.metadata || {},
-        isRead: notification.is_read || false,
+        isRead: notification.admin_is_read || false,
         isAcknowledged: notification.is_acknowledged || false,
         isResolved: notification.is_resolved || false,
         acknowledgedAt: notification.acknowledged_at,
@@ -200,7 +200,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                   notif.id === updatedNotification.id
                     ? {
                         ...notif,
-                        isRead: updatedNotification.is_read || notif.isRead,
+                        isRead: updatedNotification.admin_is_read || notif.isRead,
                         isAcknowledged: updatedNotification.is_acknowledged || notif.isAcknowledged,
                         isResolved: updatedNotification.is_resolved || notif.isResolved,
                         acknowledgedAt: updatedNotification.acknowledged_at || notif.acknowledgedAt,
@@ -262,10 +262,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         )
       )
 
-      // Update database
+      // Update database - use admin_is_read for admin users
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ admin_is_read: true })
         .eq('id', id)
 
       if (error) throw error
@@ -283,7 +283,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         prev.map(notif => ({ ...notif, isRead: true }))
       )
 
-      // Update all notifications in database
+      // Update all notifications in database - use admin_is_read for admin users
       const notificationIds = notifications
         .filter(notif => !notif.isRead)
         .map(notif => notif.id)
@@ -291,7 +291,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (notificationIds.length > 0) {
         const { error } = await supabase
           .from('notifications')
-          .update({ is_read: true })
+          .update({ admin_is_read: true })
           .in('id', notificationIds)
 
         if (error) throw error
@@ -312,12 +312,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         )
       )
 
-      // Update database
+      // Update database - use admin_is_read for admin users
       const { error } = await supabase
         .from('notifications')
         .update({
           is_acknowledged: true,
-          is_read: true,
+          admin_is_read: true,
           acknowledged_at: new Date().toISOString(),
           acknowledged_by: admin?.id
         })

@@ -53,66 +53,6 @@ export type Database = {
         }
         Relationships: []
       }
-      alert_configurations: {
-        Row: {
-          branch_id: string | null
-          created_at: string | null
-          critical_expiry_days: number | null
-          critical_stock_threshold: number | null
-          email_notifications: boolean | null
-          expiry_warning_days: number | null
-          id: string
-          in_app_notifications: boolean | null
-          is_active: boolean | null
-          low_stock_threshold: number | null
-          product_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          created_at?: string | null
-          critical_expiry_days?: number | null
-          critical_stock_threshold?: number | null
-          email_notifications?: boolean | null
-          expiry_warning_days?: number | null
-          id?: string
-          in_app_notifications?: boolean | null
-          is_active?: boolean | null
-          low_stock_threshold?: number | null
-          product_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          created_at?: string | null
-          critical_expiry_days?: number | null
-          critical_stock_threshold?: number | null
-          email_notifications?: boolean | null
-          expiry_warning_days?: number | null
-          id?: string
-          in_app_notifications?: boolean | null
-          is_active?: boolean | null
-          low_stock_threshold?: number | null
-          product_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "alert_configurations_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alert_configurations_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       alert_rules: {
         Row: {
           alert_type: Database["public"]["Enums"]["alert_type"]
@@ -166,323 +106,6 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      alert_settings: {
-        Row: {
-          branch_id: string | null
-          created_at: string | null
-          critical_expiry_days: number | null
-          critical_stock_threshold: number | null
-          email_notifications: boolean | null
-          expiry_warning_days: number | null
-          id: string
-          in_app_notifications: boolean | null
-          low_stock_threshold: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          created_at?: string | null
-          critical_expiry_days?: number | null
-          critical_stock_threshold?: number | null
-          email_notifications?: boolean | null
-          expiry_warning_days?: number | null
-          id?: string
-          in_app_notifications?: boolean | null
-          low_stock_threshold?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          created_at?: string | null
-          critical_expiry_days?: number | null
-          critical_stock_threshold?: number | null
-          email_notifications?: boolean | null
-          expiry_warning_days?: number | null
-          id?: string
-          in_app_notifications?: boolean | null
-          low_stock_threshold?: number | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "alert_settings_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: true
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      alerts: {
-        Row: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          auto_generated: boolean | null
-          batch_id: string | null
-          branch_id: string | null
-          created_at: string | null
-          expires_at: string | null
-          id: string
-          inventory_id: string | null
-          is_acknowledged: boolean | null
-          is_read: boolean | null
-          message: string
-          metadata: Json | null
-          order_id: string | null
-          product_id: string | null
-          severity: Database["public"]["Enums"]["alert_severity"]
-          status: string | null
-          title: string
-          type: Database["public"]["Enums"]["alert_type"]
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          auto_generated?: boolean | null
-          batch_id?: string | null
-          branch_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
-          id?: string
-          inventory_id?: string | null
-          is_acknowledged?: boolean | null
-          is_read?: boolean | null
-          message: string
-          metadata?: Json | null
-          order_id?: string | null
-          product_id?: string | null
-          severity: Database["public"]["Enums"]["alert_severity"]
-          status?: string | null
-          title: string
-          type: Database["public"]["Enums"]["alert_type"]
-        }
-        Update: {
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          auto_generated?: boolean | null
-          batch_id?: string | null
-          branch_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
-          id?: string
-          inventory_id?: string | null
-          is_acknowledged?: boolean | null
-          is_read?: boolean | null
-          message?: string
-          metadata?: Json | null
-          order_id?: string | null
-          product_id?: string | null
-          severity?: Database["public"]["Enums"]["alert_severity"]
-          status?: string | null
-          title?: string
-          type?: Database["public"]["Enums"]["alert_type"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "alerts_acknowledged_by_fkey"
-            columns: ["acknowledged_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "product_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_inventory_id_fkey"
-            columns: ["inventory_id"]
-            isOneToOne: false
-            referencedRelation: "inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      analytics_reports: {
-        Row: {
-          branch_id: string | null
-          chart_data: Json | null
-          created_at: string | null
-          data: Json
-          description: string | null
-          generated_at: string | null
-          generated_by: string | null
-          id: string
-          insights: string | null
-          is_automated: boolean | null
-          parameters: Json | null
-          report_type: string
-          status: string | null
-          title: string
-          valid_until: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          chart_data?: Json | null
-          created_at?: string | null
-          data: Json
-          description?: string | null
-          generated_at?: string | null
-          generated_by?: string | null
-          id?: string
-          insights?: string | null
-          is_automated?: boolean | null
-          parameters?: Json | null
-          report_type: string
-          status?: string | null
-          title: string
-          valid_until?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          chart_data?: Json | null
-          created_at?: string | null
-          data?: Json
-          description?: string | null
-          generated_at?: string | null
-          generated_by?: string | null
-          id?: string
-          insights?: string | null
-          is_automated?: boolean | null
-          parameters?: Json | null
-          report_type?: string
-          status?: string | null
-          title?: string
-          valid_until?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "analytics_reports_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "analytics_reports_generated_by_fkey"
-            columns: ["generated_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      audit_logs: {
-        Row: {
-          action: Database["public"]["Enums"]["audit_action"]
-          admin_id: string | null
-          change_context: string | null
-          change_summary: string | null
-          created_at: string | null
-          field_changes: Json | null
-          id: string
-          metadata: Json | null
-          new_data: Json | null
-          old_data: Json | null
-          record_id: string | null
-          table_name: string | null
-        }
-        Insert: {
-          action: Database["public"]["Enums"]["audit_action"]
-          admin_id?: string | null
-          change_context?: string | null
-          change_summary?: string | null
-          created_at?: string | null
-          field_changes?: Json | null
-          id?: string
-          metadata?: Json | null
-          new_data?: Json | null
-          old_data?: Json | null
-          record_id?: string | null
-          table_name?: string | null
-        }
-        Update: {
-          action?: Database["public"]["Enums"]["audit_action"]
-          admin_id?: string | null
-          change_context?: string | null
-          change_summary?: string | null
-          created_at?: string | null
-          field_changes?: Json | null
-          id?: string
-          metadata?: Json | null
-          new_data?: Json | null
-          old_data?: Json | null
-          record_id?: string | null
-          table_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "audit_logs_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      batch_order_fulfillments: {
-        Row: {
-          batch_id: string | null
-          created_at: string | null
-          id: string
-          order_item_id: string | null
-          quantity_fulfilled: number
-        }
-        Insert: {
-          batch_id?: string | null
-          created_at?: string | null
-          id?: string
-          order_item_id?: string | null
-          quantity_fulfilled: number
-        }
-        Update: {
-          batch_id?: string | null
-          created_at?: string | null
-          id?: string
-          order_item_id?: string | null
-          quantity_fulfilled?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "batch_order_fulfillments_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "product_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "batch_order_fulfillments_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
         ]
@@ -670,63 +293,6 @@ export type Database = {
           },
         ]
       }
-      demand_forecast: {
-        Row: {
-          accuracy_score: number | null
-          actual_demand: number | null
-          branch_id: string
-          confidence_level: number | null
-          created_at: string | null
-          factors: Json | null
-          forecast_date: string
-          id: string
-          model_version: string | null
-          predicted_demand: number
-          product_id: string
-        }
-        Insert: {
-          accuracy_score?: number | null
-          actual_demand?: number | null
-          branch_id: string
-          confidence_level?: number | null
-          created_at?: string | null
-          factors?: Json | null
-          forecast_date: string
-          id?: string
-          model_version?: string | null
-          predicted_demand: number
-          product_id: string
-        }
-        Update: {
-          accuracy_score?: number | null
-          actual_demand?: number | null
-          branch_id?: string
-          confidence_level?: number | null
-          created_at?: string | null
-          factors?: Json | null
-          forecast_date?: string
-          id?: string
-          model_version?: string | null
-          predicted_demand?: number
-          product_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "demand_forecast_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "demand_forecast_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       inventory: {
         Row: {
           auto_reorder: boolean | null
@@ -819,319 +385,99 @@ export type Database = {
           },
         ]
       }
-      inventory_movements: {
+      notifications: {
         Row: {
-          created_at: string | null
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          action_url: string | null
+          admin_is_read: boolean | null
+          branch_id: string | null
+          created_at: string
+          expires_at: string | null
           id: string
-          inventory_id: string
-          movement_type: string
-          notes: string | null
-          performed_by: string | null
-          quantity_after: number
-          quantity_before: number
-          quantity_change: number
-          reference_id: string | null
-          reference_type: string | null
+          is_acknowledged: boolean
+          is_read: boolean
+          is_resolved: boolean
+          message: string
+          metadata: Json | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: Database["public"]["Enums"]["notification_severity"]
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
-          created_at?: string | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_url?: string | null
+          admin_is_read?: boolean | null
+          branch_id?: string | null
+          created_at?: string
+          expires_at?: string | null
           id?: string
-          inventory_id: string
-          movement_type: string
-          notes?: string | null
-          performed_by?: string | null
-          quantity_after: number
-          quantity_before: number
-          quantity_change: number
-          reference_id?: string | null
-          reference_type?: string | null
+          is_acknowledged?: boolean
+          is_read?: boolean
+          is_resolved?: boolean
+          message: string
+          metadata?: Json | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: Database["public"]["Enums"]["notification_severity"]
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
-          created_at?: string | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_url?: string | null
+          admin_is_read?: boolean | null
+          branch_id?: string | null
+          created_at?: string
+          expires_at?: string | null
           id?: string
-          inventory_id?: string
-          movement_type?: string
-          notes?: string | null
-          performed_by?: string | null
-          quantity_after?: number
-          quantity_before?: number
-          quantity_change?: number
-          reference_id?: string | null
-          reference_type?: string | null
+          is_acknowledged?: boolean
+          is_read?: boolean
+          is_resolved?: boolean
+          message?: string
+          metadata?: Json | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: Database["public"]["Enums"]["notification_severity"]
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "inventory_movements_inventory_id_fkey"
-            columns: ["inventory_id"]
-            isOneToOne: false
-            referencedRelation: "inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_movements_performed_by_fkey"
-            columns: ["performed_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      inventory_snapshots: {
-        Row: {
-          available_quantity: number
-          branch_id: string
-          created_at: string | null
-          id: string
-          inventory_id: string
-          max_stock_level: number | null
-          min_stock_level: number | null
-          product_id: string
-          quantity: number
-          reserved_quantity: number | null
-          snapshot_date: string
-          value_at_cost: number | null
-          value_at_retail: number | null
-        }
-        Insert: {
-          available_quantity: number
-          branch_id: string
-          created_at?: string | null
-          id?: string
-          inventory_id: string
-          max_stock_level?: number | null
-          min_stock_level?: number | null
-          product_id: string
-          quantity: number
-          reserved_quantity?: number | null
-          snapshot_date: string
-          value_at_cost?: number | null
-          value_at_retail?: number | null
-        }
-        Update: {
-          available_quantity?: number
-          branch_id?: string
-          created_at?: string | null
-          id?: string
-          inventory_id?: string
-          max_stock_level?: number | null
-          min_stock_level?: number | null
-          product_id?: string
-          quantity?: number
-          reserved_quantity?: number | null
-          snapshot_date?: string
-          value_at_cost?: number | null
-          value_at_retail?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inventory_snapshots_inventory_id_fkey"
-            columns: ["inventory_id"]
-            isOneToOne: false
-            referencedRelation: "inventory"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notification_settings: {
-        Row: {
-          admin_id: string
-          alert_type: Database["public"]["Enums"]["alert_type"]
-          created_at: string | null
-          email_notifications: boolean | null
-          enabled: boolean | null
-          id: string
-          min_severity: Database["public"]["Enums"]["alert_severity"] | null
-          push_notifications: boolean | null
-          updated_at: string | null
-        }
-        Insert: {
-          admin_id: string
-          alert_type: Database["public"]["Enums"]["alert_type"]
-          created_at?: string | null
-          email_notifications?: boolean | null
-          enabled?: boolean | null
-          id?: string
-          min_severity?: Database["public"]["Enums"]["alert_severity"] | null
-          push_notifications?: boolean | null
-          updated_at?: string | null
-        }
-        Update: {
-          admin_id?: string
-          alert_type?: Database["public"]["Enums"]["alert_type"]
-          created_at?: string | null
-          email_notifications?: boolean | null
-          enabled?: boolean | null
-          id?: string
-          min_severity?: Database["public"]["Enums"]["alert_severity"] | null
-          push_notifications?: boolean | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notification_settings_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      order_fulfillment: {
-        Row: {
-          created_at: string | null
-          customer_signature: string | null
-          delivered_by: string | null
-          delivery_notes: string | null
-          delivery_time: string | null
-          id: string
-          order_id: string
-          packed_by: string | null
-          picked_by: string | null
-          pickup_time: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          customer_signature?: string | null
-          delivered_by?: string | null
-          delivery_notes?: string | null
-          delivery_time?: string | null
-          id?: string
-          order_id: string
-          packed_by?: string | null
-          picked_by?: string | null
-          pickup_time?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          customer_signature?: string | null
-          delivered_by?: string | null
-          delivery_notes?: string | null
-          delivery_time?: string | null
-          id?: string
-          order_id?: string
-          packed_by?: string | null
-          picked_by?: string | null
-          pickup_time?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_fulfillment_delivered_by_fkey"
-            columns: ["delivered_by"]
+            foreignKeyName: "notifications_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
             isOneToOne: false
             referencedRelation: "admins"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "order_fulfillment_order_id_fkey"
-            columns: ["order_id"]
+            foreignKeyName: "notifications_branch_id_fkey"
+            columns: ["branch_id"]
             isOneToOne: false
-            referencedRelation: "orders"
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "order_fulfillment_packed_by_fkey"
-            columns: ["packed_by"]
+            foreignKeyName: "notifications_resolved_by_fkey"
+            columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_fulfillment_picked_by_fkey"
-            columns: ["picked_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      order_items: {
-        Row: {
-          created_at: string | null
-          fulfillment_status: string | null
-          id: string
-          order_id: string
-          pricing_tier: Database["public"]["Enums"]["pricing_tier"]
-          product_id: string
-          quantity: number
-          total_price: number
-          unit_price: number
-        }
-        Insert: {
-          created_at?: string | null
-          fulfillment_status?: string | null
-          id?: string
-          order_id: string
-          pricing_tier: Database["public"]["Enums"]["pricing_tier"]
-          product_id: string
-          quantity: number
-          total_price: number
-          unit_price: number
-        }
-        Update: {
-          created_at?: string | null
-          fulfillment_status?: string | null
-          id?: string
-          order_id?: string
-          pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
-          product_id?: string
-          quantity?: number
-          total_price?: number
-          unit_price?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_items_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      order_status_history: {
-        Row: {
-          changed_by_user_id: string | null
-          created_at: string | null
-          id: string
-          new_status: Database["public"]["Enums"]["order_status"]
-          notes: string | null
-          old_status: Database["public"]["Enums"]["order_status"] | null
-          order_id: string
-        }
-        Insert: {
-          changed_by_user_id?: string | null
-          created_at?: string | null
-          id?: string
-          new_status: Database["public"]["Enums"]["order_status"]
-          notes?: string | null
-          old_status?: Database["public"]["Enums"]["order_status"] | null
-          order_id: string
-        }
-        Update: {
-          changed_by_user_id?: string | null
-          created_at?: string | null
-          id?: string
-          new_status?: Database["public"]["Enums"]["order_status"]
-          notes?: string | null
-          old_status?: Database["public"]["Enums"]["order_status"] | null
-          order_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_status_history_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1221,49 +567,53 @@ export type Database = {
           },
         ]
       }
-      performance_kpis: {
+      order_items: {
         Row: {
-          branch_id: string | null
           created_at: string | null
+          fulfillment_status: string | null
           id: string
-          kpi_date: string
-          kpi_type: string
-          kpi_value: number
-          metadata: Json | null
-          performance_grade: string | null
-          target_value: number | null
-          variance_percentage: number | null
+          order_id: string
+          pricing_tier: Database["public"]["Enums"]["pricing_tier"]
+          product_id: string
+          quantity: number
+          total_price: number
+          unit_price: number
         }
         Insert: {
-          branch_id?: string | null
           created_at?: string | null
+          fulfillment_status?: string | null
           id?: string
-          kpi_date: string
-          kpi_type: string
-          kpi_value: number
-          metadata?: Json | null
-          performance_grade?: string | null
-          target_value?: number | null
-          variance_percentage?: number | null
+          order_id: string
+          pricing_tier: Database["public"]["Enums"]["pricing_tier"]
+          product_id: string
+          quantity: number
+          total_price: number
+          unit_price: number
         }
         Update: {
-          branch_id?: string | null
           created_at?: string | null
+          fulfillment_status?: string | null
           id?: string
-          kpi_date?: string
-          kpi_type?: string
-          kpi_value?: number
-          metadata?: Json | null
-          performance_grade?: string | null
-          target_value?: number | null
-          variance_percentage?: number | null
+          order_id?: string
+          pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
+          product_id?: string
+          quantity?: number
+          total_price?: number
+          unit_price?: number
         }
         Relationships: [
           {
-            foreignKeyName: "performance_kpis_branch_id_fkey"
-            columns: ["branch_id"]
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "branches"
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -1325,82 +675,6 @@ export type Database = {
           },
           {
             foreignKeyName: "price_tiers_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      product_batches: {
-        Row: {
-          batch_number: string
-          cost_per_unit: number | null
-          created_at: string | null
-          created_by: string | null
-          expiration_date: string
-          id: string
-          inventory_id: string
-          is_active: boolean | null
-          quantity: number
-          received_date: string | null
-          status: string | null
-          supplier_info: Json | null
-          supplier_name: string | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          batch_number: string
-          cost_per_unit?: number | null
-          created_at?: string | null
-          created_by?: string | null
-          expiration_date: string
-          id?: string
-          inventory_id: string
-          is_active?: boolean | null
-          quantity: number
-          received_date?: string | null
-          status?: string | null
-          supplier_info?: Json | null
-          supplier_name?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          batch_number?: string
-          cost_per_unit?: number | null
-          created_at?: string | null
-          created_by?: string | null
-          expiration_date?: string
-          id?: string
-          inventory_id?: string
-          is_active?: boolean | null
-          quantity?: number
-          received_date?: string | null
-          status?: string | null
-          supplier_info?: Json | null
-          supplier_name?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "product_batches_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "product_batches_inventory_id_fkey"
-            columns: ["inventory_id"]
-            isOneToOne: false
-            referencedRelation: "inventory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "product_batches_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "admins"
@@ -1491,346 +765,77 @@ export type Database = {
           },
         ]
       }
-      restock_history: {
+      product_batches: {
         Row: {
-          batch_id: string | null
-          cost_per_unit: number
+          batch_number: string
+          cost_per_unit: number | null
           created_at: string | null
+          created_by: string | null
+          expiration_date: string
           id: string
-          inventory_id: string | null
-          notes: string | null
-          performed_by: string | null
-          purchase_order_ref: string | null
+          inventory_id: string
+          is_active: boolean | null
           quantity: number
           received_date: string | null
+          status: string | null
           supplier_info: Json | null
-          total_cost: number | null
+          supplier_name: string | null
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
-          batch_id?: string | null
-          cost_per_unit: number
+          batch_number: string
+          cost_per_unit?: number | null
           created_at?: string | null
+          created_by?: string | null
+          expiration_date: string
           id?: string
-          inventory_id?: string | null
-          notes?: string | null
-          performed_by?: string | null
-          purchase_order_ref?: string | null
+          inventory_id: string
+          is_active?: boolean | null
           quantity: number
           received_date?: string | null
+          status?: string | null
           supplier_info?: Json | null
-          total_cost?: number | null
+          supplier_name?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
-          batch_id?: string | null
-          cost_per_unit?: number
+          batch_number?: string
+          cost_per_unit?: number | null
           created_at?: string | null
+          created_by?: string | null
+          expiration_date?: string
           id?: string
-          inventory_id?: string | null
-          notes?: string | null
-          performed_by?: string | null
-          purchase_order_ref?: string | null
+          inventory_id?: string
+          is_active?: boolean | null
           quantity?: number
           received_date?: string | null
+          status?: string | null
           supplier_info?: Json | null
-          total_cost?: number | null
+          supplier_name?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "restock_history_batch_id_fkey"
-            columns: ["batch_id"]
+            foreignKeyName: "product_batches_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "product_batches"
+            referencedRelation: "admins"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "restock_history_inventory_id_fkey"
+            foreignKeyName: "product_batches_inventory_id_fkey"
             columns: ["inventory_id"]
             isOneToOne: false
             referencedRelation: "inventory"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "restock_history_performed_by_fkey"
-            columns: ["performed_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_metrics: {
-        Row: {
-          average_order_value: number | null
-          branch_id: string | null
-          category_id: string | null
-          created_at: string | null
-          id: string
-          metric_date: string
-          product_id: string | null
-          profit_margin: number | null
-          top_selling_tier: Database["public"]["Enums"]["pricing_tier"] | null
-          total_orders: number | null
-          total_quantity_sold: number | null
-          total_revenue: number | null
-        }
-        Insert: {
-          average_order_value?: number | null
-          branch_id?: string | null
-          category_id?: string | null
-          created_at?: string | null
-          id?: string
-          metric_date: string
-          product_id?: string | null
-          profit_margin?: number | null
-          top_selling_tier?: Database["public"]["Enums"]["pricing_tier"] | null
-          total_orders?: number | null
-          total_quantity_sold?: number | null
-          total_revenue?: number | null
-        }
-        Update: {
-          average_order_value?: number | null
-          branch_id?: string | null
-          category_id?: string | null
-          created_at?: string | null
-          id?: string
-          metric_date?: string
-          product_id?: string | null
-          profit_margin?: number | null
-          top_selling_tier?: Database["public"]["Enums"]["pricing_tier"] | null
-          total_orders?: number | null
-          total_quantity_sold?: number | null
-          total_revenue?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_metrics_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_metrics_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_metrics_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      stock_transfers: {
-        Row: {
-          approved_by: string | null
-          created_at: string | null
-          from_branch_id: string
-          id: string
-          notes: string | null
-          product_id: string
-          quantity: number
-          received_date: string | null
-          requested_by: string
-          sent_date: string | null
-          status: string | null
-          to_branch_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          approved_by?: string | null
-          created_at?: string | null
-          from_branch_id: string
-          id?: string
-          notes?: string | null
-          product_id: string
-          quantity: number
-          received_date?: string | null
-          requested_by: string
-          sent_date?: string | null
-          status?: string | null
-          to_branch_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          approved_by?: string | null
-          created_at?: string | null
-          from_branch_id?: string
-          id?: string
-          notes?: string | null
-          product_id?: string
-          quantity?: number
-          received_date?: string | null
-          requested_by?: string
-          sent_date?: string | null
-          status?: string | null
-          to_branch_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stock_transfers_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_transfers_from_branch_id_fkey"
-            columns: ["from_branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_transfers_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_transfers_requested_by_fkey"
-            columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_transfers_to_branch_id_fkey"
-            columns: ["to_branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      system_settings: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          id: string
-          key: string
-          updated_at: string | null
-          updated_by: string | null
-          value: Json
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          key: string
-          updated_at?: string | null
-          updated_by?: string | null
-          value: Json
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          key?: string
-          updated_at?: string | null
-          updated_by?: string | null
-          value?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "system_settings_updated_by_fkey"
+            foreignKeyName: "product_batches_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "admins"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_preferences: {
-        Row: {
-          admin_id: string
-          auto_reorder: boolean | null
-          created_at: string | null
-          currency_format: string | null
-          dashboard_layout: Json | null
-          date_format: string | null
-          decimal_places: number | null
-          default_date_range: string | null
-          default_pricing_tier:
-            | Database["public"]["Enums"]["pricing_tier"]
-            | null
-          enable_fifo: boolean | null
-          expiry_warning_days: number | null
-          export_format: string | null
-          id: string
-          include_images: boolean | null
-          language: string | null
-          low_stock_threshold: number | null
-          phone: string | null
-          profile_picture_url: string | null
-          time_format: string | null
-          timezone: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          admin_id: string
-          auto_reorder?: boolean | null
-          created_at?: string | null
-          currency_format?: string | null
-          dashboard_layout?: Json | null
-          date_format?: string | null
-          decimal_places?: number | null
-          default_date_range?: string | null
-          default_pricing_tier?:
-            | Database["public"]["Enums"]["pricing_tier"]
-            | null
-          enable_fifo?: boolean | null
-          expiry_warning_days?: number | null
-          export_format?: string | null
-          id?: string
-          include_images?: boolean | null
-          language?: string | null
-          low_stock_threshold?: number | null
-          phone?: string | null
-          profile_picture_url?: string | null
-          time_format?: string | null
-          timezone?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          admin_id?: string
-          auto_reorder?: boolean | null
-          created_at?: string | null
-          currency_format?: string | null
-          dashboard_layout?: Json | null
-          date_format?: string | null
-          decimal_places?: number | null
-          default_date_range?: string | null
-          default_pricing_tier?:
-            | Database["public"]["Enums"]["pricing_tier"]
-            | null
-          enable_fifo?: boolean | null
-          expiry_warning_days?: number | null
-          export_format?: string | null
-          id?: string
-          include_images?: boolean | null
-          language?: string | null
-          low_stock_threshold?: number | null
-          phone?: string | null
-          profile_picture_url?: string | null
-          time_format?: string | null
-          timezone?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_preferences_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: true
             referencedRelation: "admins"
             referencedColumns: ["id"]
           },
@@ -1841,343 +846,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      acknowledge_alert: {
-        Args: { p_alert_id: string }
-        Returns: boolean
-      }
-      calculate_order_totals: {
-        Args: { p_order_id: string }
-        Returns: undefined
-      }
-      calculate_sales_metrics: {
-        Args: { p_date?: string }
-        Returns: number
-      }
-      can_access_branch_data: {
-        Args: { target_branch_id: string }
-        Returns: boolean
-      }
-      cancel_order_fifo: {
-        Args: { p_order_id: string }
-        Returns: Json
-      }
-      check_and_create_alerts: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      check_fifo_system_integrity: {
-        Args: { p_branch_id?: string; p_product_id?: string }
-        Returns: Json
-      }
-      check_inventory_availability: {
-        Args: {
-          p_branch_id: string
-          p_product_id: string
-          p_quantity_needed: number
-        }
-        Returns: Json
-      }
-      create_admin_profile: {
-        Args: {
-          p_branches?: Json
-          p_email: string
-          p_full_name: string
-          p_role?: Database["public"]["Enums"]["admin_role"]
-          p_user_id: string
-        }
-        Returns: string
-      }
-      create_admin_profile_service_role: {
-        Args: {
-          p_branches: Json
-          p_current_admin_id: string
-          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-          p_email: string
-          p_full_name: string
-          p_role: Database["public"]["Enums"]["admin_role"]
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      create_admin_session: {
-        Args: {
-          p_admin_id: string
-          p_expires_in?: unknown
-          p_ip_address?: unknown
-          p_user_agent?: string
-        }
-        Returns: string
-      }
-      create_admin_with_auth: {
-        Args: {
-          p_branches?: Json
-          p_email: string
-          p_full_name: string
-          p_password: string
-          p_role?: Database["public"]["Enums"]["admin_role"]
-        }
-        Returns: Json
-      }
-      create_inventory_snapshot: {
-        Args: { p_date?: string }
-        Returns: number
-      }
-      create_order: {
-        Args: {
-          p_branch_id: string
-          p_customer_id: string
-          p_delivery_address?: Json
-          p_notes?: string
-          p_order_items: Json
-        }
-        Returns: string
-      }
-      create_product: {
-        Args: {
-          p_barcode?: string
-          p_brand_id?: string
-          p_category_id?: string
-          p_description?: string
-          p_is_frozen?: boolean
-          p_name: string
-          p_pricing_tiers?: Json
-          p_sku?: string
-          p_unit_of_measure?: string
-        }
-        Returns: string
-      }
-      create_product_with_inventory: {
-        Args: {
-          p_barcode?: string
-          p_brand_id?: string
-          p_category_id?: string
-          p_description?: string
-          p_is_frozen?: boolean
-          p_name: string
-          p_pricing_tiers?: Json
-          p_sku?: string
-          p_unit_of_measure?: string
-        }
-        Returns: string
-      }
-      deactivate_admin_safely: {
-        Args: { p_admin_id: string }
-        Returns: Json
-      }
-      generate_expiration_alerts: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      generate_inventory_trend_report: {
-        Args: { p_branch_id: string; p_days_back?: number }
-        Returns: Json
-      }
-      generate_low_stock_alerts: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      generate_order_number: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_admin_branches: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_admin_dashboard_data: {
-        Args: { p_branch_id?: string }
-        Returns: Json
-      }
-      get_admin_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_admin_permissions: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_available_branches: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_current_customer_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_fifo_batches: {
-        Args: {
-          p_branch_id: string
-          p_product_id: string
-          p_quantity_needed?: number
-        }
-        Returns: {
-          available_qty: number
-          batch_id: string
-          batch_number: string
-          cost_per_unit: number
-          days_until_expiry: number
-          expiry_date: string
-        }[]
-      }
-      has_branch_access: {
-        Args: { branch_id: string }
-        Returns: boolean
-      }
-      is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      is_super_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      is_user_super_admin: {
-        Args: { user_uuid: string }
-        Returns: boolean
-      }
-      link_auth_user_to_admin: {
-        Args: {
-          p_auth_user_id: string
-          p_branches?: Json
-          p_email: string
-          p_full_name: string
-          p_role?: Database["public"]["Enums"]["admin_role"]
-        }
-        Returns: Json
-      }
-      process_order_with_fifo: {
-        Args: { p_order_id: string }
-        Returns: Json
-      }
-      reset_admin_password: {
-        Args: { p_admin_id: string }
-        Returns: Json
-      }
-      reset_admin_password_service_role: {
-        Args: {
-          p_admin_id: string
-          p_current_admin_id: string
-          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-        }
-        Returns: Json
-      }
-      sync_admin_display_name: {
-        Args: {
-          p_admin_id: string
-          p_current_admin_id: string
-          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-          p_new_full_name: string
-        }
-        Returns: Json
-      }
-      test_concurrent_fifo_safety: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      toggle_admin_status: {
-        Args: { p_admin_id: string; p_new_status: boolean }
-        Returns: Json
-      }
-      toggle_admin_status_service_role: {
-        Args: {
-          p_admin_id: string
-          p_current_admin_id: string
-          p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-          p_new_status: boolean
-        }
-        Returns: Json
-      }
-      update_admin_details: {
-        Args: {
-          p_admin_id: string
-          p_branches?: Json
-          p_email?: string
-          p_full_name?: string
-          p_role?: Database["public"]["Enums"]["admin_role"]
-        }
-        Returns: Json
-      }
-      update_admin_details_service_role: {
-        Args:
-          | {
-              p_admin_id: string
-              p_branches: Json
-              p_current_admin_id: string
-              p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-              p_full_name: string
-              p_is_active: boolean
-              p_role: Database["public"]["Enums"]["admin_role"]
-            }
-          | {
-              p_admin_id: string
-              p_branches: Json
-              p_current_admin_id: string
-              p_current_admin_role: Database["public"]["Enums"]["admin_role"]
-              p_full_name: string
-              p_role: Database["public"]["Enums"]["admin_role"]
-            }
-        Returns: Json
-      }
-      update_admin_last_login: {
-        Args: { p_admin_id: string }
-        Returns: Json
-      }
-      update_admin_role_and_branches: {
-        Args: {
-          p_admin_id: string
-          p_new_branches: Json
-          p_new_role: Database["public"]["Enums"]["admin_role"]
-        }
-        Returns: boolean
-      }
-      update_inventory_level: {
-        Args: {
-          p_branch_id: string
-          p_movement_type: string
-          p_notes?: string
-          p_product_id: string
-          p_quantity_change: number
-        }
-        Returns: boolean
-      }
-      update_order_status: {
-        Args: {
-          p_new_status: Database["public"]["Enums"]["order_status"]
-          p_notes?: string
-          p_order_id: string
-        }
-        Returns: boolean
-      }
-      update_product: {
-        Args: {
-          p_barcode?: string
-          p_brand_id?: string
-          p_category_id?: string
-          p_description?: string
-          p_name: string
-          p_product_id: string
-          p_sku?: string
-          p_status?: Database["public"]["Enums"]["product_status"]
-          p_unit_of_measure?: string
-        }
-        Returns: boolean
-      }
-      validate_admin_access: {
-        Args: { p_action: string; p_resource: string }
-        Returns: boolean
-      }
-      validate_admin_operation: {
-        Args: {
-          p_operation: string
-          p_record_id?: string
-          p_table_name: string
-        }
-        Returns: boolean
-      }
-      validate_batch_integrity: {
-        Args: { p_batch_id: string }
-        Returns: boolean
-      }
+      [_ in never]: never
     }
     Enums: {
       admin_role: "admin" | "super_admin"
@@ -2190,16 +859,18 @@ export type Database = {
         | "overstock"
         | "order_status"
         | "system"
-      audit_action:
-        | "create"
-        | "read"
-        | "update"
-        | "delete"
-        | "login"
-        | "logout"
-        | "password_change"
-        | "permission_grant"
-        | "permission_revoke"
+      notification_severity: "low" | "medium" | "high" | "critical"
+      notification_type:
+        | "order"
+        | "alert"
+        | "system"
+        | "inventory"
+        | "expiration"
+        | "stock"
+        | "delivery"
+        | "payment"
+        | "security"
+        | "maintenance"
       order_status:
         | "pending"
         | "confirmed"
@@ -2216,160 +887,3 @@ export type Database = {
     }
   }
 }
-
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {
-      admin_role: ["admin", "super_admin"],
-      alert_severity: ["low", "medium", "high", "critical"],
-      alert_type: [
-        "low_stock",
-        "expiring_soon",
-        "expired",
-        "out_of_stock",
-        "overstock",
-        "order_status",
-        "system",
-      ],
-      audit_action: [
-        "create",
-        "read",
-        "update",
-        "delete",
-        "login",
-        "logout",
-        "password_change",
-        "permission_grant",
-        "permission_revoke",
-      ],
-      order_status: [
-        "pending",
-        "confirmed",
-        "in_transit",
-        "delivered",
-        "cancelled",
-        "returned",
-      ],
-      payment_status: ["pending", "paid", "partial", "refunded", "cancelled"],
-      pricing_tier: ["wholesale", "retail", "box"],
-      product_status: ["active", "inactive", "discontinued"],
-    },
-  },
-} as const

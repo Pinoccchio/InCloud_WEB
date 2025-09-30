@@ -94,7 +94,7 @@ export default function AlertsTable({
           title,
           message,
           metadata,
-          is_read,
+          admin_is_read,
           is_acknowledged,
           is_resolved,
           acknowledged_at,
@@ -120,9 +120,9 @@ export default function AlertsTable({
 
       if (statusFilter) {
         if (statusFilter === 'read') {
-          query = query.eq('is_read', true)
+          query = query.eq('admin_is_read', true)
         } else if (statusFilter === 'unread') {
-          query = query.eq('is_read', false)
+          query = query.eq('admin_is_read', false)
         } else if (statusFilter === 'acknowledged') {
           query = query.eq('is_acknowledged', true).eq('is_resolved', false)
         } else if (statusFilter === 'unacknowledged') {
@@ -170,7 +170,7 @@ export default function AlertsTable({
         message: notification.message,
         product_name: notification.metadata?.product_name || null,
         metadata: notification.metadata || {},
-        is_read: notification.is_read,
+        is_read: notification.admin_is_read,
         is_acknowledged: notification.is_acknowledged,
         is_resolved: notification.is_resolved,
         acknowledged_at: notification.acknowledged_at,
@@ -291,7 +291,7 @@ export default function AlertsTable({
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true, updated_at: new Date().toISOString() })
+        .update({ admin_is_read: true, updated_at: new Date().toISOString() })
         .eq('id', alertId)
 
       if (error) throw error
@@ -318,7 +318,7 @@ export default function AlertsTable({
         .from('notifications')
         .update({
           is_acknowledged: true,
-          is_read: true,
+          admin_is_read: true,
           acknowledged_at: new Date().toISOString(),
           acknowledged_by: admin?.id,
           updated_at: new Date().toISOString()
@@ -382,7 +382,7 @@ export default function AlertsTable({
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true, updated_at: new Date().toISOString() })
+        .update({ admin_is_read: true, updated_at: new Date().toISOString() })
         .in('id', Array.from(selectedAlerts))
 
       if (error) throw error
@@ -412,7 +412,7 @@ export default function AlertsTable({
         .from('notifications')
         .update({
           is_acknowledged: true,
-          is_read: true,
+          admin_is_read: true,
           acknowledged_at: new Date().toISOString(),
           acknowledged_by: admin?.id,
           updated_at: new Date().toISOString()

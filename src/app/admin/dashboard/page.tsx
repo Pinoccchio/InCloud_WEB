@@ -201,7 +201,7 @@ export default function DashboardPage() {
                 <Button variant="ghost" size="sm">View all</Button>
               </Link>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[600px] overflow-y-auto">
               {recentActivity.length > 0 ? (
                 recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50">
