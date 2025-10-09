@@ -36,6 +36,12 @@ export function Header({ variant = 'landing' }: HeaderProps) {
             >
               About
             </Link>
+            <Link
+              href="#contact"
+              className="text-sm font-semibold text-gray-900 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 rounded-lg px-4 py-2"
+            >
+              Contact Us
+            </Link>
           </nav>
 
           {/* Auth Buttons */}

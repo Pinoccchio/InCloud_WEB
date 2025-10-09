@@ -47,8 +47,6 @@ export default function Home() {
         <section className="relative bg-white py-24 lg:py-32 overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-secondary-50"></div>
-          <div className="absolute top-0 right-0 w-1/3 h-full bg-primary-500 opacity-5 transform skew-x-12 translate-x-1/4"></div>
-          <div className="absolute bottom-0 left-0 w-1/4 h-2/3 bg-secondary-500 opacity-5 transform -skew-x-12 -translate-x-1/4"></div>
 
           <div className="container mx-auto px-4 text-center relative z-10">
             <div className="max-w-5xl mx-auto">
@@ -62,21 +60,12 @@ export default function Home() {
               </h1>
 
               {/* Enhanced subtitle */}
-              <p className="text-xl lg:text-2xl text-gray-700 mb-10 max-w-3xl mx-auto leading-relaxed font-medium">
+              <p className="text-xl lg:text-2xl text-gray-700 mb-8 max-w-3xl mx-auto leading-relaxed font-medium">
                 Transform your frozen food distribution with our comprehensive cloud-based platform.
                 <span className="block mt-2 text-primary-600 font-semibold">
                   Real-time tracking • Advanced analytics • Centralized operations
                 </span>
               </p>
-
-              {/* Enhanced call-to-action buttons */}
-              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
-                <Link href="/login">
-                  <Button size="lg" className="w-full sm:w-auto px-8 py-4 text-lg shadow-lg hover:shadow-xl">
-                    👤 Admin Login
-                  </Button>
-                </Link>
-              </div>
 
               {/* Trust indicators */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto">
@@ -103,7 +92,7 @@ export default function Home() {
             {/* Section Header */}
             <div className="text-center mb-20">
               <div className="inline-block px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold mb-4">
-                🔥 Core Features
+                Core Features
               </div>
               <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-6">
                 Everything You Need for
@@ -125,7 +114,7 @@ export default function Home() {
                   </div>
                   <CardTitle className="text-gray-900">Real-time Inventory Tracking</CardTitle>
                   <CardDescription className="text-gray-600">
-                    Monitor stock levels across all 3 branches in Sampaloc, Manila with instant updates and automated alerts
+                    Monitor stock levels across branch operations in Sampaloc, Manila with instant updates and automated alerts
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -181,7 +170,7 @@ export default function Home() {
                   </div>
                   <CardTitle className="text-gray-900">Flexible Pricing System</CardTitle>
                   <CardDescription className="text-gray-600">
-                    Handle complex pricing structures including wholesale, retail, and box pricing with automated calculations
+                    Handle complex pricing structures including wholesale, retail, and bulk pricing with automated calculations
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -210,7 +199,7 @@ export default function Home() {
               {/* Section header */}
               <div className="text-center mb-12">
                 <div className="inline-block px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-semibold mb-4">
-                  📱 Mobile App Available
+                  Mobile App
                 </div>
                 <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-6">
                   Download the
@@ -263,7 +252,7 @@ export default function Home() {
                 {/* Right side - Features and Instructions */}
                 <div className="space-y-6">
                   <Card variant="surface" className="p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">📲 Installation Instructions</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Installation Guide</h3>
                     <ol className="space-y-3 text-gray-700">
                       <li className="flex items-start">
                         <span className="flex-shrink-0 w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold mr-3">1</span>
@@ -285,7 +274,7 @@ export default function Home() {
                   </Card>
 
                   <Card variant="surface" className="p-6 bg-primary-50 border-primary-200">
-                    <h3 className="text-lg font-bold text-gray-900 mb-3">✨ Mobile App Features</h3>
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">App Features</h3>
                     <ul className="space-y-2 text-gray-700">
                       <li className="flex items-center">
                         <span className="text-primary-600 mr-2">✓</span>
@@ -334,7 +323,7 @@ export default function Home() {
               {/* Section header */}
               <div className="text-center mb-16">
                 <div className="inline-block px-4 py-2 bg-secondary-100 text-secondary-700 rounded-full text-sm font-semibold mb-4">
-                  🏢 About Our Company
+                  About Us
                 </div>
                 <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-6">
                   Trusted Partner Since
@@ -349,10 +338,12 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                 <Card variant="elevated" interactive className="text-center p-8">
                   <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                    <span className="text-3xl font-extrabold text-white">1</span>
+                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Main Branch</h3>
-                  <p className="text-gray-600 font-medium">Centralized operations in Sampaloc, Manila</p>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Centralized Hub</h3>
+                  <p className="text-gray-600 font-medium">Main operations in Sampaloc, Manila</p>
                 </Card>
 
                 <Card variant="elevated" interactive className="text-center p-8">
