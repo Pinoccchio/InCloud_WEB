@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
+import Image from 'next/image'
 import {
   XMarkIcon,
   CubeIcon,
@@ -13,7 +14,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   BuildingStorefrontIcon,
-  ArchiveBoxIcon
+  ArchiveBoxIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline'
 import { supabase } from '@/lib/supabase/auth'
 import { Database } from '@/types/supabase'
@@ -71,6 +73,8 @@ export default function ProductDetailsModal({
   const [productBatches, setProductBatches] = useState<ProductBatch[]>([])
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
   const [isLoadingBatches, setIsLoadingBatches] = useState(false)
+  const [showImageFullscreen, setShowImageFullscreen] = useState(false)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
 
   // Load inventory data
   const loadInventoryData = useCallback(async () => {
@@ -190,6 +194,7 @@ export default function ProductDetailsModal({
   const mainImage = getMainImage()
 
   return (
+    <>
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/25" />
 
@@ -271,16 +276,39 @@ export default function ProductDetailsModal({
                   {product.images && Array.isArray(product.images) && product.images.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-900 mb-3">Product Images</h4>
-                      <div className="grid grid-cols-4 gap-3">
+                      <div className="grid grid-cols-4 gap-4">
                         {(product.images as Array<string | { url?: string; path?: string }>).slice(0, 8).map((image, index) => {
                           const imageUrl = typeof image === 'string' ? image : image?.url
                           return imageUrl ? (
-                            <img
-                              key={index}
-                              className="h-20 w-20 rounded-lg object-cover border border-gray-200 hover:scale-105 transition-transform cursor-pointer"
-                              src={createThumbnailUrl(imageUrl, 80, 80)}
-                              alt={`${product.name} ${index + 1}`}
-                            />
+                            <div key={index} className="flex flex-col">
+                              <div className="relative h-20 w-20 border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100">
+                                <img
+                                  src={createThumbnailUrl(imageUrl, 80, 80)}
+                                  alt={`${product.name} ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                                <button
+                                  onClick={() => {
+                                    setSelectedImageIndex(index)
+                                    setShowImageFullscreen(true)
+                                  }}
+                                  className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-all flex items-center justify-center group"
+                                >
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-2">
+                                    <EyeIcon className="w-5 h-5 text-gray-900" />
+                                  </div>
+                                </button>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setSelectedImageIndex(index)
+                                  setShowImageFullscreen(true)
+                                }}
+                                className="mt-1 w-20 text-xs text-blue-600 hover:text-blue-700 font-medium text-center"
+                              >
+                                View Full Size
+                              </button>
+                            </div>
                           ) : (
                             <div key={index} className="h-20 w-20 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
                               <PhotoIcon className="h-6 w-6 text-gray-400" />
@@ -552,5 +580,76 @@ export default function ProductDetailsModal({
         </div>
       </div>
     </Dialog>
+
+    {/* Fullscreen Product Image Modal */}
+    {product && product.images && Array.isArray(product.images) && product.images.length > 0 && (
+      <Dialog open={showImageFullscreen} onClose={() => setShowImageFullscreen(false)} className="relative z-[60]">
+        <div className="fixed inset-0 bg-black/90" onClick={() => setShowImageFullscreen(false)} />
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <DialogPanel className="relative w-full max-w-5xl">
+              {/* Close Button */}
+              <button
+                onClick={() => setShowImageFullscreen(false)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+              >
+                <XMarkIcon className="w-8 h-8" />
+              </button>
+
+              {/* Full Size Image */}
+              {(() => {
+                const currentImage = (product.images as Array<string | { url?: string; path?: string }>)[selectedImageIndex]
+                const imageUrl = typeof currentImage === 'string' ? currentImage : currentImage?.url
+
+                return imageUrl ? (
+                  <div className="relative w-full bg-white rounded-lg overflow-hidden shadow-2xl" style={{ minHeight: '500px', maxHeight: '80vh' }}>
+                    <Image
+                      src={imageUrl}
+                      alt={`${product.name} - Image ${selectedImageIndex + 1}`}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                ) : null
+              })()}
+
+              {/* Image Info */}
+              <div className="mt-4 text-center text-white text-sm">
+                <p className="text-lg font-medium">{product.name}</p>
+                <p className="text-gray-300 mt-1">
+                  Image {selectedImageIndex + 1} of {product.images.length}
+                </p>
+              </div>
+
+              {/* Navigation Arrows (if multiple images) */}
+              {product.images.length > 1 && (
+                <div className="flex justify-center mt-4 space-x-4">
+                  <button
+                    onClick={() => setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : product.images.length - 1))}
+                    className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+                    aria-label="Previous image"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setSelectedImageIndex((prev) => (prev < product.images.length - 1 ? prev + 1 : 0))}
+                    className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+                    aria-label="Next image"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </DialogPanel>
+          </div>
+        </div>
+      </Dialog>
+    )}
+    </>
   )
 }

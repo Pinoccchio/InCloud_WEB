@@ -287,14 +287,17 @@ export default function ProductsPage() {
         title="Delete Product"
         message={
           productToDelete
-            ? `Are you sure you want to delete "${productToDelete.name}"? This action cannot be undone and will cascade delete:
+            ? `Are you sure you want to delete "${productToDelete.name}"? This action cannot be undone and will permanently delete:
 
+• The product and all its data
 • All inventory records and stock levels
-• All pricing types (wholesale, retail, bulk)
+• All pricing tiers (wholesale, retail, bulk)
 • All product-specific alerts and configurations
 • All product batches and expiration data
+• All order items associated with this product
+• All stock transfer records for this product
 
-Note: Order history and transfer records will be preserved for audit purposes.`
+This will completely remove the product from the system.`
             : ''
         }
         confirmText="Delete Product"

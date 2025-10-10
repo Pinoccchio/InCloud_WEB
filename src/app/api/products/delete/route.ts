@@ -209,7 +209,7 @@ export async function DELETE(request: NextRequest) {
       },
       cascadeInfo: cascadeData,
       warningMessage: hasBusinessHistory
-        ? 'This product had order or transfer history. Historical records have been preserved.'
+        ? 'This product had order or transfer history. All related records have been permanently deleted.'
         : null
     })
 
