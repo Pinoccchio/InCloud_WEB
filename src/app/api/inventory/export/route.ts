@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         products!inner (
           id,
           name,
-          sku,
+          product_id,
           description,
           unit_of_measure,
           status,
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
 
       return {
         'Product Name': product?.name || '',
-        'SKU': product?.sku || '',
+        'SKU': product?.product_id || '',
         'Description': product?.description || '',
         'Category': product?.categories?.name || '',
         'Brand': product?.brands?.name || '',
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
         response.batches = inventory.flatMap(item =>
           (item.product_batches || []).map(batch => ({
             'Product Name': item.products?.name || '',
-            'SKU': item.products?.sku || '',
+            'SKU': item.products?.product_id || '',
             'Batch Number': batch.batch_number,
             'Batch Quantity': batch.quantity,
             'Received Date': batch.received_date ? new Date(batch.received_date).toLocaleDateString() : '',
@@ -273,7 +273,7 @@ export async function GET(request: NextRequest) {
           .filter(batch => includeExpired || !batch.expiration_date || new Date(batch.expiration_date) > currentDate)
           .map(batch => ({
             'Product Name': item.products?.name || '',
-            'SKU': item.products?.sku || '',
+            'SKU': item.products?.product_id || '',
             'Batch Number': batch.batch_number,
             'Batch Quantity': batch.quantity,
             'Received Date': batch.received_date ? new Date(batch.received_date).toLocaleDateString() : '',

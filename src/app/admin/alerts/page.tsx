@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   BellIcon,
-  Cog6ToothIcon,
   ArrowPathIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon
@@ -12,7 +11,6 @@ import { Button } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
-import NotificationSettingsModal from './components/AlertsModal'
 import AlertsTable from './components/AlertsTable'
 import AlertFilters from './components/AlertFilters'
 
@@ -42,7 +40,6 @@ export default function AlertsPage() {
     low_alerts: 0
   })
   const [isLoading, setIsLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const { addToast } = useToast()
@@ -169,7 +166,7 @@ export default function AlertsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Alerts & Notifications</h1>
           <p className="text-gray-600 mt-1">
-            Monitor system alerts for low stock, expiring products, and configure alert settings
+            Monitor system alerts for low stock and expiring products
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -185,13 +182,6 @@ export default function AlertsPage() {
               <ArrowPathIcon className="w-4 h-4 mr-2" />
             )}
             Refresh
-          </Button>
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center"
-          >
-            <Cog6ToothIcon className="w-4 h-4 mr-2" />
-            Settings
           </Button>
         </div>
       </div>
@@ -293,12 +283,6 @@ export default function AlertsPage() {
         statusFilter={statusFilter}
         dateFilter={dateFilter}
         onRefresh={() => setRefreshTrigger(prev => prev + 1)}
-      />
-
-      {/* Notification Settings Modal */}
-      <NotificationSettingsModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
       />
     </div>
   )

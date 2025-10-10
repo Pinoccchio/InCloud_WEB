@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         id,
         name,
         description,
-        sku,
+        product_id,
         unit_of_measure,
         status,
         created_at,
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       return {
         'Product Name': product.name,
         'Description': product.description || '',
-        'SKU': product.sku || '',
+        'SKU': product.product_id || '',
         'Category': product.categories?.name || '',
         'Brand': product.brands?.name || '',
         'Unit of Measure': product.unit_of_measure,
