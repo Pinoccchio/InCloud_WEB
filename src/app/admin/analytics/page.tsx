@@ -33,31 +33,55 @@ interface AIInsights {
 
 interface InventoryMetrics {
   totalProducts: number
-  totalValue: number
-  lowStockCount: number
-  outOfStockCount: number
+  totalInventoryValue: number
+  totalInventoryValueRetail: number
+  lowStockItems: number
+  outOfStockItems: number
+  adequateStockItems: number
   averageStockLevel: number
+  totalAvailableQuantity: number
+  totalReservedQuantity: number
 }
 
 interface CategoryPerformance {
-  category: string
+  categoryName: string
   productCount: number
-  totalValue: number
-  averageStock: number
-  lowStockItems: number
+  totalInventory: number
+  availableInventory: number
+  percentageOfTotal: number
 }
 
 interface ExpirationMetrics {
-  expiringSoon: number
+  expiringSoon7Days: number
+  expiringSoon14Days: number
+  expiringSoon30Days: number
   expired: number
-  healthy: number
-  total: number
+  totalBatches: number
 }
 
 interface SalesMetrics {
-  totalRevenue: number
   totalOrders: number
+  totalRevenue: number
   averageOrderValue: number
+  ordersByStatus: Array<{
+    status: string
+    count: number
+    percentage: number
+  }>
+  recentOrders: Array<{
+    orderNumber: string
+    totalAmount: number
+    status: string
+    orderDate: string
+    itemCount: number
+  }>
+  monthlySales: Array<{
+    month: string
+    year: number
+    totalOrders: number
+    totalRevenue: number
+    averageOrderValue: number
+  }>
 }
 
 interface PricingTierAnalysis {
@@ -67,23 +91,23 @@ interface PricingTierAnalysis {
 }
 
 interface ProductStockStatus {
-  status: string
-  count: number
-  percentage: number
+  productName: string
+  categoryName: string
+  brandName: string
+  currentQuantity: number
+  availableQuantity: number
+  lowStockThreshold: number
+  status: 'critical' | 'low' | 'adequate' | 'overstocked'
+  daysOfStock: number
 }
 
-interface OrderByStatus {
-  status: string
-  count: number
-}
-
-interface SalesMetricsExtended extends SalesMetrics {
-  ordersByStatus: OrderByStatus[]
-}
+// SalesMetrics already includes all extended properties
+type SalesMetricsExtended = SalesMetrics
 
 interface CriticalBatch {
   productName: string
   batchNumber: string
+  expirationDate: string
   quantity: number
   daysUntilExpiry: number
 }
@@ -363,16 +387,16 @@ export default function AnalyticsPage() {
                   Orders by Status
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  {salesMetrics.ordersByStatus.map((status: OrderByStatus) => (
+                  {salesMetrics.ordersByStatus.map((statusItem) => (
                     <div
-                      key={status.status}
+                      key={statusItem.status}
                       className="px-4 py-2 bg-gray-50 rounded-lg border border-gray-200"
                     >
                       <span className="text-xs text-gray-600 capitalize">
-                        {status.status}
+                        {statusItem.status}
                       </span>
                       <p className="text-lg font-semibold text-gray-900">
-                        {status.count}
+                        {statusItem.count}
                       </p>
                     </div>
                   ))}
@@ -453,7 +477,7 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {expirationMetrics.criticalBatches.map((batch: CriticalBatch, index: number) => (
+                    {expirationMetrics.criticalBatches.map((batch, index) => (
                       <tr key={index} className={batch.daysUntilExpiry <= 3 ? 'bg-red-50' : ''}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {batch.productName}
@@ -491,7 +515,7 @@ export default function AnalyticsPage() {
               Pricing Type Analysis
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {pricingTierAnalysis.map((tier: PricingTierAnalysis) => (
+              {pricingTierAnalysis.map((tier) => (
                 <div
                   key={tier.tierType}
                   className="p-4 bg-gray-50 rounded-lg border border-gray-200"

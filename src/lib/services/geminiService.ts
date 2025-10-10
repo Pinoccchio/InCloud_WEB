@@ -59,8 +59,8 @@ export class GeminiService {
       const genAI = this.getClient()
       serviceLogger.success('Client initialized successfully')
 
-      serviceLogger.info('Using model: gemini-2.0-flash-lite')
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' })
+      serviceLogger.info('Using model: gemini-2.5-flash-lite')
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
 
       serviceLogger.info('Building analysis prompt')
       const prompt = this.buildAnalysisPrompt(analyticsData)

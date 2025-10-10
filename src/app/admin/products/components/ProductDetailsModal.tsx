@@ -8,7 +8,6 @@ import {
   TagIcon,
   PhotoIcon,
   CurrencyDollarIcon,
-  ChartBarIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
@@ -67,7 +66,7 @@ export default function ProductDetailsModal({
   onEdit,
   onDelete
 }: ProductDetailsModalProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'analytics'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory'>('overview')
   const [inventoryData, setInventoryData] = useState<InventoryData | null>(null)
   const [productBatches, setProductBatches] = useState<ProductBatch[]>([])
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
@@ -258,17 +257,6 @@ export default function ProductDetailsModal({
                 >
                   <ArchiveBoxIcon className="w-4 h-4 inline mr-2" />
                   Inventory
-                </button>
-                <button
-                  onClick={() => setActiveTab('analytics')}
-                  className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === 'analytics'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <ChartBarIcon className="w-4 h-4 inline mr-2" />
-                  Analytics
                 </button>
               </nav>
             </div>
@@ -524,19 +512,6 @@ export default function ProductDetailsModal({
                       <p className="text-gray-500">No inventory data available</p>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Analytics Tab */}
-              {activeTab === 'analytics' && (
-                <div className="space-y-6">
-                  <div className="text-center py-8">
-                    <ChartBarIcon className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                    <p className="text-gray-500">Analytics coming soon</p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Sales data, demand trends, and performance metrics will be available here.
-                    </p>
-                  </div>
                 </div>
               )}
             </div>

@@ -3,13 +3,18 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
+import { clsx } from 'clsx'
 import {
   UserPlusIcon,
   PencilIcon,
   UserGroupIcon,
   MagnifyingGlassIcon,
   TrashIcon,
-  EyeIcon
+  EyeIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  PhoneIcon,
+  EnvelopeIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner, CreateAdminModal, EditAdminModal, ConfirmDialog } from '@/components/ui'
 import { supabase, getBranches, type BranchesResult } from '@/lib/supabase/auth'
@@ -30,8 +35,28 @@ interface AdminUser {
   updated_at: string
 }
 
+interface Customer {
+  id: string
+  full_name: string
+  email: string
+  phone: string | null
+  address: any | null
+  customer_type: string | null
+  preferred_branch_id: string | null
+  preferred_branch_name?: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  total_orders?: number
+  total_spent?: number
+}
+
 
 export default function AdminUsersPage() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'admins' | 'customers'>('admins')
+
+  // Admin state
   const [admins, setAdmins] = useState<AdminUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -44,6 +69,13 @@ export default function AdminUsersPage() {
   const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+
+  // Customer state
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('')
+  const [customerTypeFilter, setCustomerTypeFilter] = useState<string>('all')
+  const [customerStatusFilter, setCustomerStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [customerBranchFilter, setCustomerBranchFilter] = useState<string>('all')
   const [dropdownPosition, setDropdownPosition] = useState<{
     x: number
     y: number
@@ -120,6 +152,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     loadAdmins()
     loadBranches()
+    loadCustomers()
 
     // Check if create action is requested
     if (searchParams.get('action') === 'create') {
@@ -294,6 +327,78 @@ export default function AdminUsersPage() {
     }
   }
 
+  const loadCustomers = async () => {
+    try {
+      // Get customers with branch and order statistics
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select(`
+          id,
+          full_name,
+          email,
+          phone,
+          address,
+          customer_type,
+          preferred_branch_id,
+          is_active,
+          created_at,
+          updated_at,
+          branches!customers_preferred_branch_id_fkey (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (customersError) throw customersError
+
+      // Get order statistics for each customer
+      const { data: orderStats, error: orderStatsError } = await supabase
+        .from('orders')
+        .select('customer_id, total_amount')
+
+      if (orderStatsError) throw orderStatsError
+
+      // Process customers with statistics
+      const processedCustomers = (customersData || []).map(customer => {
+        const customerOrders = orderStats?.filter(order => order.customer_id === customer.id) || []
+        const totalOrders = customerOrders.length
+        const totalSpent = customerOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0)
+
+        return {
+          ...customer,
+          preferred_branch_name: customer.branches?.name || 'Not set',
+          total_orders: totalOrders,
+          total_spent: totalSpent
+        }
+      })
+
+      setCustomers(processedCustomers as Customer[])
+    } catch (err) {
+      console.error('Error loading customers:', err)
+      error('Load Failed', 'Failed to load customers')
+    }
+  }
+
+  const handleToggleCustomerStatus = async (customer: Customer) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update({ is_active: !customer.is_active })
+        .eq('id', customer.id)
+
+      if (updateError) throw updateError
+
+      success(
+        'Status Updated',
+        `${customer.full_name} has been ${!customer.is_active ? 'activated' : 'deactivated'} successfully`
+      )
+
+      loadCustomers()
+    } catch (err) {
+      console.error('Error updating customer status:', err)
+      error('Update Failed', 'Failed to update customer status')
+    }
+  }
 
   const handleEditAdmin = (admin: AdminUser) => {
     if (!canEditAdmin(admin)) {
@@ -406,6 +511,19 @@ export default function AdminUsersPage() {
     return matchesSearch && matchesRole && matchesStatus
   })
 
+  const filteredCustomers = customers.filter(customer => {
+    const matchesSearch =
+      customer.full_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      customer.email.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      (customer.phone && customer.phone.includes(customerSearchTerm))
+
+    const matchesStatus = customerStatusFilter === 'all' ||
+                         (customerStatusFilter === 'active' && customer.is_active) ||
+                         (customerStatusFilter === 'inactive' && !customer.is_active)
+
+    return matchesSearch && matchesStatus
+  })
+
   const getRoleBadgeColor = (role: string) => {
     return role === 'super_admin'
       ? 'bg-red-600 text-white'
@@ -443,6 +561,41 @@ export default function AdminUsersPage() {
     return `${userBranches.length} branches`
   }
 
+  // Customer helper functions
+  const getCustomerTypeBadgeColor = (type: string | null) => {
+    if (!type) return 'bg-gray-100 text-gray-800'
+    switch (type.toLowerCase()) {
+      case 'wholesale':
+        return 'bg-purple-100 text-purple-800'
+      case 'retail':
+        return 'bg-blue-100 text-blue-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP'
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  // Calculate customer statistics
+  const customerStats = {
+    total: customers.length,
+    active: customers.filter(c => c.is_active).length,
+    inactive: customers.filter(c => c.is_active === false).length
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -459,83 +612,182 @@ export default function AdminUsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Admin User Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600 mt-1">
-            Manage admin accounts, roles, and permissions for the system
+            Manage admin accounts and customer profiles
           </p>
         </div>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center"
-        >
-          <UserPlusIcon className="w-4 h-4 mr-2" />
-          Add New Admin
-        </Button>
+        {activeTab === 'admins' && (
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center"
+          >
+            <UserPlusIcon className="w-4 h-4 mr-2" />
+            Add New Admin
+          </Button>
+        )}
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MagnifyingGlassIcon className="h-4 w-4 text-gray-600" />
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('admins')}
+            className={clsx(
+              'whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm',
+              activeTab === 'admins'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            )}
+          >
+            <div className="flex items-center">
+              <UserGroupIcon className="w-5 h-5 mr-2" />
+              <span>Admin Users</span>
+              <span className="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                {admins.length}
+              </span>
             </div>
-            <input
-              type="text"
-              placeholder="Search by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-
-          {/* Role Filter */}
-          <div>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as 'all' | 'admin' | 'super_admin')}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="all">All Roles</option>
-              <option value="super_admin">Super Admin</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          {/* Clear Filters */}
-          <div className="flex items-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSearchTerm('')
-                setRoleFilter('all')
-                setStatusFilter('all')
-              }}
-              className="w-full"
-            >
-              Clear Filters
-            </Button>
-          </div>
-        </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={clsx(
+              'whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm',
+              activeTab === 'customers'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            )}
+          >
+            <div className="flex items-center">
+              <UserGroupIcon className="w-5 h-5 mr-2" />
+              <span>Customers</span>
+              <span className="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2.5 rounded-full text-xs font-medium">
+                {customers.length}
+              </span>
+            </div>
+          </button>
+        </nav>
       </div>
 
-      {/* Admin List */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      {/* Tab Content */}
+      {activeTab === 'admins' ? (
+        <>
+          {/* Admin Filters and Search */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MagnifyingGlassIcon className="h-4 w-4 text-gray-600" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search by name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              {/* Role Filter */}
+              <div>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value as 'all' | 'admin' | 'super_admin')}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="super_admin">Super Admin</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Clear Filters */}
+              <div className="flex items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm('')
+                    setRoleFilter('all')
+                    setStatusFilter('all')
+                  }}
+                  className="w-full"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Customer Filters and Search */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Search */}
+              <div className="relative md:col-span-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MagnifyingGlassIcon className="h-4 w-4 text-gray-600" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or phone..."
+                  value={customerSearchTerm}
+                  onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <select
+                  value={customerStatusFilter}
+                  onChange={(e) => setCustomerStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Clear Filters */}
+              <div className="flex items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCustomerSearchTerm('')
+                    setCustomerStatusFilter('all')
+                  }}
+                  className="w-full"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Content Area */}
+      {activeTab === 'admins' ? (
+        <>
+          {/* Admin List */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {filteredAdmins.length === 0 ? (
           <div className="text-center py-12">
             <UserGroupIcon className="w-12 h-12 mx-auto text-gray-300 mb-4" />
@@ -838,6 +1090,166 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+        </>
+      ) : (
+        <>
+          {/* Customer Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center">
+                <UserGroupIcon className="h-8 w-8 text-blue-600" />
+                <div className="ml-4">
+                  <div className="text-2xl font-semibold text-gray-900">{customerStats.total}</div>
+                  <div className="text-sm text-gray-500">Total Customers</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+                <div className="ml-4">
+                  <div className="text-2xl font-semibold text-gray-900">{customerStats.active}</div>
+                  <div className="text-sm text-gray-500">Active Customers</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center">
+                <XCircleIcon className="h-8 w-8 text-red-600" />
+                <div className="ml-4">
+                  <div className="text-2xl font-semibold text-gray-900">{customerStats.inactive}</div>
+                  <div className="text-sm text-gray-500">Inactive Customers</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Customers Table */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {filteredCustomers.length === 0 ? (
+              <div className="text-center py-12">
+                <UserGroupIcon className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">
+                  {customerSearchTerm || customerStatusFilter !== 'all'
+                    ? 'No customers match your filters'
+                    : 'No customers found'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Contact
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Preferred Branch
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Orders
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Spent
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredCustomers.map((customer) => (
+                      <tr key={customer.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
+                                <span className="text-sm font-medium text-white">
+                                  {customer.full_name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {customer.full_name}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Joined {formatDate(customer.created_at)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center text-sm text-gray-900">
+                              <EnvelopeIcon className="w-4 h-4 mr-2 text-gray-400" />
+                              {customer.email}
+                            </div>
+                            {customer.phone && (
+                              <div className="flex items-center text-sm text-gray-500">
+                                <PhoneIcon className="w-4 h-4 mr-2 text-gray-400" />
+                                {customer.phone}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCustomerTypeBadgeColor(customer.customer_type)}`}>
+                            {customer.customer_type || 'Not set'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {customer.preferred_branch_name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {customer.total_orders || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {formatCurrency(customer.total_spent || 0)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            customer.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {customer.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleCustomerStatus(customer)}
+                              title={customer.is_active ? 'Deactivate customer' : 'Activate customer'}
+                            >
+                              {customer.is_active ? (
+                                <XCircleIcon className="w-4 h-4 text-red-600" />
+                              ) : (
+                                <CheckCircleIcon className="w-4 h-4 text-green-600" />
+                              )}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Modals */}
       <CreateAdminModal
