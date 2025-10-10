@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
           sku,
           description,
           unit_of_measure,
-          is_frozen,
           status,
           categories (name),
           brands (name)
@@ -127,7 +126,6 @@ export async function GET(request: NextRequest) {
         'Category': product?.categories?.name || '',
         'Brand': product?.brands?.name || '',
         'Unit of Measure': product?.unit_of_measure || '',
-        'Is Frozen': product?.is_frozen ? 'Yes' : 'No',
         'Current Quantity': item.quantity || 0,
         'Available Quantity': item.available_quantity || 0,
         'Reserved Quantity': item.reserved_quantity || 0,
@@ -205,7 +203,6 @@ export async function GET(request: NextRequest) {
       { wch: 15 }, // Category
       { wch: 15 }, // Brand
       { wch: 15 }, // Unit of Measure
-      { wch: 10 }, // Is Frozen
       { wch: 12 }, // Current Quantity
       { wch: 12 }, // Available Quantity
       { wch: 12 }, // Reserved Quantity

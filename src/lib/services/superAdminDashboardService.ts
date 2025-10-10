@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/auth'
+import { logger } from '@/lib/logger'
 
 export interface SuperAdminMetrics {
   // Admin metrics
@@ -65,7 +66,15 @@ export class SuperAdminDashboardService {
    * Get comprehensive super admin dashboard metrics
    */
   static async getSuperAdminMetrics(): Promise<SuperAdminMetrics> {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getSuperAdminMetrics'
+    })
+    serviceLogger.time('getSuperAdminMetrics')
+
     try {
+      serviceLogger.info('Fetching comprehensive super admin dashboard metrics')
+
       // Fetch all data in parallel for performance
       const [
         adminsData,
@@ -89,6 +98,14 @@ export class SuperAdminDashboardService {
         this.getAuditMetrics()
       ])
 
+      const duration = serviceLogger.timeEnd('getSuperAdminMetrics')
+      serviceLogger.success('Super admin metrics fetched successfully', {
+        duration,
+        totalAdmins: adminsData.totalAdmins,
+        totalProducts: productsData.totalProducts,
+        totalOrders: ordersData.totalOrders
+      })
+
       return {
         ...adminsData,
         ...productsData,
@@ -101,7 +118,7 @@ export class SuperAdminDashboardService {
         ...auditData
       }
     } catch (error) {
-      console.error('Error fetching super admin metrics:', error)
+      serviceLogger.error('Error fetching super admin metrics', error as Error)
       throw error
     }
   }
@@ -110,12 +127,18 @@ export class SuperAdminDashboardService {
    * Get admin-related metrics
    */
   private static async getAdminMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getAdminMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'admins')
     const { data: admins, error } = await supabase
       .from('admins')
       .select('id, role, is_active, created_at')
 
     if (error) {
-      console.error('Error fetching admin metrics:', error)
+      serviceLogger.error('Error fetching admin metrics', error)
       return {
         totalAdmins: 0,
         superAdmins: 0,
@@ -129,7 +152,7 @@ export class SuperAdminDashboardService {
     const now = new Date()
     const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    return {
+    const result = {
       totalAdmins: admins?.length || 0,
       superAdmins: admins?.filter(a => a.role === 'super_admin').length || 0,
       regularAdmins: admins?.filter(a => a.role === 'admin').length || 0,
@@ -139,40 +162,58 @@ export class SuperAdminDashboardService {
         a.created_at && new Date(a.created_at) > lastWeek
       ).length || 0
     }
+
+    serviceLogger.debug('Admin metrics calculated', result)
+    return result
   }
 
   /**
    * Get product-related metrics
    */
   private static async getProductMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getProductMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'products')
     const { data: products, error } = await supabase
       .from('products')
       .select('id, status')
 
     if (error) {
-      console.error('Error fetching product metrics:', error)
+      serviceLogger.error('Error fetching product metrics', error)
       return {
         totalProducts: 0,
         activeProducts: 0
       }
     }
 
-    return {
+    const result = {
       totalProducts: products?.length || 0,
       activeProducts: products?.filter(p => p.status === 'active').length || 0
     }
+
+    serviceLogger.debug('Product metrics calculated', result)
+    return result
   }
 
   /**
    * Get order-related metrics
    */
   private static async getOrderMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getOrderMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'orders')
     const { data: orders, error } = await supabase
       .from('orders')
       .select('id, status, total_amount, order_date')
 
     if (error) {
-      console.error('Error fetching order metrics:', error)
+      serviceLogger.error('Error fetching order metrics', error)
       return {
         totalOrders: 0,
         pendingOrders: 0,
@@ -188,7 +229,7 @@ export class SuperAdminDashboardService {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    return {
+    const result = {
       totalOrders: orders?.length || 0,
       pendingOrders: orders?.filter(o => o.status === 'pending').length || 0,
       confirmedOrders: orders?.filter(o => o.status === 'confirmed').length || 0,
@@ -203,42 +244,60 @@ export class SuperAdminDashboardService {
         return orderDate >= lastWeek
       }).length || 0
     }
+
+    serviceLogger.debug('Order metrics calculated', result)
+    return result
   }
 
   /**
    * Get inventory-related metrics
    */
   private static async getInventoryMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getInventoryMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'inventory')
     const { data: inventory, error } = await supabase
       .from('inventory')
       .select('id, available_quantity, low_stock_threshold')
 
     if (error) {
-      console.error('Error fetching inventory metrics:', error)
+      serviceLogger.error('Error fetching inventory metrics', error)
       return {
         totalInventoryItems: 0,
         lowStockItems: 0
       }
     }
 
-    return {
+    const result = {
       totalInventoryItems: inventory?.length || 0,
       lowStockItems: inventory?.filter(i =>
         (i.available_quantity || 0) <= (i.low_stock_threshold || 10)
       ).length || 0
     }
+
+    serviceLogger.debug('Inventory metrics calculated', result)
+    return result
   }
 
   /**
    * Get notification-related metrics
    */
   private static async getNotificationMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getNotificationMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'notifications')
     const { data: notifications, error } = await supabase
       .from('notifications')
       .select('id, is_resolved, severity')
 
     if (error) {
-      console.error('Error fetching notification metrics:', error)
+      serviceLogger.error('Error fetching notification metrics', error)
       return {
         totalNotifications: 0,
         unresolvedNotifications: 0,
@@ -247,67 +306,94 @@ export class SuperAdminDashboardService {
       }
     }
 
-    return {
+    const result = {
       totalNotifications: notifications?.length || 0,
       unresolvedNotifications: notifications?.filter(n => !n.is_resolved).length || 0,
       criticalNotifications: notifications?.filter(n => n.severity === 'critical').length || 0,
       highPriorityNotifications: notifications?.filter(n => n.severity === 'high').length || 0
     }
+
+    serviceLogger.debug('Notification metrics calculated', result)
+    return result
   }
 
   /**
    * Get branch-related metrics
    */
   private static async getBranchMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getBranchMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'branches')
     const { data: branches, error } = await supabase
       .from('branches')
       .select('id, is_active')
 
     if (error) {
-      console.error('Error fetching branch metrics:', error)
+      serviceLogger.error('Error fetching branch metrics', error)
       return {
         totalBranches: 0,
         activeBranches: 0
       }
     }
 
-    return {
+    const result = {
       totalBranches: branches?.length || 0,
       activeBranches: branches?.filter(b => b.is_active).length || 0
     }
+
+    serviceLogger.debug('Branch metrics calculated', result)
+    return result
   }
 
   /**
    * Get customer-related metrics
    */
   private static async getCustomerMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getCustomerMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'customers')
     const { data: customers, error } = await supabase
       .from('customers')
       .select('id')
 
     if (error) {
-      console.error('Error fetching customer metrics:', error)
+      serviceLogger.error('Error fetching customer metrics', error)
       return {
         totalCustomers: 0
       }
     }
 
-    return {
+    const result = {
       totalCustomers: customers?.length || 0
     }
+
+    serviceLogger.debug('Customer metrics calculated', result)
+    return result
   }
 
   /**
    * Get product batch-related metrics
    */
   private static async getBatchMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getBatchMetrics'
+    })
+
+    serviceLogger.db('SELECT', 'product_batches')
     const { data: batches, error } = await supabase
       .from('product_batches')
       .select('id, expiration_date, is_active')
       .eq('is_active', true)
 
     if (error) {
-      console.error('Error fetching batch metrics:', error)
+      serviceLogger.error('Error fetching batch metrics', error)
       return {
         expiringThisWeek: 0,
         expiredBatches: 0
@@ -317,7 +403,7 @@ export class SuperAdminDashboardService {
     const now = new Date()
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
-    return {
+    const result = {
       expiringThisWeek: batches?.filter(b => {
         const expDate = new Date(b.expiration_date)
         return expDate <= nextWeek && expDate > now
@@ -327,22 +413,31 @@ export class SuperAdminDashboardService {
         return expDate <= now
       }).length || 0
     }
+
+    serviceLogger.debug('Batch metrics calculated', result)
+    return result
   }
 
   /**
    * Get audit activity metrics
    */
   private static async getAuditMetrics() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getAuditMetrics'
+    })
+
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
+    serviceLogger.db('SELECT', 'audit_logs')
     const { data: audits, error } = await supabase
       .from('audit_logs')
       .select('id, admin_id, created_at')
       .gte('created_at', today.toISOString())
 
     if (error) {
-      console.error('Error fetching audit metrics:', error)
+      serviceLogger.error('Error fetching audit metrics', error)
       return {
         totalActivitiesToday: 0,
         activeAdminsToday: 0
@@ -351,17 +446,28 @@ export class SuperAdminDashboardService {
 
     const uniqueAdmins = new Set(audits?.map(a => a.admin_id).filter(Boolean))
 
-    return {
+    const result = {
       totalActivitiesToday: audits?.length || 0,
       activeAdminsToday: uniqueAdmins.size || 0
     }
+
+    serviceLogger.debug('Audit metrics calculated', result)
+    return result
   }
 
   /**
    * Get recent admin activity for dashboard feed
    */
   static async getRecentAdminActivity(limit: number = 10): Promise<AdminActivity[]> {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getRecentAdminActivity'
+    })
+    serviceLogger.time('getRecentAdminActivity')
+
     try {
+      serviceLogger.info('Fetching recent admin activity', { limit })
+      serviceLogger.db('SELECT', 'audit_logs')
       const { data: activities, error } = await supabase
         .from('audit_logs')
         .select(`
@@ -379,11 +485,11 @@ export class SuperAdminDashboardService {
         .limit(limit)
 
       if (error) {
-        console.error('Error fetching admin activity:', error)
+        serviceLogger.error('Error fetching admin activity', error)
         return []
       }
 
-      return (activities || []).map(activity => ({
+      const result = (activities || []).map(activity => ({
         id: activity.id,
         action: activity.action || 'unknown',
         tableName: activity.table_name || 'unknown',
@@ -393,8 +499,16 @@ export class SuperAdminDashboardService {
         timestamp: activity.created_at,
         severity: this.getActivitySeverity(activity.action, activity.table_name)
       }))
+
+      const duration = serviceLogger.timeEnd('getRecentAdminActivity')
+      serviceLogger.success('Admin activity fetched', {
+        duration,
+        count: result.length
+      })
+
+      return result
     } catch (error) {
-      console.error('Error fetching recent admin activity:', error)
+      serviceLogger.error('Error fetching recent admin activity', error as Error)
       return []
     }
   }
@@ -422,16 +536,32 @@ export class SuperAdminDashboardService {
    * Get system health status
    */
   static async getSystemHealth(): Promise<SystemHealth> {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getSystemHealth'
+    })
+    serviceLogger.time('getSystemHealth')
+
     try {
+      serviceLogger.info('Checking system health')
       const metrics = await this.getSuperAdminMetrics()
 
-      return {
-        database: 'operational',
-        admins: metrics.activeAdmins === 0 ? 'error' : 'operational',
-        inventory: metrics.lowStockItems > 10 ? 'warning' : 'operational',
-        notifications: metrics.unresolvedNotifications > 20 ? 'warning' : 'operational'
+      const health = {
+        database: 'operational' as const,
+        admins: metrics.activeAdmins === 0 ? ('error' as const) : ('operational' as const),
+        inventory: metrics.lowStockItems > 10 ? ('warning' as const) : ('operational' as const),
+        notifications: metrics.unresolvedNotifications > 20 ? ('warning' as const) : ('operational' as const)
       }
+
+      const duration = serviceLogger.timeEnd('getSystemHealth')
+      serviceLogger.success('System health checked', {
+        duration,
+        health
+      })
+
+      return health
     } catch (error) {
+      serviceLogger.error('Error checking system health', error as Error)
       return {
         database: 'error',
         admins: 'error',
@@ -445,7 +575,15 @@ export class SuperAdminDashboardService {
    * Get critical alerts summary
    */
   static async getCriticalAlerts() {
+    const serviceLogger = logger.child({
+      service: 'SuperAdminDashboardService',
+      operation: 'getCriticalAlerts'
+    })
+    serviceLogger.time('getCriticalAlerts')
+
     try {
+      serviceLogger.info('Fetching critical alerts')
+      serviceLogger.db('SELECT', 'notifications')
       const { data: alerts, error } = await supabase
         .from('notifications')
         .select('id, type, severity, title, message, created_at')
@@ -456,13 +594,19 @@ export class SuperAdminDashboardService {
         .limit(5)
 
       if (error) {
-        console.error('Error fetching critical alerts:', error)
+        serviceLogger.error('Error fetching critical alerts', error)
         return []
       }
 
+      const duration = serviceLogger.timeEnd('getCriticalAlerts')
+      serviceLogger.success('Critical alerts fetched', {
+        duration,
+        count: alerts?.length || 0
+      })
+
       return alerts || []
     } catch (error) {
-      console.error('Error fetching critical alerts:', error)
+      serviceLogger.error('Error fetching critical alerts', error as Error)
       return []
     }
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
+import { logger } from '@/lib/logger'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -11,7 +12,6 @@ interface ProductImportRow {
   'Product Name': string
   'Description'?: string
   'SKU'?: string
-  'Barcode'?: string
   'Category': string
   'Brand': string
   'Unit of Measure': string
@@ -77,13 +77,29 @@ const safeBooleanField = (value: unknown): boolean => {
 };
 
 export async function POST(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'POST /api/products/import',
+    operation: 'importProducts'
+  })
+  routeLogger.time('importProducts')
+
   try {
+    routeLogger.info('Starting product import request')
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const adminId = formData.get('adminId') as string
     const duplicateStrategy = formData.get('duplicateStrategy') as string || 'skip' // 'skip', 'update', 'fail'
 
+    routeLogger.debug('Request parameters', {
+      fileName: file?.name,
+      fileSize: file?.size,
+      adminId,
+      duplicateStrategy
+    })
+
     if (!file) {
+      routeLogger.warn('No file provided in request')
       return NextResponse.json(
         { error: 'No file provided' },
         { status: 400 }
@@ -91,6 +107,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!adminId) {
+      routeLogger.warn('Admin ID required but not provided')
       return NextResponse.json(
         { error: 'Admin ID required' },
         { status: 400 }
@@ -103,18 +120,23 @@ export async function POST(request: NextRequest) {
     const isValidFile = validExtensions.some(ext => fileName.endsWith(ext))
 
     if (!isValidFile) {
+      routeLogger.warn('Invalid file type', { fileName })
       return NextResponse.json(
         { error: 'File must be Excel (.xlsx, .xls) or CSV (.csv) format' },
         { status: 400 }
       )
     }
 
+    routeLogger.info('File validated', { fileName, size: file.size })
+
     // Read and parse file based on format
+    routeLogger.info('Parsing file', { fileName })
     const arrayBuffer = await file.arrayBuffer()
     let workbook
 
     if (fileName.endsWith('.csv')) {
       // Parse CSV file - convert to text first with enhanced options
+      routeLogger.debug('Parsing CSV file')
       const text = new TextDecoder('utf-8').decode(arrayBuffer)
       workbook = XLSX.read(text, {
         type: 'string',
@@ -126,6 +148,7 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // Parse Excel files (XLSX/XLS)
+      routeLogger.debug('Parsing Excel file')
       workbook = XLSX.read(arrayBuffer, { type: 'buffer' })
     }
 
@@ -133,7 +156,10 @@ export async function POST(request: NextRequest) {
     const worksheet = workbook.Sheets[sheetName]
     const jsonData = XLSX.utils.sheet_to_json(worksheet) as ProductImportRow[]
 
+    routeLogger.info('File parsed successfully', { rowCount: jsonData.length })
+
     if (jsonData.length === 0) {
+      routeLogger.warn('File is empty or has no valid data')
       return NextResponse.json(
         { error: 'File is empty or has no valid data' },
         { status: 400 }
@@ -155,6 +181,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Load categories and brands for validation
+    routeLogger.info('Loading reference data for validation')
+    routeLogger.db('SELECT', 'categories, brands')
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
       .select('id, name')
@@ -166,6 +194,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
 
     if (categoriesError || brandsError) {
+      routeLogger.error('Failed to load categories and brands', categoriesError || brandsError)
       return NextResponse.json(
         { error: 'Failed to load categories and brands' },
         { status: 500 }
@@ -175,13 +204,21 @@ export async function POST(request: NextRequest) {
     const categoryMap = new Map(categories?.map(c => [c.name.toLowerCase(), c.id]))
     const brandMap = new Map(brands?.map(b => [b.name.toLowerCase(), b.id]))
 
+    routeLogger.debug('Reference data loaded', {
+      categoryCount: categories?.length || 0,
+      brandCount: brands?.length || 0
+    })
+
     // Load existing products for duplicate detection
+    routeLogger.info('Loading existing products for duplicate detection')
+    routeLogger.db('SELECT', 'products')
     const { data: existingProducts, error: productsError } = await supabase
       .from('products')
-      .select('id, name, sku, barcode, category_id, brand_id')
+      .select('id, name, sku, category_id, brand_id')
       .eq('status', 'active')
 
     if (productsError) {
+      routeLogger.error('Failed to load existing products', productsError)
       return NextResponse.json(
         { error: 'Failed to load existing products for duplicate detection' },
         { status: 500 }
@@ -190,10 +227,12 @@ export async function POST(request: NextRequest) {
 
     // Create maps for quick duplicate detection
     const skuMap = new Map(existingProducts?.filter(p => p.sku).map(p => [p.sku.toLowerCase(), p]) || [])
-    const barcodeMap = new Map(existingProducts?.filter(p => p.barcode).map(p => [p.barcode, p]) || [])
     const nameMap = new Map(existingProducts?.map(p => [p.name.toLowerCase(), p]) || [])
 
+    routeLogger.debug('Existing products loaded', { count: existingProducts?.length || 0 })
+
     // Process each row
+    routeLogger.info('Starting product processing', { totalRows: jsonData.length, duplicateStrategy })
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i]
       const rowNumber = i + 2 // Excel row number (accounting for header)
@@ -204,7 +243,6 @@ export async function POST(request: NextRequest) {
         const categoryName = safeStringField(row['Category'], 'Category')
         const brandName = safeStringField(row['Brand'], 'Brand')
         const sku = safeStringField(row['SKU'], 'SKU')
-        const barcode = safeStringField(row['Barcode'], 'Barcode')
         const description = safeStringField(row['Description'], 'Description')
         const unitOfMeasure = safeStringField(row['Unit of Measure'], 'Unit of Measure') || 'pieces'
         const status = safeStringField(row['Status'], 'Status') || 'active'
@@ -291,13 +329,7 @@ export async function POST(request: NextRequest) {
           if (existingProduct) duplicateType = 'SKU'
         }
 
-        // Check by barcode if no SKU duplicate found
-        if (!existingProduct && barcode) {
-          existingProduct = barcodeMap.get(barcode)
-          if (existingProduct) duplicateType = 'Barcode'
-        }
-
-        // Check by name if no other duplicate found
+        // Check by name if no SKU duplicate found
         if (!existingProduct) {
           existingProduct = nameMap.get(productName.toLowerCase())
           if (existingProduct) duplicateType = 'Name'
@@ -319,7 +351,7 @@ export async function POST(request: NextRequest) {
             result.skippedProducts?.push({
               row: rowNumber,
               name: productName,
-              reason: `Duplicate ${duplicateType}: ${duplicateType === 'SKU' ? sku : duplicateType === 'Barcode' ? barcode : 'Same name'}`
+              reason: `Duplicate ${duplicateType}: ${duplicateType === 'SKU' ? sku : 'Same name'}`
             })
             continue
           } else if (duplicateStrategy === 'update') {
@@ -375,11 +407,9 @@ export async function POST(request: NextRequest) {
               name: productName,
               description: description || null,
               sku: sku || null,
-              barcode: barcode || null,
               category_id: categoryId,
               brand_id: brandId,
               unit_of_measure: unitOfMeasure,
-              is_frozen: isFrozen,
               status: status,
               updated_by: adminId,
               updated_at: new Date().toISOString()
@@ -443,11 +473,9 @@ export async function POST(request: NextRequest) {
                 p_name: productName,
                 p_description: description || null,
                 p_sku: sku || null,
-                p_barcode: barcode || null,
                 p_category_id: categoryId,
                 p_brand_id: brandId,
                 p_unit_of_measure: unitOfMeasure,
-                p_is_frozen: isFrozen,
                 p_pricing_tiers: JSON.stringify(pricingTiers),
                 p_admin_id: adminId
               }
@@ -461,11 +489,9 @@ export async function POST(request: NextRequest) {
                   name: productName,
                   description: description || null,
                   sku: sku || null,
-                  barcode: barcode || null,
                   category_id: categoryId,
                   brand_id: brandId,
                   unit_of_measure: unitOfMeasure,
-                  is_frozen: isFrozen,
                   status: status,
                   created_by: adminId
                 })
@@ -554,10 +580,23 @@ export async function POST(request: NextRequest) {
     result.errorCount = result.errors.length
     result.success = result.successCount > 0 || result.skippedCount > 0
 
+    const duration = routeLogger.timeEnd('importProducts')
+    routeLogger.success('Product import completed', {
+      duration,
+      totalRows: result.totalRows,
+      successCount: result.successCount,
+      errorCount: result.errorCount,
+      duplicateCount: result.duplicateCount,
+      updatedCount: result.updatedCount,
+      skippedCount: result.skippedCount,
+      createdProducts: result.createdProducts?.length || 0,
+      success: result.success
+    })
+
     return NextResponse.json(result)
 
   } catch (error) {
-    console.error('Product import error:', error)
+    routeLogger.error('Product import error', error as Error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to import products',

@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
+import { logger } from '@/lib/logger'
 
 export async function DELETE(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'DELETE /api/products/delete',
+    operation: 'deleteProduct'
+  })
+  routeLogger.time('deleteProduct')
+
   try {
+    routeLogger.info('Starting product deletion request')
+
     // Get admin context and validate permissions
     const { client, currentAdminId, requestBody } = await validateAdminWithContext(request)
     const { productId, reason } = requestBody
+
+    routeLogger.debug('Request validated', { currentAdminId, productId, hasReason: !!reason })
 
     // Get audit metadata
     const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!productId) {
+      routeLogger.warn('Missing required field: productId')
       return NextResponse.json(
         { error: 'Missing required field: productId' },
         { status: 400 }
@@ -19,6 +31,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get product details before deletion (with related data summary)
+    routeLogger.info('Fetching product details before deletion', { productId })
+    routeLogger.db('SELECT', 'products')
     const { data: productToDelete, error: fetchError } = await client
       .from('products')
       .select(`
@@ -34,13 +48,22 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (fetchError || !productToDelete) {
+      routeLogger.warn('Product not found', { productId, error: fetchError?.message })
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
       )
     }
 
+    routeLogger.debug('Product found', {
+      productName: productToDelete.name,
+      sku: productToDelete.sku,
+      status: productToDelete.status
+    })
+
     // Check for business-critical dependencies that should prevent deletion
+    routeLogger.info('Checking product dependencies')
+    routeLogger.db('SELECT', 'order_items')
     const { data: orderItems, error: orderItemsError } = await client
       .from('order_items')
       .select('id')
@@ -48,7 +71,7 @@ export async function DELETE(request: NextRequest) {
       .limit(1)
 
     if (orderItemsError) {
-      console.error('Error checking order items:', orderItemsError)
+      routeLogger.error('Error checking order items', orderItemsError)
       return NextResponse.json(
         { error: 'Failed to check product dependencies' },
         { status: 500 }
@@ -56,6 +79,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check for stock transfers
+    routeLogger.db('SELECT', 'stock_transfers')
     const { data: stockTransfers, error: stockTransfersError } = await client
       .from('stock_transfers')
       .select('id')
@@ -63,7 +87,7 @@ export async function DELETE(request: NextRequest) {
       .limit(1)
 
     if (stockTransfersError) {
-      console.error('Error checking stock transfers:', stockTransfersError)
+      routeLogger.error('Error checking stock transfers', stockTransfersError)
       return NextResponse.json(
         { error: 'Failed to check product dependencies' },
         { status: 500 }
@@ -73,7 +97,16 @@ export async function DELETE(request: NextRequest) {
     // Warn if product has business history but allow deletion
     const hasBusinessHistory = (orderItems?.length || 0) > 0 || (stockTransfers?.length || 0) > 0
 
+    if (hasBusinessHistory) {
+      routeLogger.warn('Product has business history', {
+        hasOrders: (orderItems?.length || 0) > 0,
+        hasTransfers: (stockTransfers?.length || 0) > 0
+      })
+    }
+
     // Get cascade deletion summary before proceeding
+    routeLogger.info('Gathering cascade deletion summary')
+    routeLogger.db('SELECT', 'inventory, price_tiers, alerts, alert_configurations')
     const [inventoryCount, priceTiersCount, alertsCount, configurationsCount] = await Promise.all([
       client.from('inventory').select('id', { count: 'exact' }).eq('product_id', productId),
       client.from('price_tiers').select('id', { count: 'exact' }).eq('product_id', productId),
@@ -90,14 +123,18 @@ export async function DELETE(request: NextRequest) {
       has_transfer_history: (stockTransfers?.length || 0) > 0
     }
 
+    routeLogger.debug('Cascade summary prepared', cascadeData)
+
     // Delete the product (cascades will handle related records)
+    routeLogger.info('Deleting product', { productId, productName: productToDelete.name })
+    routeLogger.db('DELETE', 'products')
     const { error: deleteError } = await client
       .from('products')
       .delete()
       .eq('id', productId)
 
     if (deleteError) {
-      console.error('Error deleting product:', deleteError)
+      routeLogger.error('Error deleting product', deleteError)
       return NextResponse.json(
         { error: 'Failed to delete product' },
         { status: 400 }
@@ -105,6 +142,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Create audit log entry
+    routeLogger.info('Creating audit log entry')
+    routeLogger.db('INSERT', 'audit_logs')
     try {
       await client
         .from('audit_logs')
@@ -126,10 +165,20 @@ export async function DELETE(request: NextRequest) {
             timestamp: auditMetadata.timestamp
           }
         })
+      routeLogger.debug('Audit log entry created successfully')
     } catch (auditError) {
-      console.error('Failed to create audit log:', auditError)
+      routeLogger.warn('Failed to create audit log', { error: auditError })
       // Don't fail the request if audit logging fails
     }
+
+    const duration = routeLogger.timeEnd('deleteProduct')
+    routeLogger.success('Product deleted successfully', {
+      duration,
+      productId,
+      productName: productToDelete.name,
+      sku: productToDelete.sku,
+      cascadedRecords: cascadeData.inventory_records + cascadeData.price_tiers + cascadeData.alerts + cascadeData.alert_configurations
+    })
 
     return NextResponse.json({
       success: true,
@@ -146,7 +195,7 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Unexpected error in delete product API:', error)
+    routeLogger.error('Unexpected error in delete product API', error as Error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

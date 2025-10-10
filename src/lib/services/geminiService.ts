@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { logger } from '@/lib/logger'
 
 export interface PrescriptiveInsight {
   priority: 'critical' | 'high' | 'medium' | 'low'
@@ -40,58 +41,69 @@ export class GeminiService {
   static async generatePrescriptiveInsights(
     analyticsData: any
   ): Promise<AIAnalysisResponse> {
-    console.log('🤖 [Gemini Service] Starting AI insights generation...')
-    console.log('📊 [Gemini Service] Analytics data received:', {
+    const serviceLogger = logger.child({
+      service: 'GeminiService',
+      operation: 'generatePrescriptiveInsights'
+    })
+    serviceLogger.time('generatePrescriptiveInsights')
+
+    serviceLogger.info('Starting AI insights generation')
+    serviceLogger.debug('Analytics data received', {
       totalProducts: analyticsData.inventoryMetrics?.totalProducts,
       lowStock: analyticsData.inventoryMetrics?.lowStockItems,
       expiringSoon: analyticsData.expirationMetrics?.expiringSoon7Days,
     })
 
     try {
-      console.log('🔑 [Gemini Service] Initializing Gemini client...')
+      serviceLogger.info('Initializing Gemini client')
       const genAI = this.getClient()
-      console.log('✅ [Gemini Service] Client initialized successfully')
+      serviceLogger.success('Client initialized successfully')
 
-      console.log('🎯 [Gemini Service] Using model: gemini-2.0-flash-lite')
+      serviceLogger.info('Using model: gemini-2.0-flash-lite')
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' })
 
-      console.log('📝 [Gemini Service] Building analysis prompt...')
+      serviceLogger.info('Building analysis prompt')
       const prompt = this.buildAnalysisPrompt(analyticsData)
-      console.log('📏 [Gemini Service] Prompt length:', prompt.length, 'characters')
+      serviceLogger.debug('Prompt built', { length: prompt.length })
 
-      console.log('🚀 [Gemini Service] Sending request to Gemini API...')
-      const startTime = Date.now()
+      serviceLogger.info('Sending request to Gemini API')
+      const apiTimer = serviceLogger.time('gemini-api-call')
       const result = await model.generateContent(prompt)
-      const duration = Date.now() - startTime
-      console.log(`⏱️ [Gemini Service] API response received in ${duration}ms`)
+      const apiDuration = serviceLogger.timeEnd('gemini-api-call')
 
       const response = result.response
       const text = response.text()
-      console.log('📤 [Gemini Service] Response text length:', text.length, 'characters')
-      console.log('📄 [Gemini Service] Raw response preview:', text.substring(0, 200) + '...')
+      serviceLogger.debug('API response received', {
+        apiDuration,
+        responseLength: text.length,
+        preview: text.substring(0, 200) + '...'
+      })
 
       // Parse the AI response
-      console.log('🔍 [Gemini Service] Parsing AI response...')
+      serviceLogger.info('Parsing AI response')
       const parsed = this.parseAIResponse(text)
-      console.log('✅ [Gemini Service] Successfully parsed AI response')
-      console.log('📊 [Gemini Service] Generated insights:', {
+      serviceLogger.success('Successfully parsed AI response', {
         insightCount: parsed.insights.length,
         recommendationCount: parsed.keyRecommendations.length,
         summaryLength: parsed.summary.length,
       })
 
+      const totalDuration = serviceLogger.timeEnd('generatePrescriptiveInsights')
+      serviceLogger.success('AI insights generation complete', {
+        totalDuration,
+        insights: parsed.insights.length
+      })
+
       return parsed
     } catch (error) {
-      console.error('❌ [Gemini Service] Error occurred:', error)
-      console.error('📋 [Gemini Service] Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      })
-      console.log('🔄 [Gemini Service] Falling back to static insights...')
+      serviceLogger.error('Error in AI insights generation', error as Error)
+      serviceLogger.warn('Falling back to static insights')
 
       // Return fallback insights if AI fails
       const fallback = this.getFallbackInsights(analyticsData)
-      console.log('✅ [Gemini Service] Fallback insights generated')
+      serviceLogger.success('Fallback insights generated', {
+        insightCount: fallback.insights.length
+      })
       return fallback
     }
   }
@@ -179,17 +191,21 @@ Provide 5-8 specific, actionable insights. Be concrete with numbers and deadline
    * Parse AI response into structured format
    */
   private static parseAIResponse(text: string): AIAnalysisResponse {
-    console.log('🔧 [Parser] Starting to parse AI response...')
+    const serviceLogger = logger.child({
+      service: 'GeminiService',
+      operation: 'parseAIResponse'
+    })
+
+    serviceLogger.debug('Starting to parse AI response')
     try {
       // Remove markdown code blocks if present
-      console.log('🧹 [Parser] Cleaning markdown formatting...')
+      serviceLogger.debug('Cleaning markdown formatting')
       const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      console.log('📏 [Parser] Clean text length:', cleanText.length)
+      serviceLogger.debug('Text cleaned', { length: cleanText.length })
 
-      console.log('🔍 [Parser] Attempting JSON parse...')
+      serviceLogger.debug('Attempting JSON parse')
       const parsed = JSON.parse(cleanText)
-      console.log('✅ [Parser] JSON parsed successfully')
-      console.log('📊 [Parser] Parsed structure:', {
+      serviceLogger.debug('JSON parsed successfully', {
         hasInsights: !!parsed.insights,
         hasSummary: !!parsed.summary,
         hasRecommendations: !!parsed.keyRecommendations,
@@ -203,11 +219,12 @@ Provide 5-8 specific, actionable insights. Be concrete with numbers and deadline
         generatedAt: new Date().toISOString(),
       }
 
-      console.log('✅ [Parser] Response formatted successfully')
+      serviceLogger.success('Response formatted successfully')
       return result
     } catch (error) {
-      console.error('❌ [Parser] Failed to parse AI response:', error)
-      console.error('📄 [Parser] Raw text that failed:', text.substring(0, 500))
+      serviceLogger.error('Failed to parse AI response', error as Error, {
+        preview: text.substring(0, 500)
+      })
       throw new Error('Invalid AI response format')
     }
   }

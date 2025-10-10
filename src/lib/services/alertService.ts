@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
+import { logger } from '@/lib/logger'
 
 export interface AlertRule {
   id: string
@@ -32,10 +33,19 @@ export class AlertService {
    * Generate low stock alerts based on inventory levels
    */
   static async generateLowStockAlerts(): Promise<GeneratedAlert[]> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'generateLowStockAlerts'
+    })
+    serviceLogger.time('generateLowStockAlerts')
+
     try {
+      serviceLogger.info('Starting low stock alert generation')
       const branchId = await getMainBranchId()
+      serviceLogger.debug('Retrieved branch ID', { branchId })
 
       // Get inventory items that are low on stock
+      serviceLogger.db('SELECT', 'inventory')
       const { data: lowStockItems, error } = await supabase
         .from('inventory')
         .select(`
@@ -53,6 +63,8 @@ export class AlertService {
         .or('available_quantity.lte.low_stock_threshold,available_quantity.eq.0')
 
       if (error) throw error
+
+      serviceLogger.debug('Low stock items fetched', { count: lowStockItems?.length || 0 })
 
       const alerts: GeneratedAlert[] = []
 
@@ -93,13 +105,24 @@ export class AlertService {
             }
 
             alerts.push(alert)
+            serviceLogger.debug('Created low stock alert', {
+              type: alert.type,
+              productName: item.products?.name,
+              quantity: item.available_quantity
+            })
           }
         }
       }
 
+      const duration = serviceLogger.timeEnd('generateLowStockAlerts')
+      serviceLogger.success('Low stock alerts generated', {
+        duration,
+        alertsGenerated: alerts.length
+      })
+
       return alerts
     } catch (error) {
-      console.error('Error generating low stock alerts:', error)
+      serviceLogger.error('Error generating low stock alerts', error as Error)
       throw error
     }
   }
@@ -108,14 +131,23 @@ export class AlertService {
    * Generate expiration alerts based on product batches
    */
   static async generateExpirationAlerts(): Promise<GeneratedAlert[]> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'generateExpirationAlerts'
+    })
+    serviceLogger.time('generateExpirationAlerts')
+
     try {
+      serviceLogger.info('Starting expiration alert generation')
       const branchId = await getMainBranchId()
+      serviceLogger.debug('Retrieved branch ID', { branchId })
 
       // Get batches that are expiring soon or expired
       const today = new Date()
       const warningDate = new Date()
       warningDate.setDate(today.getDate() + 7) // 7 days warning
 
+      serviceLogger.db('SELECT', 'product_batches')
       const { data: expiringBatches, error } = await supabase
         .from('product_batches')
         .select(`
@@ -137,6 +169,8 @@ export class AlertService {
         .lte('expiration_date', warningDate.toISOString())
 
       if (error) throw error
+
+      serviceLogger.debug('Expiring batches fetched', { count: expiringBatches?.length || 0 })
 
       const alerts: GeneratedAlert[] = []
 
@@ -178,12 +212,24 @@ export class AlertService {
           }
 
           alerts.push(alert)
+          serviceLogger.debug('Created expiration alert', {
+            type: alert.type,
+            batchNumber: batch.batch_number,
+            productName: batch.inventory?.products?.name,
+            daysUntilExpiry
+          })
         }
       }
 
+      const duration = serviceLogger.timeEnd('generateExpirationAlerts')
+      serviceLogger.success('Expiration alerts generated', {
+        duration,
+        alertsGenerated: alerts.length
+      })
+
       return alerts
     } catch (error) {
-      console.error('Error generating expiration alerts:', error)
+      serviceLogger.error('Error generating expiration alerts', error as Error)
       throw error
     }
   }
@@ -192,9 +238,20 @@ export class AlertService {
    * Insert generated alerts into the database
    */
   static async insertAlerts(alerts: GeneratedAlert[]): Promise<void> {
-    if (alerts.length === 0) return
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'insertAlerts'
+    })
+
+    if (alerts.length === 0) {
+      serviceLogger.debug('No alerts to insert, skipping')
+      return
+    }
+
+    serviceLogger.time('insertAlerts')
 
     try {
+      serviceLogger.info('Inserting alerts into database', { count: alerts.length })
       const branchId = await getMainBranchId()
 
       // Convert alerts to database format
@@ -215,15 +272,20 @@ export class AlertService {
         auto_generated: true
       }))
 
+      serviceLogger.db('INSERT', 'alerts')
       const { error } = await supabase
         .from('alerts')
         .insert(alertsToInsert)
 
       if (error) throw error
 
-      console.log(`✅ Successfully inserted ${alerts.length} alerts`)
+      const duration = serviceLogger.timeEnd('insertAlerts')
+      serviceLogger.success('Successfully inserted alerts', {
+        duration,
+        count: alerts.length
+      })
     } catch (error) {
-      console.error('Error inserting alerts:', error)
+      serviceLogger.error('Error inserting alerts', error as Error)
       throw error
     }
   }
@@ -236,8 +298,14 @@ export class AlertService {
     expirationAlerts: GeneratedAlert[]
     totalGenerated: number
   }> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'generateAllAlerts'
+    })
+    serviceLogger.time('generateAllAlerts')
+
     try {
-      console.log('🔄 Starting alert generation process...')
+      serviceLogger.info('Starting complete alert generation process')
 
       // Generate different types of alerts
       const [lowStockAlerts, expirationAlerts] = await Promise.all([
@@ -251,7 +319,13 @@ export class AlertService {
         await this.insertAlerts(allAlerts)
       }
 
-      console.log(`✅ Alert generation complete: ${allAlerts.length} alerts generated`)
+      const duration = serviceLogger.timeEnd('generateAllAlerts')
+      serviceLogger.success('Alert generation complete', {
+        duration,
+        lowStockCount: lowStockAlerts.length,
+        expirationCount: expirationAlerts.length,
+        totalGenerated: allAlerts.length
+      })
 
       return {
         lowStockAlerts,
@@ -259,7 +333,7 @@ export class AlertService {
         totalGenerated: allAlerts.length
       }
     } catch (error) {
-      console.error('❌ Error in alert generation process:', error)
+      serviceLogger.error('Error in alert generation process', error as Error)
       throw error
     }
   }
@@ -268,7 +342,15 @@ export class AlertService {
    * Get active alert rules
    */
   static async getActiveAlertRules(): Promise<AlertRule[]> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'getActiveAlertRules'
+    })
+    serviceLogger.time('getActiveAlertRules')
+
     try {
+      serviceLogger.info('Fetching active alert rules')
+      serviceLogger.db('SELECT', 'alert_rules')
       const { data: rules, error } = await supabase
         .from('alert_rules')
         .select('*')
@@ -276,9 +358,15 @@ export class AlertService {
 
       if (error) throw error
 
+      const duration = serviceLogger.timeEnd('getActiveAlertRules')
+      serviceLogger.success('Alert rules fetched', {
+        duration,
+        count: rules?.length || 0
+      })
+
       return rules || []
     } catch (error) {
-      console.error('Error fetching alert rules:', error)
+      serviceLogger.error('Error fetching alert rules', error as Error)
       throw error
     }
   }
@@ -287,7 +375,15 @@ export class AlertService {
    * Acknowledge an alert
    */
   static async acknowledgeAlert(alertId: string): Promise<void> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'acknowledgeAlert'
+    })
+    serviceLogger.time('acknowledgeAlert')
+
     try {
+      serviceLogger.info('Acknowledging alert', { alertId })
+      serviceLogger.db('UPDATE', 'alerts')
       const { error } = await supabase
         .from('alerts')
         .update({
@@ -298,8 +394,11 @@ export class AlertService {
         .eq('id', alertId)
 
       if (error) throw error
+
+      const duration = serviceLogger.timeEnd('acknowledgeAlert')
+      serviceLogger.success('Alert acknowledged', { duration, alertId })
     } catch (error) {
-      console.error('Error acknowledging alert:', error)
+      serviceLogger.error('Error acknowledging alert', error as Error, { alertId })
       throw error
     }
   }
@@ -308,7 +407,15 @@ export class AlertService {
    * Dismiss/resolve an alert
    */
   static async resolveAlert(alertId: string): Promise<void> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'resolveAlert'
+    })
+    serviceLogger.time('resolveAlert')
+
     try {
+      serviceLogger.info('Resolving alert', { alertId })
+      serviceLogger.db('UPDATE', 'alerts')
       const { error } = await supabase
         .from('alerts')
         .update({
@@ -318,8 +425,11 @@ export class AlertService {
         .eq('id', alertId)
 
       if (error) throw error
+
+      const duration = serviceLogger.timeEnd('resolveAlert')
+      serviceLogger.success('Alert resolved', { duration, alertId })
     } catch (error) {
-      console.error('Error resolving alert:', error)
+      serviceLogger.error('Error resolving alert', error as Error, { alertId })
       throw error
     }
   }
@@ -328,10 +438,18 @@ export class AlertService {
    * Clean up old resolved alerts
    */
   static async cleanupOldAlerts(daysOld: number = 30): Promise<void> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'cleanupOldAlerts'
+    })
+    serviceLogger.time('cleanupOldAlerts')
+
     try {
+      serviceLogger.info('Cleaning up old alerts', { daysOld })
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - daysOld)
 
+      serviceLogger.db('DELETE', 'alerts')
       const { error } = await supabase
         .from('alerts')
         .delete()
@@ -340,9 +458,14 @@ export class AlertService {
 
       if (error) throw error
 
-      console.log(`🧹 Cleaned up alerts older than ${daysOld} days`)
+      const duration = serviceLogger.timeEnd('cleanupOldAlerts')
+      serviceLogger.success('Cleaned up old alerts', {
+        duration,
+        daysOld,
+        cutoffDate: cutoffDate.toISOString()
+      })
     } catch (error) {
-      console.error('Error cleaning up old alerts:', error)
+      serviceLogger.error('Error cleaning up old alerts', error as Error, { daysOld })
       throw error
     }
   }
@@ -356,8 +479,14 @@ export class AlertService {
     totalGenerated: number
     cleanupCompleted: boolean
   }> {
+    const serviceLogger = logger.child({
+      service: 'AlertService',
+      operation: 'scheduleAlertGeneration'
+    })
+    serviceLogger.time('scheduleAlertGeneration')
+
     try {
-      console.log('⏰ Running scheduled alert generation...')
+      serviceLogger.info('Running scheduled alert generation')
 
       // Run alert generation
       const result = await this.generateAllAlerts()
@@ -365,14 +494,19 @@ export class AlertService {
       // Clean up old alerts
       await this.cleanupOldAlerts()
 
-      console.log(`📊 Scheduled alert generation complete:`, result)
+      const duration = serviceLogger.timeEnd('scheduleAlertGeneration')
+      serviceLogger.success('Scheduled alert generation complete', {
+        duration,
+        totalGenerated: result.totalGenerated,
+        cleanupCompleted: true
+      })
 
       return {
         ...result,
         cleanupCompleted: true
       }
     } catch (error) {
-      console.error('❌ Error in scheduled alert generation:', error)
+      serviceLogger.error('Error in scheduled alert generation', error as Error)
       throw error
     }
   }

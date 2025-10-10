@@ -1,6 +1,7 @@
 import { createClient } from '../supabase/client'
 import { createServerClient } from '../supabase/server'
 import { getMainBranchId } from '../constants/branch'
+import { logger } from '../logger'
 
 // Flag to determine if we're running server-side (API routes)
 const isServer = typeof window === 'undefined'
@@ -89,21 +90,31 @@ export class AnalyticsService {
    * Get comprehensive inventory metrics
    */
   static async getInventoryMetrics(): Promise<InventoryMetrics> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getInventoryMetrics'
+    })
+    serviceLogger.time('getInventoryMetrics')
+
     const supabase = createClient()
 
-    // Get inventory data with product and pricing info
-    const { data: inventory, error } = await supabase
-      .from('inventory')
-      .select(`
-        *,
-        products!inner(
-          id,
-          name,
-          price_tiers(price, tier_type)
-        )
-      `)
+    try {
+      serviceLogger.info('Fetching inventory metrics')
+      serviceLogger.db('SELECT', 'inventory')
 
-    if (error) throw error
+      // Get inventory data with product and pricing info
+      const { data: inventory, error } = await supabase
+        .from('inventory')
+        .select(`
+          *,
+          products!inner(
+            id,
+            name,
+            price_tiers(price, tier_type)
+          )
+        `)
+
+      if (error) throw error
 
     const totalProducts = inventory?.length || 0
     let totalInventoryValue = 0
@@ -143,21 +154,35 @@ export class AnalyticsService {
       }
     })
 
-    const averageStockLevel =
-      totalProducts > 0
-        ? inventory?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) / totalProducts
-        : 0
+      const averageStockLevel =
+        totalProducts > 0
+          ? inventory?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) / totalProducts
+          : 0
 
-    return {
-      totalProducts,
-      totalInventoryValue,
-      totalInventoryValueRetail,
-      lowStockItems,
-      outOfStockItems,
-      adequateStockItems,
-      averageStockLevel,
-      totalAvailableQuantity,
-      totalReservedQuantity,
+      const result = {
+        totalProducts,
+        totalInventoryValue,
+        totalInventoryValueRetail,
+        lowStockItems,
+        outOfStockItems,
+        adequateStockItems,
+        averageStockLevel,
+        totalAvailableQuantity,
+        totalReservedQuantity,
+      }
+
+      const duration = serviceLogger.timeEnd('getInventoryMetrics')
+      serviceLogger.success('Inventory metrics fetched successfully', {
+        duration,
+        totalProducts,
+        lowStockItems,
+        outOfStockItems
+      })
+
+      return result
+    } catch (error) {
+      serviceLogger.error('Error fetching inventory metrics', error as Error)
+      throw error
     }
   }
 
@@ -165,13 +190,24 @@ export class AnalyticsService {
    * Get category-wise performance data
    */
   static async getCategoryPerformance(): Promise<CategoryPerformance[]> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getCategoryPerformance'
+    })
+    serviceLogger.time('getCategoryPerformance')
+
     const supabase = createClient()
 
-    const { data, error } = await (supabase as any).rpc('get_category_performance', {})
+    try {
+      serviceLogger.info('Fetching category performance data')
+      serviceLogger.db('RPC', 'get_category_performance')
 
-    if (error) {
-      // Fallback query if RPC doesn't exist
-      const { data: fallbackData, error: fallbackError } = await supabase
+      const { data, error } = await (supabase as any).rpc('get_category_performance', {})
+
+      if (error) {
+        serviceLogger.warn('RPC not available, using fallback query')
+        // Fallback query if RPC doesn't exist
+        const { data: fallbackData, error: fallbackError } = await supabase
         .from('categories')
         .select(`
           name,
@@ -213,33 +249,54 @@ export class AnalyticsService {
       )
     }
 
-    return data || []
+    const result = data || []
+    const duration = serviceLogger.timeEnd('getCategoryPerformance')
+    serviceLogger.success('Category performance data fetched successfully', {
+      duration,
+      categoryCount: result.length
+    })
+
+    return result
+  } catch (error) {
+    serviceLogger.error('Error fetching category performance', error as Error)
+    throw error
   }
+}
 
   /**
    * Get expiration metrics and critical batches
    */
   static async getExpirationMetrics(): Promise<ExpirationMetrics> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getExpirationMetrics'
+    })
+    serviceLogger.time('getExpirationMetrics')
+
     const supabase = createClient()
 
-    const now = new Date()
-    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-    const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    try {
+      serviceLogger.info('Fetching expiration metrics')
 
-    const { data: batches, error } = await supabase
-      .from('product_batches')
-      .select(`
-        *,
-        inventory!inner(
-          product_id,
-          products!inner(name)
-        )
-      `)
-      .eq('status', 'active')
-      .order('expiration_date', { ascending: true })
+      const now = new Date()
+      const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+      const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
 
-    if (error) throw error
+      serviceLogger.db('SELECT', 'product_batches')
+      const { data: batches, error } = await supabase
+        .from('product_batches')
+        .select(`
+          *,
+          inventory!inner(
+            product_id,
+            products!inner(name)
+          )
+        `)
+        .eq('status', 'active')
+        .order('expiration_date', { ascending: true })
+
+      if (error) throw error
 
     let expiringSoon7Days = 0
     let expiringSoon14Days = 0
@@ -271,7 +328,7 @@ export class AnalyticsService {
       }
     })
 
-    return {
+    const result = {
       expiringSoon7Days,
       expiringSoon14Days,
       expiringSoon30Days,
@@ -279,23 +336,41 @@ export class AnalyticsService {
       totalBatches: batches?.length || 0,
       criticalBatches: criticalBatches.slice(0, 10), // Top 10 critical
     }
+
+    const duration = serviceLogger.timeEnd('getExpirationMetrics')
+    serviceLogger.success('Expiration metrics fetched successfully', {
+      duration,
+      totalBatches: result.totalBatches,
+      expiringSoon7Days,
+      expired
+    })
+
+    return result
+  } catch (error) {
+    serviceLogger.error('Error fetching expiration metrics', error as Error)
+    throw error
   }
+}
 
   /**
    * Get sales metrics
    */
   static async getSalesMetrics(): Promise<SalesMetrics> {
+    const serviceLogger = logger.child({ service: 'AnalyticsService', operation: 'getSalesMetrics' })
+    serviceLogger.time('getSalesMetrics')
+
     // Use server client (bypasses RLS) when running in API routes
     const supabase = isServer ? createServerClient() : createClient()
     const branchId = await getMainBranchId()
 
-    console.log('📊 [Analytics Service] Fetching sales metrics:', {
+    serviceLogger.info('Fetching sales metrics', {
       branchId,
       isServer,
       clientType: isServer ? 'service_role' : 'anon'
     })
 
     // Get all orders with items for current branch
+    serviceLogger.db('SELECT', 'orders')
     const { data: orders, error } = await supabase
       .from('orders')
       .select(`
@@ -305,13 +380,16 @@ export class AnalyticsService {
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false })
 
-    console.log('📊 [Analytics Service] Orders fetched:', {
+    serviceLogger.debug('Orders fetched', {
       count: orders?.length || 0,
       error: error?.message || 'none',
       sample: orders?.[0]?.order_number || 'none'
     })
 
-    if (error) throw error
+    if (error) {
+      serviceLogger.error('Failed to fetch orders', error)
+      throw error
+    }
 
     const totalOrders = orders?.length || 0
     const totalRevenue = orders?.reduce((sum: number, order: any) => sum + parseFloat(order.total_amount), 0) || 0
@@ -338,49 +416,81 @@ export class AnalyticsService {
         itemCount: order.order_items?.length || 0,
       })) || []
 
-    return {
+    const result = {
       totalOrders,
       totalRevenue,
       averageOrderValue,
       ordersByStatus,
       recentOrders,
     }
+
+    const duration = serviceLogger.timeEnd('getSalesMetrics')
+    serviceLogger.success('Sales metrics fetched successfully', {
+      duration,
+      totalOrders,
+      totalRevenue: `₱${totalRevenue.toFixed(2)}`,
+      averageOrderValue: `₱${averageOrderValue.toFixed(2)}`
+    })
+
+    return result
   }
 
   /**
    * Get pricing tier analysis
    */
   static async getPricingTierAnalysis(): Promise<PricingTierAnalysis[]> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getPricingTierAnalysis'
+    })
+    serviceLogger.time('getPricingTierAnalysis')
+
     const supabase = createClient()
 
-    const { data, error } = await supabase
-      .from('price_tiers')
-      .select('tier_type, price, product_id')
-      .eq('is_active', true)
+    try {
+      serviceLogger.info('Fetching pricing tier analysis')
+      serviceLogger.db('SELECT', 'price_tiers')
 
-    if (error) throw error
+      const { data, error } = await supabase
+        .from('price_tiers')
+        .select('tier_type, price, product_id')
+        .eq('is_active', true)
 
-    const tierStats: Record<
-      string,
-      { prices: number[]; productIds: Set<string> }
-    > = {}
+      if (error) throw error
 
-    data?.forEach((tier: any) => {
-      if (!tierStats[tier.tier_type]) {
-        tierStats[tier.tier_type] = { prices: [], productIds: new Set() }
-      }
-      tierStats[tier.tier_type].prices.push(parseFloat(tier.price))
-      tierStats[tier.tier_type].productIds.add(tier.product_id)
-    })
+      const tierStats: Record<
+        string,
+        { prices: number[]; productIds: Set<string> }
+      > = {}
 
-    return Object.entries(tierStats).map(([tierType, stats]) => ({
-      tierType,
-      productsCount: stats.productIds.size,
-      avgPrice:
-        stats.prices.reduce((sum, price) => sum + price, 0) / stats.prices.length,
-      minPrice: Math.min(...stats.prices),
-      maxPrice: Math.max(...stats.prices),
-    }))
+      data?.forEach((tier: any) => {
+        if (!tierStats[tier.tier_type]) {
+          tierStats[tier.tier_type] = { prices: [], productIds: new Set() }
+        }
+        tierStats[tier.tier_type].prices.push(parseFloat(tier.price))
+        tierStats[tier.tier_type].productIds.add(tier.product_id)
+      })
+
+      const result = Object.entries(tierStats).map(([tierType, stats]) => ({
+        tierType,
+        productsCount: stats.productIds.size,
+        avgPrice:
+          stats.prices.reduce((sum, price) => sum + price, 0) / stats.prices.length,
+        minPrice: Math.min(...stats.prices),
+        maxPrice: Math.max(...stats.prices),
+      }))
+
+      const duration = serviceLogger.timeEnd('getPricingTierAnalysis')
+      serviceLogger.success('Pricing tier analysis completed', {
+        duration,
+        tierCount: result.length
+      })
+
+      return result
+    } catch (error) {
+      serviceLogger.error('Error fetching pricing tier analysis', error as Error)
+      throw error
+    }
   }
 
   /**
@@ -389,12 +499,22 @@ export class AnalyticsService {
   static async getInventoryMovementTrends(
     days: number = 30
   ): Promise<InventoryMovementTrend[]> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getInventoryMovementTrends'
+    })
+    serviceLogger.time('getInventoryMovementTrends')
+
     const supabase = createClient()
 
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - days)
+    try {
+      serviceLogger.info('Fetching inventory movement trends', { days })
 
-    const { data, error } = await supabase
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - days)
+
+      serviceLogger.db('SELECT', 'inventory_movements')
+      const { data, error } = await supabase
       .from('inventory_movements' as any)
       .select('movement_type, quantity_change, created_at')
       .gte('created_at', startDate.toISOString())
@@ -427,91 +547,149 @@ export class AnalyticsService {
       })
     })
 
+    const duration = serviceLogger.timeEnd('getInventoryMovementTrends')
+    serviceLogger.success('Inventory movement trends fetched successfully', {
+      duration,
+      days,
+      trendCount: result.length
+    })
+
     return result
+  } catch (error) {
+    serviceLogger.error('Error fetching inventory movement trends', error as Error)
+    throw error
   }
+}
 
   /**
    * Get product stock status with recommendations
    */
   static async getProductStockStatus(): Promise<ProductStockStatus[]> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getProductStockStatus'
+    })
+    serviceLogger.time('getProductStockStatus')
+
     const supabase = createClient()
 
-    const { data, error } = await supabase
-      .from('inventory')
-      .select(`
-        *,
-        products!inner(
-          name,
-          categories(name),
-          brands(name)
-        )
-      `)
-      .order('quantity', { ascending: true })
+    try {
+      serviceLogger.info('Fetching product stock status')
+      serviceLogger.db('SELECT', 'inventory')
 
-    if (error) throw error
+      const { data, error } = await supabase
+        .from('inventory')
+        .select(`
+          *,
+          products!inner(
+            name,
+            categories(name),
+            brands(name)
+          )
+        `)
+        .order('quantity', { ascending: true })
 
-    return (
-      data?.map((item: any) => {
-        const quantity = item.quantity || 0
-        const lowThreshold = item.low_stock_threshold || 10
-        const maxThreshold = item.max_stock_level || 100
+      if (error) throw error
 
-        let status: ProductStockStatus['status'] = 'adequate'
-        if (quantity === 0) {
-          status = 'critical'
-        } else if (quantity < lowThreshold * 0.5) {
-          status = 'critical'
-        } else if (quantity < lowThreshold) {
-          status = 'low'
-        } else if (quantity > maxThreshold) {
-          status = 'overstocked'
-        }
+      const result = (
+        data?.map((item: any) => {
+          const quantity = item.quantity || 0
+          const lowThreshold = item.low_stock_threshold || 10
 
-        // Estimate days of stock (simplified - assumes average daily usage)
-        const daysOfStock = quantity > 0 ? Math.ceil(quantity / 2) : 0
+          let status: ProductStockStatus['status'] = 'adequate'
+          if (quantity === 0) {
+            status = 'critical'
+          } else if (quantity < lowThreshold * 0.5) {
+            status = 'critical'
+          } else if (quantity < lowThreshold) {
+            status = 'low'
+          }
 
-        return {
-          productName: item.products?.name || 'Unknown',
-          categoryName: item.products?.categories?.name || 'Uncategorized',
-          brandName: item.products?.brands?.name || 'Unknown',
-          currentQuantity: quantity,
-          availableQuantity: item.available_quantity || 0,
-          lowStockThreshold: lowThreshold,
-          status,
-          daysOfStock,
-        }
-      }) || []
-    )
+          // Estimate days of stock (simplified - assumes average daily usage)
+          const daysOfStock = quantity > 0 ? Math.ceil(quantity / 2) : 0
+
+          return {
+            productName: item.products?.name || 'Unknown',
+            categoryName: item.products?.categories?.name || 'Uncategorized',
+            brandName: item.products?.brands?.name || 'Unknown',
+            currentQuantity: quantity,
+            availableQuantity: item.available_quantity || 0,
+            lowStockThreshold: lowThreshold,
+            status,
+            daysOfStock,
+          }
+        }) || []
+      )
+
+      const criticalCount = result.filter(r => r.status === 'critical').length
+      const lowCount = result.filter(r => r.status === 'low').length
+
+      const duration = serviceLogger.timeEnd('getProductStockStatus')
+      serviceLogger.success('Product stock status fetched successfully', {
+        duration,
+        totalProducts: result.length,
+        criticalCount,
+        lowCount
+      })
+
+      return result
+    } catch (error) {
+      serviceLogger.error('Error fetching product stock status', error as Error)
+      throw error
+    }
   }
 
   /**
    * Get aggregated analytics data for AI insights
    */
   static async getAnalyticsSnapshot() {
-    const [
-      inventoryMetrics,
-      categoryPerformance,
-      expirationMetrics,
-      salesMetrics,
-      pricingTierAnalysis,
-      productStockStatus,
-    ] = await Promise.all([
-      this.getInventoryMetrics(),
-      this.getCategoryPerformance(),
-      this.getExpirationMetrics(),
-      this.getSalesMetrics(),
-      this.getPricingTierAnalysis(),
-      this.getProductStockStatus(),
-    ])
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getAnalyticsSnapshot'
+    })
+    serviceLogger.time('getAnalyticsSnapshot')
 
-    return {
-      inventoryMetrics,
-      categoryPerformance,
-      expirationMetrics,
-      salesMetrics,
-      pricingTierAnalysis,
-      productStockStatus: productStockStatus.slice(0, 20), // Top 20 products
-      timestamp: new Date().toISOString(),
+    try {
+      serviceLogger.info('Fetching complete analytics snapshot')
+
+      const [
+        inventoryMetrics,
+        categoryPerformance,
+        expirationMetrics,
+        salesMetrics,
+        pricingTierAnalysis,
+        productStockStatus,
+      ] = await Promise.all([
+        this.getInventoryMetrics(),
+        this.getCategoryPerformance(),
+        this.getExpirationMetrics(),
+        this.getSalesMetrics(),
+        this.getPricingTierAnalysis(),
+        this.getProductStockStatus(),
+      ])
+
+      const result = {
+        inventoryMetrics,
+        categoryPerformance,
+        expirationMetrics,
+        salesMetrics,
+        pricingTierAnalysis,
+        productStockStatus: productStockStatus.slice(0, 20), // Top 20 products
+        timestamp: new Date().toISOString(),
+      }
+
+      const duration = serviceLogger.timeEnd('getAnalyticsSnapshot')
+      serviceLogger.success('Analytics snapshot completed successfully', {
+        duration,
+        categories: categoryPerformance.length,
+        totalProducts: inventoryMetrics.totalProducts,
+        totalOrders: salesMetrics.totalOrders
+      })
+
+      return result
+    } catch (error) {
+      serviceLogger.error('Error fetching analytics snapshot', error as Error)
+      throw error
     }
   }
 }

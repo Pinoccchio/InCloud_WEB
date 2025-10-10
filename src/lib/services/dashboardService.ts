@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
+import { logger } from '@/lib/logger'
 
 export interface DashboardMetrics {
   totalProducts: number
@@ -36,24 +37,37 @@ export class DashboardService {
    * Get comprehensive dashboard metrics
    */
   static async getDashboardMetrics(): Promise<DashboardMetrics> {
+    const serviceLogger = logger.child({ service: 'DashboardService', operation: 'getDashboardMetrics' })
+    serviceLogger.time('getDashboardMetrics')
+
     try {
+      serviceLogger.info('Fetching comprehensive dashboard metrics')
       const branchId = await getMainBranchId()
+      serviceLogger.debug('Retrieved branch ID', { branchId })
 
       // Get current metrics
+      serviceLogger.fetch('Fetching current metrics')
       const currentMetrics = await this.getCurrentMetrics(branchId)
 
       // Get comparison metrics (previous period)
+      serviceLogger.fetch('Fetching previous period metrics for comparison')
       const previousMetrics = await this.getPreviousMetrics(branchId)
 
       // Calculate changes
+      serviceLogger.debug('Calculating metric changes')
       const changes = this.calculateChanges(currentMetrics, previousMetrics)
 
-      return {
+      const result = {
         ...currentMetrics,
         ...changes
       }
+
+      const duration = serviceLogger.timeEnd('getDashboardMetrics')
+      serviceLogger.success(`Dashboard metrics fetched successfully`, { duration, totalProducts: result.totalProducts, totalOrders: result.totalOrders })
+
+      return result
     } catch (error) {
-      console.error('Error fetching dashboard metrics:', error)
+      serviceLogger.error('Failed to fetch dashboard metrics', error as Error)
       throw error
     }
   }
@@ -216,11 +230,16 @@ export class DashboardService {
    * Get recent activity for dashboard
    */
   static async getRecentActivity(limit: number = 10): Promise<RecentActivity[]> {
+    const serviceLogger = logger.child({ service: 'DashboardService', operation: 'getRecentActivity' })
+    serviceLogger.time('getRecentActivity')
+
     try {
+      serviceLogger.info(`Fetching recent activity (limit: ${limit})`)
       const branchId = await getMainBranchId()
       const activities: RecentActivity[] = []
 
       // Recent orders
+      serviceLogger.db('SELECT', 'orders')
       const { data: recentOrders } = await supabase
         .from('orders')
         .select(`
@@ -238,6 +257,7 @@ export class DashboardService {
         .limit(5)
 
       if (recentOrders) {
+        serviceLogger.debug(`Found ${recentOrders.length} recent orders`)
         activities.push(...recentOrders.map(order => ({
           id: `order-${order.id}`,
           type: 'order' as const,
@@ -248,6 +268,7 @@ export class DashboardService {
       }
 
       // Recent alerts (using notifications table)
+      serviceLogger.db('SELECT', 'notifications')
       const { data: recentAlerts } = await supabase
         .from('notifications')
         .select('id, type, severity, title, message, created_at')
@@ -257,6 +278,7 @@ export class DashboardService {
         .limit(5)
 
       if (recentAlerts) {
+        serviceLogger.debug(`Found ${recentAlerts.length} recent alerts`)
         activities.push(...recentAlerts.map(alert => ({
           id: `alert-${alert.id}`,
           type: 'alert' as const,
@@ -268,12 +290,17 @@ export class DashboardService {
       }
 
       // Sort by timestamp and return limited results
-      return activities
+      const result = activities
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, limit)
 
+      const duration = serviceLogger.timeEnd('getRecentActivity')
+      serviceLogger.success(`Recent activity fetched successfully`, { duration, activityCount: result.length })
+
+      return result
+
     } catch (error) {
-      console.error('Error fetching recent activity:', error)
+      serviceLogger.error('Failed to fetch recent activity', error as Error)
       return []
     }
   }
@@ -282,8 +309,13 @@ export class DashboardService {
    * Get system health status
    */
   static async getSystemHealth() {
+    const serviceLogger = logger.child({ service: 'DashboardService', operation: 'getSystemHealth' })
+
     try {
+      serviceLogger.info('Checking system health')
+
       // Test database connection
+      serviceLogger.db('SELECT', 'branches')
       const { data, error } = await supabase
         .from('branches')
         .select('id')
@@ -291,12 +323,21 @@ export class DashboardService {
 
       const dbHealthy = !error
 
-      return {
+      const health = {
         database: dbHealthy ? 'operational' : 'error',
         realtime: 'operational', // Would need actual realtime check
         analytics: 'operational'  // Would need actual analytics check
       }
+
+      if (dbHealthy) {
+        serviceLogger.success('System health check completed', health)
+      } else {
+        serviceLogger.warn('Database health check failed', { error: error?.message })
+      }
+
+      return health
     } catch (error) {
+      serviceLogger.error('System health check failed', error as Error)
       return {
         database: 'error',
         realtime: 'unknown',
@@ -309,7 +350,9 @@ export class DashboardService {
    * Force refresh dashboard data (clears any caching if implemented)
    */
   static async refreshDashboard(): Promise<void> {
+    const serviceLogger = logger.child({ service: 'DashboardService', operation: 'refreshDashboard' })
+    serviceLogger.info('Dashboard data refresh requested')
     // Implementation for cache clearing if needed
-    console.log('Dashboard data refreshed')
+    serviceLogger.success('Dashboard data refreshed')
   }
 }

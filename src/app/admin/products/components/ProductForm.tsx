@@ -8,7 +8,8 @@ import {
   CubeIcon,
   PhotoIcon,
   CurrencyDollarIcon,
-  DocumentCheckIcon
+  DocumentCheckIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline'
 import { Button, Input, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
@@ -16,6 +17,8 @@ import { Database } from '@/types/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import ImageUploader from './ImageUploader'
 import PricingTiers from './PricingTiers'
+import CategoryManagementModal from './CategoryManagementModal'
+import BrandManagementModal from './BrandManagementModal'
 import { getErrorReport, logSupabaseError } from '@/lib/utils/supabase-errors'
 
 type Product = Database['public']['Tables']['products']['Row']
@@ -45,13 +48,12 @@ interface ProductFormProps {
 interface FormData {
   name: string
   description: string
-  sku: string
-  barcode: string
+  product_id: string
   category_id: string
   brand_id: string
   unit_of_measure: string
-  is_frozen: boolean
   status: ProductStatus
+  low_stock_threshold: number | string
   images: Array<{ id: string; url: string; path: string }>
   pricingTiers: PriceTier[]
 }
@@ -78,13 +80,12 @@ export default function ProductForm({
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
-    sku: '',
-    barcode: '',
+    product_id: '',
     category_id: '',
     brand_id: '',
     unit_of_measure: 'pieces',
-    is_frozen: true,
     status: 'active',
+    low_stock_threshold: 10,
     images: [],
     pricingTiers: []
   })
@@ -97,10 +98,14 @@ export default function ProductForm({
   const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [step, setStep] = useState(1)
 
+  // Modal states for category and brand management
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false)
+
   const steps = [
     { number: 1, name: 'Basic Info', icon: CubeIcon, description: 'Product details and classification' },
     { number: 2, name: 'Images', icon: PhotoIcon, description: 'Product photos and gallery' },
-    { number: 3, name: 'Pricing', icon: CurrencyDollarIcon, description: 'Set pricing tiers and rules' },
+    { number: 3, name: 'Pricing', icon: CurrencyDollarIcon, description: 'Set pricing types and rules' },
     { number: 4, name: 'Review', icon: DocumentCheckIcon, description: 'Review and save product' }
   ] as const
 
@@ -164,17 +169,33 @@ export default function ProductForm({
   const initializeFormFromProduct = async (product: Product) => {
     console.log('🔄 Initializing form from product:', product.id)
 
+    // Load inventory data to get low stock threshold
+    let lowStockThreshold = 10 // default
+    try {
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from('inventory')
+        .select('low_stock_threshold')
+        .eq('product_id', product.id)
+        .limit(1)
+        .single()
+
+      if (!inventoryError && inventoryData) {
+        lowStockThreshold = inventoryData.low_stock_threshold || 10
+      }
+    } catch (err) {
+      console.warn('Could not load inventory threshold, using default:', err)
+    }
+
     // Set basic form data first
     setFormData({
       name: product.name,
       description: product.description || '',
-      sku: product.sku || '',
-      barcode: product.barcode || '',
+      product_id: product.sku || '',
       category_id: product.category_id || '',
       brand_id: product.brand_id || '',
       unit_of_measure: product.unit_of_measure || 'pieces',
-      is_frozen: product.is_frozen || true,
       status: product.status || 'active',
+      low_stock_threshold: lowStockThreshold,
       images: Array.isArray(product.images) ? product.images.map((img: string | { url: string; path?: string }, index) => ({
         id: `existing-${index}`,
         url: typeof img === 'string' ? img : img.url,
@@ -223,13 +244,12 @@ export default function ProductForm({
     setFormData({
       name: '',
       description: '',
-      sku: '',
-      barcode: '',
+      product_id: '',
       category_id: '',
       brand_id: '',
       unit_of_measure: 'pieces',
-      is_frozen: true,
       status: 'active',
+      low_stock_threshold: 10,
       images: [],
       pricingTiers: []
     })
@@ -249,9 +269,9 @@ export default function ProductForm({
         // Images are optional, but we could warn if none uploaded
         return null
       case 3:
-        if (formData.pricingTiers.length === 0) return 'At least one pricing tier is required'
+        if (formData.pricingTiers.length === 0) return 'At least one pricing type is required'
         const hasActiveTiers = formData.pricingTiers.some(tier => tier.is_active)
-        if (!hasActiveTiers) return 'At least one pricing tier must be active'
+        if (!hasActiveTiers) return 'At least one pricing type must be active'
         return null
       case 4:
         // Final validation - same as current validateForm()
@@ -282,17 +302,36 @@ export default function ProductForm({
   }
 
   const handleCategoryChange = (categoryId: string) => {
-    // Find the selected category
-    const selectedCategory = categories.find(cat => cat.id === categoryId)
-
-    // Auto-detect frozen status from category name
-    const isFrozen = selectedCategory?.name?.toLowerCase().includes('frozen') || false
-
-    // Update both category and frozen status
+    // Update category
     setFormData(prev => ({
       ...prev,
-      category_id: categoryId,
-      is_frozen: isFrozen
+      category_id: categoryId
+    }))
+    setError(null)
+  }
+
+  const handleCategoryCreated = (newCategory: Category) => {
+    // Add new category to the list and sort
+    const updatedCategories = [...categories, newCategory].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+    setCategories(updatedCategories)
+
+    // Auto-select the newly created category
+    handleCategoryChange(newCategory.id)
+  }
+
+  const handleBrandCreated = (newBrand: Brand) => {
+    // Add new brand to the list and sort
+    const updatedBrands = [...brands, newBrand].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+    setBrands(updatedBrands)
+
+    // Auto-select the newly created brand
+    setFormData(prev => ({
+      ...prev,
+      brand_id: newBrand.id
     }))
     setError(null)
   }
@@ -301,10 +340,10 @@ export default function ProductForm({
     if (!formData.name.trim()) return 'Product name is required'
     if (!formData.category_id) return 'Category is required'
     if (!formData.brand_id) return 'Brand is required'
-    if (formData.pricingTiers.length === 0) return 'At least one pricing tier is required'
+    if (formData.pricingTiers.length === 0) return 'At least one pricing type is required'
 
     const hasActiveTiers = formData.pricingTiers.some(tier => tier.is_active)
-    if (!hasActiveTiers) return 'At least one pricing tier must be active'
+    if (!hasActiveTiers) return 'At least one pricing type must be active'
 
     return null
   }
@@ -388,12 +427,10 @@ export default function ProductForm({
         {
           p_name: formData.name.trim(),
           p_description: formData.description.trim() || null,
-          p_sku: formData.sku.trim() || null,
-          p_barcode: formData.barcode.trim() || null,
+          p_sku: formData.product_id.trim() || null,
           p_category_id: formData.category_id || null,
           p_brand_id: formData.brand_id || null,
           p_unit_of_measure: formData.unit_of_measure,
-          p_is_frozen: formData.is_frozen,
           p_pricing_tiers: pricingTiersForFunction,
           p_admin_id: admin?.id || null
         }
@@ -436,12 +473,10 @@ export default function ProductForm({
       const productData: ProductInsert = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        sku: formData.sku.trim() || null,
-        barcode: formData.barcode.trim() || null,
+        sku: formData.product_id.trim() || null,
         category_id: formData.category_id || null,
         brand_id: formData.brand_id || null,
         unit_of_measure: formData.unit_of_measure,
-        is_frozen: formData.is_frozen,
         status: formData.status,
         created_by: admin?.id || null,
         images: formData.images.map(img => ({
@@ -511,6 +546,11 @@ export default function ProductForm({
         return product.id
       }
 
+      // Parse threshold to number for database
+      const threshold = typeof formData.low_stock_threshold === 'string'
+        ? (parseInt(formData.low_stock_threshold) || 10)
+        : formData.low_stock_threshold
+
       const { error: inventoryError } = await supabase
         .from('inventory')
         .insert({
@@ -518,8 +558,8 @@ export default function ProductForm({
           branch_id: branchData.id,
           quantity: 0,
           reserved_quantity: 0,
-          min_stock_level: 10,
-          low_stock_threshold: 10,
+          min_stock_level: threshold,
+          low_stock_threshold: threshold,
           cost_per_unit: 0,
           location: 'Main Storage',
           created_by: admin?.id
@@ -544,12 +584,10 @@ export default function ProductForm({
     const productData: ProductUpdate = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
-      sku: formData.sku.trim() || null,
-      barcode: formData.barcode.trim() || null,
+      sku: formData.product_id.trim() || null,
       category_id: formData.category_id || null,
       brand_id: formData.brand_id || null,
       unit_of_measure: formData.unit_of_measure,
-      is_frozen: formData.is_frozen,
       status: formData.status,
       images: formData.images.map(img => ({
         url: img.url,
@@ -614,6 +652,28 @@ export default function ProductForm({
       console.log('✅ New pricing tiers created')
     }
 
+    // Update inventory low stock threshold
+    console.log('🔄 Updating inventory low stock threshold')
+    // Parse threshold to number for database
+    const threshold = typeof formData.low_stock_threshold === 'string'
+      ? (parseInt(formData.low_stock_threshold) || 10)
+      : formData.low_stock_threshold
+
+    const { error: inventoryUpdateError } = await supabase
+      .from('inventory')
+      .update({
+        low_stock_threshold: threshold,
+        min_stock_level: threshold
+      })
+      .eq('product_id', product.id)
+
+    if (inventoryUpdateError) {
+      console.warn('Failed to update inventory threshold:', inventoryUpdateError)
+      // Don't throw here as the product was updated successfully
+    } else {
+      console.log('✅ Inventory threshold updated')
+    }
+
     console.log('✅ Product update complete')
   }
 
@@ -627,9 +687,9 @@ export default function ProductForm({
   const getStatusBadge = (status: ProductStatus) => {
     switch (status) {
       case 'active':
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Available</span>
       case 'inactive':
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Inactive</span>
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Unavailable</span>
       case 'discontinued':
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Discontinued</span>
       default:
@@ -665,8 +725,8 @@ export default function ProductForm({
                     {mode === 'create' ? 'Add New Product' : formData.name || 'Edit Product'}
                   </DialogTitle>
                   <div className="flex items-center space-x-2 mt-1">
-                    {formData.sku && (
-                      <span className="text-sm text-gray-600">SKU: {formData.sku}</span>
+                    {formData.product_id && (
+                      <span className="text-sm text-gray-600">Product ID: {formData.product_id}</span>
                     )}
                     {mode === 'edit' && getStatusBadge(formData.status)}
                   </div>
@@ -747,36 +807,33 @@ export default function ProductForm({
                               />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                  SKU
-                                </label>
-                                <Input
-                                  value={formData.sku}
-                                  onChange={(e) => handleInputChange('sku', e.target.value)}
-                                  placeholder="Product SKU"
-                                  className="w-full"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                  Barcode
-                                </label>
-                                <Input
-                                  value={formData.barcode}
-                                  onChange={(e) => handleInputChange('barcode', e.target.value)}
-                                  placeholder="Product barcode"
-                                  className="w-full"
-                                />
-                              </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Product ID
+                              </label>
+                              <Input
+                                value={formData.product_id}
+                                onChange={(e) => handleInputChange('product_id', e.target.value)}
+                                placeholder="Product ID (e.g., PF-TJH-1KG)"
+                                className="w-full"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Use a simple, short identifier</p>
                             </div>
 
                             <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Category *
-                              </label>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-semibold text-gray-700">
+                                  Category *
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsCategoryModalOpen(true)}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                                >
+                                  <PlusIcon className="w-3 h-3 mr-1" />
+                                  New
+                                </button>
+                              </div>
                               <select
                                 value={formData.category_id}
                                 onChange={(e) => handleCategoryChange(e.target.value)}
@@ -793,9 +850,19 @@ export default function ProductForm({
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                  Brand *
-                                </label>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="block text-sm font-semibold text-gray-700">
+                                    Brand *
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsBrandModalOpen(true)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
+                                  >
+                                    <PlusIcon className="w-3 h-3 mr-1" />
+                                    New
+                                  </button>
+                                </div>
                                 <select
                                   value={formData.brand_id}
                                   onChange={(e) => handleInputChange('brand_id', e.target.value)}
@@ -829,19 +896,37 @@ export default function ProductForm({
                               </div>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Status
-                              </label>
-                              <select
-                                value={formData.status}
-                                onChange={(e) => handleInputChange('status', e.target.value as ProductStatus)}
-                                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="discontinued">Discontinued</option>
-                              </select>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  Status
+                                </label>
+                                <select
+                                  value={formData.status}
+                                  onChange={(e) => handleInputChange('status', e.target.value as ProductStatus)}
+                                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <option value="active">Available</option>
+                                  <option value="inactive">Unavailable</option>
+                                  <option value="discontinued">Discontinued</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  Low Stock Threshold
+                                </label>
+                                <Input
+                                  type="number"
+                                  value={formData.low_stock_threshold}
+                                  onChange={(e) => handleInputChange('low_stock_threshold', e.target.value)}
+                                  placeholder="10"
+                                  min="1"
+                                  max="1000"
+                                  className="w-full"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Alert when stock falls below this level</p>
+                              </div>
                             </div>
                           </div>
 
@@ -882,7 +967,7 @@ export default function ProductForm({
                       <div className="space-y-6">
                         <div>
                           <h4 className="text-lg font-semibold text-gray-900 mb-2">Pricing Configuration</h4>
-                          <p className="text-sm text-gray-600 mb-6">Set up pricing tiers for different customer segments</p>
+                          <p className="text-sm text-gray-600 mb-6">Set up pricing types for different customer segments</p>
                           <PricingTiers
                             value={formData.pricingTiers}
                             onChange={(tiers) => handleInputChange('pricingTiers', tiers)}
@@ -934,9 +1019,9 @@ export default function ProductForm({
                               <p className="text-base text-gray-900 font-medium">{formData.images.length} uploaded</p>
                             </div>
                             <div className="space-y-1">
-                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Pricing Tiers</span>
+                              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Pricing Types</span>
                               <p className="text-base text-gray-900 font-medium">
-                                {formData.pricingTiers.filter(t => t.is_active).length} active tiers
+                                {formData.pricingTiers.filter(t => t.is_active).length} active types
                               </p>
                             </div>
                           </div>
@@ -1032,6 +1117,20 @@ export default function ProductForm({
           </DialogPanel>
         </div>
       </div>
+
+      {/* Category Management Modal */}
+      <CategoryManagementModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSuccess={handleCategoryCreated}
+      />
+
+      {/* Brand Management Modal */}
+      <BrandManagementModal
+        isOpen={isBrandModalOpen}
+        onClose={() => setIsBrandModalOpen(false)}
+        onSuccess={handleBrandCreated}
+      />
     </Dialog>
   )
 }

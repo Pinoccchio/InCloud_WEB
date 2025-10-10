@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PlusIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { Button, ConfirmDialog } from '@/components/ui'
 import { Database } from '@/types/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -12,7 +12,6 @@ import ProductsTable from './components/ProductsTable'
 import ProductFilters from './components/ProductFilters'
 import ProductForm from './components/ProductForm'
 import ProductDetailsModal from './components/ProductDetailsModal'
-import ProductImportModal from './components/ProductImportModal'
 
 type Product = Database['public']['Tables']['products']['Row'] & {
   brands?: Database['public']['Tables']['brands']['Row']
@@ -34,7 +33,6 @@ export default function ProductsPage() {
   // Modal states
   const [isProductFormOpen, setIsProductFormOpen] = useState(false)
   const [isProductDetailsOpen, setIsProductDetailsOpen] = useState(false)
-  const [isProductImportOpen, setIsProductImportOpen] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null)
@@ -53,10 +51,6 @@ export default function ProductsPage() {
     setSelectedProduct(null)
     setFormMode('create')
     setIsProductFormOpen(true)
-  }
-
-  const handleImportProducts = () => {
-    setIsProductImportOpen(true)
   }
 
   const handleExportProducts = async () => {
@@ -86,37 +80,6 @@ export default function ProductsPage() {
         type: 'error',
         title: 'Export Failed',
         message: error instanceof Error ? error.message : 'Failed to export products'
-      })
-    }
-  }
-
-  const handleDownloadTemplate = async () => {
-    try {
-      const response = await fetch('/api/templates?type=products')
-      if (!response.ok) {
-        throw new Error('Failed to download template')
-      }
-
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'InCloud_Products_Import_Template.xlsx'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-
-      addToast({
-        type: 'success',
-        title: 'Template Downloaded',
-        message: 'Import template has been downloaded successfully.'
-      })
-    } catch (error) {
-      addToast({
-        type: 'error',
-        title: 'Download Failed',
-        message: error instanceof Error ? error.message : 'Failed to download template'
       })
     }
   }
@@ -222,17 +185,6 @@ export default function ProductsPage() {
     setRefreshTrigger(prev => prev + 1)
   }
 
-  const handleImportSuccess = (result: { successCount: number; errorCount: number }) => {
-    addToast({
-      type: 'success',
-      title: 'Import Completed',
-      message: `Successfully imported ${result.successCount} products. ${result.errorCount > 0 ? `${result.errorCount} errors encountered.` : ''}`
-    })
-
-    // Refresh the table
-    setRefreshTrigger(prev => prev + 1)
-  }
-
   const clearAllFilters = () => {
     setSearchQuery('')
     setCategoryFilter('')
@@ -248,26 +200,10 @@ export default function ProductsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Product Management</h1>
           <p className="text-gray-600 mt-1">
-            Manage your frozen food catalog with pricing tiers and inventory tracking
+            Manage your frozen food catalog with pricing types and inventory tracking
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={handleDownloadTemplate}
-            className="flex items-center"
-          >
-            <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-            Download Template
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleImportProducts}
-            className="flex items-center"
-          >
-            <ArrowUpTrayIcon className="w-4 h-4 mr-2" />
-            Import Products
-          </Button>
           <Button
             variant="outline"
             onClick={handleExportProducts}
@@ -342,14 +278,6 @@ export default function ProductsPage() {
           handleDeleteProduct(product)
         }}
       />
-
-      {/* Product Import Modal */}
-      <ProductImportModal
-        isOpen={isProductImportOpen}
-        onClose={() => setIsProductImportOpen(false)}
-        onSuccess={handleImportSuccess}
-      />
-
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

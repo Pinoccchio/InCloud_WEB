@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
+import { logger } from '@/lib/logger'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -8,12 +9,22 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function GET(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'GET /api/products/export',
+    operation: 'exportProducts'
+  })
+  routeLogger.time('exportProducts')
+
   try {
     const { searchParams } = new URL(request.url)
     const format = searchParams.get('format') || 'xlsx'
     const includeInactive = searchParams.get('includeInactive') === 'true'
 
+    routeLogger.info('Starting product export', { format, includeInactive })
+
     // Fetch products with related data
+    routeLogger.info('Fetching products from database')
+    routeLogger.db('SELECT', 'products')
     let query = supabase
       .from('products')
       .select(`
@@ -21,9 +32,7 @@ export async function GET(request: NextRequest) {
         name,
         description,
         sku,
-        barcode,
         unit_of_measure,
-        is_frozen,
         status,
         created_at,
         categories!inner (
@@ -49,6 +58,7 @@ export async function GET(request: NextRequest) {
     const { data: products, error } = await query
 
     if (error) {
+      routeLogger.error('Failed to fetch products', error)
       return NextResponse.json(
         { error: 'Failed to fetch products' },
         { status: 500 }
@@ -56,13 +66,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (!products || products.length === 0) {
+      routeLogger.warn('No products found for export')
       return NextResponse.json(
         { error: 'No products found' },
         { status: 404 }
       )
     }
 
+    routeLogger.debug('Products fetched successfully', { count: products.length })
+
     // Transform data for Excel export
+    routeLogger.info('Transforming data for export', { format })
     const excelData = products.map(product => {
       // Get pricing tiers
       const priceTiers = product.price_tiers || []
@@ -75,11 +89,9 @@ export async function GET(request: NextRequest) {
         'Product Name': product.name,
         'Description': product.description || '',
         'SKU': product.sku || '',
-        'Barcode': product.barcode || '',
         'Category': product.categories?.name || '',
         'Brand': product.brands?.name || '',
         'Unit of Measure': product.unit_of_measure,
-        'Is Frozen': product.is_frozen ? 'Yes' : 'No',
         'Status': product.status,
         'SRP Price': srpTier?.price || 0,
         'SRP Min Qty': srpTier?.min_quantity || 1,
@@ -93,7 +105,11 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    routeLogger.debug('Data transformation completed', { rows: excelData.length })
+
     if (format === 'json') {
+      const duration = routeLogger.timeEnd('exportProducts')
+      routeLogger.success('JSON export completed', { duration, count: products.length })
       return NextResponse.json({
         products: excelData,
         totalCount: products.length,
@@ -102,6 +118,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Create Excel workbook
+    routeLogger.info('Generating Excel file')
     const workbook = XLSX.utils.book_new()
     const worksheet = XLSX.utils.json_to_sheet(excelData)
 
@@ -110,11 +127,9 @@ export async function GET(request: NextRequest) {
       { wch: 25 }, // Product Name
       { wch: 40 }, // Description
       { wch: 15 }, // SKU
-      { wch: 15 }, // Barcode
       { wch: 15 }, // Category
       { wch: 15 }, // Brand
       { wch: 15 }, // Unit of Measure
-      { wch: 10 }, // Is Frozen
       { wch: 10 }, // Status
       { wch: 12 }, // SRP Price
       { wch: 12 }, // SRP Min Qty
@@ -138,6 +153,14 @@ export async function GET(request: NextRequest) {
     const timestamp = new Date().toISOString().split('T')[0]
     const filename = `InCloud_Products_Export_${timestamp}.xlsx`
 
+    const duration = routeLogger.timeEnd('exportProducts')
+    routeLogger.success('Excel export completed', {
+      duration,
+      filename,
+      productCount: products.length,
+      fileSize: excelBuffer.length
+    })
+
     // Return Excel file
     return new NextResponse(excelBuffer, {
       status: 200,
@@ -149,7 +172,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Product export error:', error)
+    routeLogger.error('Product export error', error as Error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to export products'

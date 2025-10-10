@@ -35,11 +35,9 @@ interface InventoryData {
   available_quantity: number
   low_stock_threshold: number
   min_stock_level: number
-  max_stock_level: number
   location?: string
   cost_per_unit?: number
   last_restock_date?: string
-  last_counted_date?: string
 }
 
 interface ProductBatch {
@@ -354,16 +352,6 @@ export default function ProductDetailsModal({
                         </div>
                       )}
 
-                      {product.barcode && (
-                        <div className="flex items-center space-x-3">
-                          <TagIcon className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">Barcode</p>
-                            <p className="text-sm text-gray-900 font-mono">{product.barcode}</p>
-                          </div>
-                        </div>
-                      )}
-
                       <div className="flex items-center space-x-3">
                         <ArchiveBoxIcon className="w-5 h-5 text-gray-400" />
                         <div>
@@ -384,10 +372,10 @@ export default function ProductDetailsModal({
                     </div>
                   </div>
 
-                  {/* Pricing Tiers */}
+                  {/* Pricing Types */}
                   {product.price_tiers && product.price_tiers.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-3">Pricing Tiers</h4>
+                      <h4 className="text-sm font-medium text-gray-900 mb-3">Pricing Types</h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {product.price_tiers.filter(tier => tier.is_active).map(tier => (
                           <div key={tier.id} className="border border-gray-200 rounded-lg p-3">
@@ -468,10 +456,6 @@ export default function ProductDetailsModal({
                           <div>
                             <dt className="font-medium text-gray-700">Min Stock Level</dt>
                             <dd className="text-gray-900">{inventoryData.min_stock_level || 'Not set'}</dd>
-                          </div>
-                          <div>
-                            <dt className="font-medium text-gray-700">Max Stock Level</dt>
-                            <dd className="text-gray-900">{inventoryData.max_stock_level || 'Not set'}</dd>
                           </div>
                           <div>
                             <dt className="font-medium text-gray-700">Location</dt>

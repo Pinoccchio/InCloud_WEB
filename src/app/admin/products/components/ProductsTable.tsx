@@ -346,14 +346,14 @@ export default function ProductsTable({
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <CheckCircleIcon className="w-3 h-3 mr-1" />
-            Active
+            Available
           </span>
         )
       case 'inactive':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <ExclamationTriangleIcon className="w-3 h-3 mr-1" />
-            Inactive
+            Unavailable
           </span>
         )
       case 'discontinued':
@@ -529,7 +529,7 @@ export default function ProductsTable({
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          SKU: {product.sku || 'N/A'}
+                          Product ID: {product.sku || 'N/A'}
                         </div>
                       </div>
                     </div>

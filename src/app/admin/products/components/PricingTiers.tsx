@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { PlusIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { Button, Input } from '@/components/ui'
 import { Database } from '@/types/supabase'
 
 type PricingTier = Database['public']['Enums']['pricing_tier']
-type PriceTierRow = Database['public']['Tables']['price_tiers']['Row']
-type PriceTierInsert = Database['public']['Tables']['price_tiers']['Insert']
 
 interface PriceTier {
   id?: string
@@ -27,331 +25,432 @@ interface PricingTiersProps {
 const TIER_LABELS = {
   wholesale: { label: 'Wholesale', description: 'Bulk orders for retailers' },
   retail: { label: 'Retail', description: 'Individual customer pricing' },
-  box: { label: 'Box Pricing', description: 'Per box/case pricing' }
+  bulk: { label: 'Bulk Pricing', description: 'Large volume/bulk pricing' }
 }
 
-const TIER_COLORS = {
-  wholesale: 'bg-blue-50 text-blue-700 border-blue-200',
-  retail: 'bg-green-50 text-green-700 border-green-200',
-  box: 'bg-purple-50 text-purple-700 border-purple-200'
+const TIER_BADGE_COLORS = {
+  wholesale: 'bg-blue-100 text-blue-800 border-blue-200',
+  retail: 'bg-green-100 text-green-800 border-green-200',
+  bulk: 'bg-purple-100 text-purple-800 border-purple-200'
 }
 
 export default function PricingTiers({ value, onChange, disabled = false }: PricingTiersProps) {
   const [tiers, setTiers] = useState<PriceTier[]>(value)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [isAdding, setIsAdding] = useState(false)
+  const [newTier, setNewTier] = useState<PriceTier>({
+    tier_type: 'retail',
+    price: '',
+    min_quantity: '',
+    max_quantity: '',
+    is_active: true
+  })
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setTiers(value)
   }, [value])
 
-  const validateTier = (tier: PriceTier, index: number): string | null => {
-    // Parse string values to numbers for validation
+  const getAvailableTierTypes = (): PricingTier[] => {
+    const usedTypes = new Set(tiers.map(t => t.tier_type))
+    return (Object.keys(TIER_LABELS) as PricingTier[]).filter(type => !usedTypes.has(type))
+  }
+
+  const validateTier = (tier: PriceTier): string | null => {
     const price = typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price
     const minQuantity = typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) : tier.min_quantity
-    const maxQuantity = typeof tier.max_quantity === 'string' ? parseInt(tier.max_quantity) : tier.max_quantity
+    const maxQuantity = tier.max_quantity ? (typeof tier.max_quantity === 'string' ? parseInt(tier.max_quantity) : tier.max_quantity) : null
 
-    // Check for empty required fields
-    if (!tier.price || tier.price === '') {
-      return 'Price is required'
-    }
-    if (!tier.min_quantity || tier.min_quantity === '') {
-      return 'Minimum quantity is required'
-    }
-
-    if (isNaN(price) || price <= 0) {
+    if (!tier.price || tier.price === '' || isNaN(price) || price <= 0) {
       return 'Price must be greater than 0'
     }
 
-    if (isNaN(minQuantity) || minQuantity <= 0) {
+    if (!tier.min_quantity || tier.min_quantity === '' || isNaN(minQuantity) || minQuantity <= 0) {
       return 'Minimum quantity must be greater than 0'
     }
 
-    if (tier.max_quantity && tier.max_quantity !== '' && (!isNaN(maxQuantity) && maxQuantity <= minQuantity)) {
+    if (maxQuantity !== null && maxQuantity <= minQuantity) {
       return 'Maximum quantity must be greater than minimum quantity'
-    }
-
-    // Check for overlapping quantity ranges with other tiers of the same type
-    const otherTiers = tiers.filter((_, i) => i !== index && _.tier_type === tier.tier_type)
-    for (const otherTier of otherTiers) {
-      const otherMin = typeof otherTier.min_quantity === 'string' ? parseInt(otherTier.min_quantity) : otherTier.min_quantity
-      const otherMax = typeof otherTier.max_quantity === 'string' ? parseInt(otherTier.max_quantity) : otherTier.max_quantity || Infinity
-
-      const currentMin = minQuantity
-      const currentMax = maxQuantity || Infinity
-
-      // Skip validation if other tier has invalid data
-      if (isNaN(otherMin)) continue
-
-      // Check if ranges overlap
-      if (
-        (currentMin >= otherMin && currentMin <= otherMax) ||
-        (currentMax >= otherMin && currentMax <= otherMax) ||
-        (otherMin >= currentMin && otherMin <= currentMax)
-      ) {
-        return 'Quantity range overlaps with another tier of the same type'
-      }
     }
 
     return null
   }
 
-  const validateAllTiers = (newTiers: PriceTier[]): Record<string, string> => {
-    const newErrors: Record<string, string> = {}
+  const handleAddTier = () => {
+    const validationError = validateTier(newTier)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
 
-    newTiers.forEach((tier, index) => {
-      const error = validateTier(tier, index)
-      if (error) {
-        newErrors[`tier-${index}`] = error
-      }
-    })
-
-    return newErrors
-  }
-
-  const updateTier = (index: number, updates: Partial<PriceTier>) => {
-    const newTiers = [...tiers]
-    newTiers[index] = { ...newTiers[index], ...updates }
-
-    const newErrors = validateAllTiers(newTiers)
-    setErrors(newErrors)
+    const newTiers = [...tiers, newTier]
     setTiers(newTiers)
     onChange(newTiers)
-  }
 
-  const addTier = () => {
-    const newTier: PriceTier = {
-      tier_type: 'retail',
+    // Reset form
+    setIsAdding(false)
+    const availableTypes = (Object.keys(TIER_LABELS) as PricingTier[]).filter(
+      type => !newTiers.map(t => t.tier_type).includes(type)
+    )
+    setNewTier({
+      tier_type: availableTypes[0] || 'retail',
       price: '',
       min_quantity: '',
       max_quantity: '',
       is_active: true
+    })
+    setError(null)
+  }
+
+  const handleUpdateTier = (index: number, updates: Partial<PriceTier>) => {
+    const updatedTiers = [...tiers]
+    updatedTiers[index] = { ...updatedTiers[index], ...updates }
+
+    const validationError = validateTier(updatedTiers[index])
+    if (validationError) {
+      setError(validationError)
+      return
     }
 
-    const newTiers = [...tiers, newTier]
-    const newErrors = validateAllTiers(newTiers)
-    setErrors(newErrors)
-    setTiers(newTiers)
-    onChange(newTiers)
+    setTiers(updatedTiers)
+    onChange(updatedTiers)
+    setEditingIndex(null)
+    setError(null)
   }
 
-  const removeTier = (index: number) => {
+  const handleRemoveTier = (index: number) => {
     const newTiers = tiers.filter((_, i) => i !== index)
-    const newErrors = validateAllTiers(newTiers)
-    setErrors(newErrors)
     setTiers(newTiers)
     onChange(newTiers)
+    setError(null)
   }
 
-  const getTierTypeOptions = (currentIndex: number) => {
-    const usedTypes = new Set(
-      tiers
-        .map((tier, index) => ({ tier, index }))
-        .filter(({ index }) => index !== currentIndex)
-        .map(({ tier }) => tier.tier_type)
-    )
-
-    return Object.entries(TIER_LABELS).filter(([key]) => !usedTypes.has(key as PricingTier))
-  }
-
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | string) => {
+    const numValue = typeof value === 'string' ? parseFloat(value) : value
+    if (isNaN(numValue)) return '₱0.00'
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
       minimumFractionDigits: 2
-    }).format(value)
+    }).format(numValue)
   }
+
+  const formatQuantityRange = (min: number | string, max?: number | string) => {
+    const minVal = typeof min === 'string' ? (min || '?') : min
+    if (!max || max === '') {
+      return `${minVal}+ units`
+    }
+    const maxVal = typeof max === 'string' ? max : max
+    return `${minVal}-${maxVal} units`
+  }
+
+  const availableTierTypes = getAvailableTierTypes()
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium text-gray-900">Pricing Tiers</h3>
+          <h3 className="text-lg font-medium text-gray-900">Pricing Types</h3>
           <p className="text-sm text-gray-600">
-            Set different prices for wholesale, retail, and box quantities
+            Configure pricing for wholesale, retail, and bulk quantities
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={addTier}
-          disabled={disabled || tiers.length >= 3}
-          size="sm"
-          className="flex items-center"
-        >
-          <PlusIcon className="w-4 h-4 mr-2" />
-          Add Tier
-        </Button>
       </div>
 
-      {tiers.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-          <p className="text-gray-500 mb-4">No pricing tiers defined</p>
-          <Button
-            type="button"
-            onClick={addTier}
-            disabled={disabled}
-            variant="outline"
-          >
-            Add Your First Pricing Tier
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {tiers.map((tier, index) => {
-            const error = errors[`tier-${index}`]
-            const tierTypeOptions = getTierTypeOptions(index)
-
-            return (
-              <div
-                key={`tier-${index}`}
-                className={`p-6 border rounded-lg ${TIER_COLORS[tier.tier_type]} ${
-                  error ? 'border-red-300' : ''
-                }`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-4 mb-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tier Type
-                        </label>
-                        <select
-                          value={tier.tier_type}
-                          onChange={(e) => updateTier(index, { tier_type: e.target.value as PricingTier })}
-                          disabled={disabled}
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                        >
-                          {/* Keep current option even if used elsewhere */}
-                          <option value={tier.tier_type}>
-                            {TIER_LABELS[tier.tier_type].label}
-                          </option>
-                          {/* Add unused options */}
-                          {tierTypeOptions
-                            .filter(([key]) => key !== tier.tier_type)
-                            .map(([key, config]) => (
-                              <option key={key} value={key}>
-                                {config.label}
-                              </option>
-                            ))}
-                        </select>
-                        <p className="mt-1 text-xs text-gray-600">
-                          {TIER_LABELS[tier.tier_type].description}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center">
-                        <label className="flex items-center">
+      {/* Main Consolidated Box */}
+      <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+        {/* Pricing Types List */}
+        {tiers.length > 0 ? (
+          <div className="divide-y divide-gray-200">
+            {tiers.map((tier, index) => (
+              <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                {editingIndex === index ? (
+                  /* Edit Mode */
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${TIER_BADGE_COLORS[tier.tier_type]}`}>
+                          {TIER_LABELS[tier.tier_type].label}
+                        </span>
+                        <label className="flex items-center text-sm font-medium text-gray-900">
                           <input
                             type="checkbox"
                             checked={tier.is_active}
-                            onChange={(e) => updateTier(index, { is_active: e.target.checked })}
-                            disabled={disabled}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-2"
+                            onChange={(e) => handleUpdateTier(index, { is_active: e.target.checked })}
+                            className="h-5 w-5 text-blue-600 bg-white border-2 border-gray-400 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 mr-2 cursor-pointer checked:bg-blue-600 checked:border-blue-600"
                           />
-                          <span className="text-sm text-gray-700">Active</span>
+                          Active
                         </label>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            const validationError = validateTier(tier)
+                            if (validationError) {
+                              setError(validationError)
+                            } else {
+                              setEditingIndex(null)
+                              setError(null)
+                            }
+                          }}
+                          className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                          title="Save"
+                        >
+                          <CheckIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingIndex(null)
+                            setError(null)
+                          }}
+                          className="p-1 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded"
+                          title="Cancel"
+                        >
+                          <XMarkIcon className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Price (₱)
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Price (₱) *
                         </label>
                         <Input
                           type="number"
                           min="0"
                           step="0.01"
                           value={tier.price}
-                          onChange={(e) => {
-                            // Store raw string value during typing, like RestockModal
-                            updateTier(index, { price: e.target.value })
-                          }}
+                          onChange={(e) => handleUpdateTier(index, { price: e.target.value })}
                           placeholder="0.00"
-                          disabled={disabled}
-                          className={error ? 'border-red-300' : ''}
+                          className="text-sm"
                         />
-                        {tier.price && tier.price !== '' && !isNaN(typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price) && (typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price) > 0 && (
-                          <p className="mt-1 text-xs text-gray-600">
-                            {formatCurrency(typeof tier.price === 'string' ? parseFloat(tier.price) : tier.price)}
-                          </p>
-                        )}
                       </div>
-
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Min Quantity
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Min Quantity *
                         </label>
                         <Input
                           type="number"
                           min="1"
                           value={tier.min_quantity}
-                          onChange={(e) => {
-                            // Store raw string value during typing, like RestockModal
-                            updateTier(index, { min_quantity: e.target.value })
-                          }}
+                          onChange={(e) => handleUpdateTier(index, { min_quantity: e.target.value })}
                           placeholder="1"
-                          disabled={disabled}
-                          className={error ? 'border-red-300' : ''}
+                          className="text-sm"
                         />
                       </div>
-
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Max Quantity (Optional)
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Max Quantity
                         </label>
                         <Input
                           type="number"
                           min={(typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity) + 1}
                           value={tier.max_quantity || ''}
-                          onChange={(e) => {
-                            // Store raw string value during typing, like RestockModal
-                            updateTier(index, { max_quantity: e.target.value })
-                          }}
-                          disabled={disabled}
-                          className={error ? 'border-red-300' : ''}
+                          onChange={(e) => handleUpdateTier(index, { max_quantity: e.target.value })}
                           placeholder="Unlimited"
+                          className="text-sm"
                         />
                       </div>
                     </div>
 
                     {error && (
-                      <div className="mt-3 flex items-center text-red-600">
-                        <ExclamationTriangleIcon className="w-4 h-4 mr-1" />
-                        <span className="text-sm">{error}</span>
+                      <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                        {error}
                       </div>
                     )}
                   </div>
+                ) : (
+                  /* View Mode */
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${TIER_BADGE_COLORS[tier.tier_type]}`}>
+                        {TIER_LABELS[tier.tier_type].label}
+                      </span>
+                      <div className="flex items-center space-x-6 text-sm">
+                        <div>
+                          <span className="text-gray-500 text-xs">Price:</span>
+                          <span className="ml-1 font-semibold text-gray-900">
+                            {formatCurrency(tier.price)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-xs">Quantity:</span>
+                          <span className="ml-1 text-gray-700">
+                            {formatQuantityRange(tier.min_quantity, tier.max_quantity)}
+                          </span>
+                        </div>
+                        <div>
+                          {tier.is_active ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setEditingIndex(index)}
+                        disabled={disabled}
+                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                        title="Edit pricing type"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveTier(index)}
+                        disabled={disabled}
+                        className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                        title="Remove pricing type"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-gray-500">
+            <p className="text-sm mb-2">No pricing types configured</p>
+            <p className="text-xs text-gray-400">Add your first pricing type to get started</p>
+          </div>
+        )}
 
+        {/* Add New Pricing Type Section */}
+        {availableTierTypes.length > 0 && (
+          <div className="border-t border-gray-200 bg-gray-50 p-4">
+            {isAdding ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-900">Add New Pricing Type</h4>
                   <button
-                    type="button"
-                    onClick={() => removeTier(index)}
-                    disabled={disabled}
-                    className="ml-4 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
-                    title="Remove tier"
+                    onClick={() => {
+                      setIsAdding(false)
+                      setError(null)
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900"
                   >
-                    <TrashIcon className="w-4 h-4" />
+                    Cancel
                   </button>
                 </div>
 
-                {/* Quantity Range Display */}
-                <div className="mt-4 p-3 bg-white bg-opacity-50 rounded border border-gray-200">
-                  <div className="text-sm">
-                    <span className="font-medium">Applies to orders of: </span>
-                    <span className="text-gray-700">
-                      {typeof tier.min_quantity === 'string' ? (tier.min_quantity || '?') : tier.min_quantity} - {tier.max_quantity && tier.max_quantity !== '' ? (typeof tier.max_quantity === 'string' ? tier.max_quantity : tier.max_quantity) : '∞'} units
-                    </span>
+                <div className="grid grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Type *
+                    </label>
+                    <select
+                      value={newTier.tier_type}
+                      onChange={(e) => setNewTier({ ...newTier, tier_type: e.target.value as PricingTier })}
+                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {availableTierTypes.map(type => (
+                        <option key={type} value={type}>
+                          {TIER_LABELS[type].label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Price (₱) *
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newTier.price}
+                      onChange={(e) => setNewTier({ ...newTier, price: e.target.value })}
+                      placeholder="0.00"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Min Qty *
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={newTier.min_quantity}
+                      onChange={(e) => setNewTier({ ...newTier, min_quantity: e.target.value })}
+                      placeholder="1"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Max Qty
+                    </label>
+                    <Input
+                      type="number"
+                      min={(typeof newTier.min_quantity === 'string' ? parseInt(newTier.min_quantity) || 1 : newTier.min_quantity) + 1}
+                      value={newTier.max_quantity || ''}
+                      onChange={(e) => setNewTier({ ...newTier, max_quantity: e.target.value })}
+                      placeholder="∞"
+                      className="text-sm"
+                    />
                   </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
 
-      {/* Summary */}
-      {tiers.length > 0 && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h4 className="font-medium text-gray-900 mb-2">Pricing Summary</h4>
+                <div className="flex items-center space-x-2">
+                  <label className="flex items-center text-sm font-medium text-gray-900">
+                    <input
+                      type="checkbox"
+                      checked={newTier.is_active}
+                      onChange={(e) => setNewTier({ ...newTier, is_active: e.target.checked })}
+                      className="h-5 w-5 text-blue-600 bg-white border-2 border-gray-400 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 mr-2 cursor-pointer checked:bg-blue-600 checked:border-blue-600"
+                    />
+                    Active
+                  </label>
+                </div>
+
+                {error && (
+                  <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleAddTier}
+                    size="sm"
+                    disabled={disabled}
+                  >
+                    Add Pricing Type
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => setIsAdding(true)}
+                disabled={disabled || tiers.length >= 3}
+                variant="outline"
+                size="sm"
+                className="w-full flex items-center justify-center"
+              >
+                <PlusIcon className="w-4 h-4 mr-2" />
+                Add Pricing Type
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Summary Section */}
+      {tiers.length > 0 && tiers.some(t => t.is_active) && (
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-100">
+          <h4 className="font-medium text-gray-900 mb-3 text-sm">Pricing Summary</h4>
           <div className="space-y-2">
             {tiers
               .filter(tier => tier.is_active)
@@ -361,16 +460,17 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                 return aMin - bMin
               })
               .map((tier, index) => (
-                <div key={index} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">
-                    {TIER_LABELS[tier.tier_type].label}
-                    {tier.max_quantity && tier.max_quantity !== ''
-                      ? ` (${typeof tier.min_quantity === 'string' ? tier.min_quantity : tier.min_quantity}-${typeof tier.max_quantity === 'string' ? tier.max_quantity : tier.max_quantity} units)`
-                      : ` (${typeof tier.min_quantity === 'string' ? tier.min_quantity : tier.min_quantity}+ units)`
-                    }
-                  </span>
-                  <span className="font-medium text-gray-900">
-                    {formatCurrency(typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price)}
+                <div key={index} className="flex justify-between items-center text-sm bg-white bg-opacity-60 px-3 py-2 rounded">
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TIER_BADGE_COLORS[tier.tier_type]}`}>
+                      {TIER_LABELS[tier.tier_type].label}
+                    </span>
+                    <span className="text-gray-600 text-xs">
+                      {formatQuantityRange(tier.min_quantity, tier.max_quantity)}
+                    </span>
+                  </div>
+                  <span className="font-semibold text-gray-900">
+                    {formatCurrency(tier.price)}
                   </span>
                 </div>
               ))}

@@ -1,17 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSuperAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
+import { logger } from '@/lib/logger'
 
 export async function DELETE(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'DELETE /api/admin/delete-user',
+    operation: 'deleteAdminUser'
+  })
+  routeLogger.time('deleteAdminUser')
+
   try {
+    routeLogger.info('Starting admin user deletion request')
+
     // Get admin context and validate permissions
     const { client, currentAdminId, requestBody } = await validateSuperAdminWithContext(request)
     const { adminId, reason } = requestBody
+
+    routeLogger.debug('Request validated', {
+      currentAdminId,
+      targetAdminId: adminId,
+      hasReason: !!reason
+    })
 
     // Get audit metadata
     const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!adminId) {
+      routeLogger.warn('Missing required field: adminId')
       return NextResponse.json(
         { error: 'Missing required field: adminId' },
         { status: 400 }
@@ -19,6 +35,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get admin details before deletion
+    routeLogger.info('Fetching admin details before deletion', { adminId })
+    routeLogger.db('SELECT', 'admins')
     const { data: adminToDelete, error: fetchError } = await client
       .from('admins')
       .select('id, full_name, role, user_id')
@@ -26,14 +44,22 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (fetchError || !adminToDelete) {
+      routeLogger.warn('Admin not found', { adminId, error: fetchError?.message })
       return NextResponse.json(
         { error: 'Admin not found' },
         { status: 404 }
       )
     }
 
+    routeLogger.debug('Admin found', {
+      fullName: adminToDelete.full_name,
+      role: adminToDelete.role,
+      hasUserId: !!adminToDelete.user_id
+    })
+
     // Security checks
     if (adminToDelete.id === currentAdminId) {
+      routeLogger.warn('Attempted to delete own account', { adminId })
       return NextResponse.json(
         { error: 'Cannot delete your own account' },
         { status: 403 }
@@ -41,13 +67,18 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (adminToDelete.role === 'super_admin') {
+      routeLogger.warn('Attempted to delete super admin', { adminId, fullName: adminToDelete.full_name })
       return NextResponse.json(
         { error: 'Cannot delete super admin accounts' },
         { status: 403 }
       )
     }
 
+    routeLogger.info('Security checks passed')
+
     // Step 1: Get system admin ID for reassignment
+    routeLogger.info('Looking up system admin for record reassignment')
+    routeLogger.db('SELECT', 'admins')
     const { data: systemAdmin, error: systemAdminError } = await client
       .from('admins')
       .select('id')
@@ -56,7 +87,7 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (systemAdminError || !systemAdmin) {
-      console.error('System admin not found:', systemAdminError)
+      routeLogger.error('System admin not found', systemAdminError)
       return NextResponse.json(
         { error: 'System admin not found for record reassignment' },
         { status: 500 }
@@ -64,9 +95,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     const systemAdminId = systemAdmin.id
+    routeLogger.debug('System admin found', { systemAdminId })
 
     // Step 2: Handle dependent records before deletion
-    console.log(`Reassigning records from admin ${adminId} to system admin ${systemAdminId}`)
+    routeLogger.info('Starting record reassignment and cleanup', { fromAdmin: adminId, toSystemAdmin: systemAdminId })
 
     // Delete user-specific records (these should be removed, not reassigned)
     const userSpecificTables = ['user_preferences', 'notification_settings']

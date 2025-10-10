@@ -497,10 +497,10 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {/* Pricing Tier Analysis */}
+          {/* Pricing Type Analysis */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Pricing Tier Analysis
+              Pricing Type Analysis
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {pricingTierAnalysis.map((tier: PricingTierAnalysis) => (

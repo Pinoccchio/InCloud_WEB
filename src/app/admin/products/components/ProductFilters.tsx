@@ -101,7 +101,7 @@ export default function ProductFilters({
           </div>
           <Input
             type="text"
-            placeholder="Search products by name, SKU, or description..."
+            placeholder="Search products by name, Product ID, or description..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="pl-10 pr-4"
@@ -191,8 +191,8 @@ export default function ProductFilters({
                 className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
               >
                 <option value="" className="text-gray-900 font-medium">All Status</option>
-                <option value="active" className="text-gray-900 font-medium">Active</option>
-                <option value="inactive" className="text-gray-900 font-medium">Inactive</option>
+                <option value="active" className="text-gray-900 font-medium">Available</option>
+                <option value="inactive" className="text-gray-900 font-medium">Unavailable</option>
                 <option value="discontinued" className="text-gray-900 font-medium">Discontinued</option>
               </select>
             </div>
@@ -248,7 +248,7 @@ export default function ProductFilters({
                 onClick={() => onStatusChange(statusFilter === 'active' ? '' : 'active')}
                 className="text-xs"
               >
-                Active Products
+                Available Products
               </Button>
 
               <Button
@@ -258,7 +258,7 @@ export default function ProductFilters({
                 onClick={() => onStatusChange(statusFilter === 'inactive' ? '' : 'inactive')}
                 className="text-xs"
               >
-                Inactive Products
+                Unavailable Products
               </Button>
             </div>
           </div>
