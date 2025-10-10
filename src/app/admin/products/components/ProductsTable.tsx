@@ -35,6 +35,10 @@ interface ProductsTableProps {
   onEdit?: (product: Product) => void
   onDelete?: (product: Product) => void
   onView?: (product: Product) => void
+  selectedProducts?: Set<string>
+  onSelectionChange?: (selectedIds: Set<string>) => void
+  onBulkExport?: (productIds: string[]) => void
+  onBulkDelete?: (productIds: string[]) => void
 }
 
 export default function ProductsTable({
@@ -45,16 +49,24 @@ export default function ProductsTable({
   stockFilter = '',
   onEdit,
   onDelete,
-  onView
+  onView,
+  selectedProducts: externalSelectedProducts,
+  onSelectionChange,
+  onBulkExport,
+  onBulkDelete
 }: ProductsTableProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
+  const [internalSelectedProducts, setInternalSelectedProducts] = useState<Set<string>>(new Set())
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Product
     direction: 'asc' | 'desc'
   }>({ key: 'name', direction: 'asc' })
+
+  // Use external selection if provided, otherwise use internal
+  const selectedProducts = externalSelectedProducts !== undefined ? externalSelectedProducts : internalSelectedProducts
+  const setSelectedProducts = onSelectionChange || setInternalSelectedProducts
 
   // Dropdown state management (similar to super admin pattern)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
@@ -582,13 +594,19 @@ export default function ProductsTable({
               {selectedProducts.size} product(s) selected
             </span>
             <div className="flex space-x-2">
-              <Button size="sm" variant="outline">
-                Bulk Edit
-              </Button>
-              <Button size="sm" variant="outline">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onBulkExport?.(Array.from(selectedProducts))}
+              >
                 Export
               </Button>
-              <Button size="sm" variant="outline">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onBulkDelete?.(Array.from(selectedProducts))}
+                className="text-red-600 border-red-300 hover:bg-red-50"
+              >
                 Delete Selected
               </Button>
             </div>

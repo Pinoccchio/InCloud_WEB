@@ -41,6 +41,11 @@ export default function ProductsPage() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Bulk actions
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
+  const [productsToDelete, setProductsToDelete] = useState<string[] | null>(null)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+
   // Table refresh trigger
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -193,6 +198,95 @@ export default function ProductsPage() {
     setStockFilter('')
   }
 
+  // Bulk action handlers
+  const handleBulkExport = async (productIds: string[]) => {
+    try {
+      const response = await fetch('/api/products/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ productIds }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to export selected products')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Selected_Products_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      addToast({
+        type: 'success',
+        title: 'Export Successful',
+        message: `${productIds.length} product(s) exported successfully.`
+      })
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Export Failed',
+        message: error instanceof Error ? error.message : 'Failed to export selected products'
+      })
+    }
+  }
+
+  const handleBulkDelete = (productIds: string[]) => {
+    if (productIds.length === 0) return
+    setProductsToDelete(productIds)
+  }
+
+  const confirmBulkDelete = async () => {
+    if (!productsToDelete || productsToDelete.length === 0 || !admin) return
+
+    try {
+      setIsBulkDeleting(true)
+
+      const response = await fetch('/api/products/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productIds: productsToDelete,
+          currentAdminId: admin.id,
+          currentAdminRole: admin.role
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Bulk delete failed')
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Products Deleted',
+        message: `${productsToDelete.length} product(s) deleted successfully.`
+      })
+
+      setSelectedProducts(new Set()) // Clear selection
+      setRefreshTrigger(prev => prev + 1) // Refresh table
+    } catch (error) {
+      console.error('Error bulk deleting products:', error)
+      addToast({
+        type: 'error',
+        title: 'Bulk Delete Failed',
+        message: error instanceof Error ? error.message : 'Failed to delete products'
+      })
+    } finally {
+      setIsBulkDeleting(false)
+      setProductsToDelete(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -248,6 +342,10 @@ export default function ProductsPage() {
         onEdit={handleEditProduct}
         onDelete={handleDeleteProduct}
         onView={handleViewProduct}
+        selectedProducts={selectedProducts}
+        onSelectionChange={setSelectedProducts}
+        onBulkExport={handleBulkExport}
+        onBulkDelete={handleBulkDelete}
       />
 
       {/* Product Form Modal */}
@@ -303,6 +401,32 @@ This will completely remove the product from the system.`
         confirmText="Delete Product"
         type="danger"
         isLoading={isDeleting}
+      />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!productsToDelete}
+        onClose={() => setProductsToDelete(null)}
+        onConfirm={confirmBulkDelete}
+        title="Delete Multiple Products"
+        message={
+          productsToDelete
+            ? `Are you sure you want to delete ${productsToDelete.length} product(s)? This action cannot be undone and will permanently delete for each product:
+
+• The product and all its data
+• All inventory records and stock levels
+• All pricing tiers (wholesale, retail, bulk)
+• All product-specific alerts and configurations
+• All product batches and expiration data
+• All order items associated with these products
+• All stock transfer records for these products
+
+This will completely remove ${productsToDelete.length} product(s) from the system.`
+            : ''
+        }
+        confirmText={`Delete ${productsToDelete?.length || 0} Product(s)`}
+        type="danger"
+        isLoading={isBulkDeleting}
       />
     </div>
   )
