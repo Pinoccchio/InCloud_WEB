@@ -191,7 +191,7 @@ export class SuperAdminDashboardService {
 
     const result = {
       totalProducts: products?.length || 0,
-      activeProducts: products?.filter(p => p.status === 'active').length || 0
+      activeProducts: products?.filter(p => p.status === 'available').length || 0
     }
 
     serviceLogger.debug('Product metrics calculated', result)

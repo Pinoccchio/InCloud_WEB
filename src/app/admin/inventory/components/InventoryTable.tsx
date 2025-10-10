@@ -17,7 +17,7 @@ import { getMainBranchId } from '@/lib/constants/branch'
 
 interface InventoryItem {
   id: string
-  product_id: string
+  product_id: string // UUID foreign key to products table
   quantity: number
   available_quantity: number
   reserved_quantity: number
@@ -29,7 +29,7 @@ interface InventoryItem {
   last_restock_date: string
   updated_at: string
   product_name: string
-  sku: string
+  product_code: string // Human-readable product ID (e.g., "SF-TP-1KG")
   brand_name: string
   category_name: string
   batch_count: number
@@ -158,19 +158,25 @@ export default function InventoryTable({
 
   // Load inventory data
   const loadInventoryData = useCallback(async () => {
+    console.log('📦 [InventoryTable] Starting inventory data load')
+    const startTime = performance.now()
+
     try {
       setLoading(true)
       setError(null)
 
+      console.log('🏢 [InventoryTable] Fetching main branch ID...')
       const mainBranchId = await getMainBranchId()
+      console.log('✅ [InventoryTable] Branch ID retrieved:', mainBranchId)
 
+      console.log('💾 [InventoryTable] Fetching inventory data from database...')
       const { data, error } = await supabase
         .from('inventory')
         .select(`
           *,
           products!inner(
             name,
-            sku,
+            product_id,
             brands!inner(name),
             categories!inner(name)
           ),
@@ -186,7 +192,13 @@ export default function InventoryTable({
 
       if (error) throw error
 
+      console.log('✅ [InventoryTable] Inventory data fetched from database:', {
+        count: data?.length || 0,
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
+
       // Process and enrich inventory data
+      console.log('🔄 [InventoryTable] Processing and enriching inventory data...')
       const processedInventory = data.map(item => {
         const product = item.products
         const activeBatches = item.product_batches?.filter(batch => batch.is_active) || []
@@ -221,7 +233,8 @@ export default function InventoryTable({
         return {
           ...item,
           product_name: product.name,
-          sku: product.sku,
+          product_code: product.product_id, // Human-readable product ID
+          // Note: item.product_id (UUID) is preserved from spread operator
           brand_name: product.brands?.name || 'Unknown',
           category_name: product.categories?.name || 'Unknown',
           batch_count: activeBatches.length,
@@ -231,23 +244,48 @@ export default function InventoryTable({
         }
       })
 
+      const totalDuration = (performance.now() - startTime).toFixed(0)
+
+      console.log('🎉 [InventoryTable] Inventory data load completed successfully:', {
+        totalItems: processedInventory.length,
+        totalDuration: `${totalDuration}ms`,
+        stockStatusBreakdown: {
+          healthy: processedInventory.filter(i => i.stock_status === 'healthy').length,
+          low: processedInventory.filter(i => i.stock_status === 'low').length,
+          critical: processedInventory.filter(i => i.stock_status === 'critical').length,
+          out: processedInventory.filter(i => i.stock_status === 'out').length
+        },
+        expirationBreakdown: {
+          fresh: processedInventory.filter(i => i.expiration_status === 'fresh').length,
+          expiring: processedInventory.filter(i => i.expiration_status === 'expiring').length,
+          expired: processedInventory.filter(i => i.expiration_status === 'expired').length
+        },
+        totalBatches: processedInventory.reduce((sum, i) => sum + i.batch_count, 0)
+      })
+
       setInventory(processedInventory)
     } catch (err) {
-      console.error('Error loading inventory data:', err)
+      console.error('❌ [InventoryTable] Error loading inventory data:', err)
+      console.error('📋 [InventoryTable] Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
       setError(err instanceof Error ? err.message : 'Failed to load inventory data')
     } finally {
       setLoading(false)
+      console.log('🏁 [InventoryTable] Load operation completed')
     }
   }, [])
 
   useEffect(() => {
+    console.log('🔄 [InventoryTable] Component mounted - initializing inventory data load')
     loadInventoryData()
   }, [loadInventoryData])
 
   // Filter inventory based on current filters
   const filteredInventory = inventory.filter(item => {
     if (searchQuery && !item.product_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !item.sku.toLowerCase().includes(searchQuery.toLowerCase())) {
+        !item.product_code.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false
     }
     if (categoryFilter && item.category_name !== categoryFilter) {
@@ -380,7 +418,7 @@ export default function InventoryTable({
                         {item.product_name}
                       </div>
                       <div className="text-sm text-gray-500">
-                        SKU: {item.sku} • {item.brand_name}
+                        Product ID: {item.product_code} • {item.brand_name}
                       </div>
                       <div className="text-xs text-gray-400">
                         {item.category_name}
@@ -392,7 +430,12 @@ export default function InventoryTable({
                   <div className="space-y-1">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStockStatusColor(item.stock_status)}`}>
                       {getStockStatusIcon(item.stock_status)}
-                      <span className="ml-1 capitalize">{item.stock_status === 'out' ? 'Out of Stock' : item.stock_status}</span>
+                      <span className="ml-1">
+                        {item.stock_status === 'out' ? 'Out of Stock' :
+                         item.stock_status === 'healthy' ? 'Adequate Stock' :
+                         item.stock_status === 'low' ? 'Low Stock' :
+                         item.stock_status === 'critical' ? 'Critical Stock' : item.stock_status}
+                      </span>
                     </span>
                     <div className="text-xs text-gray-500">
                       Available: <span className="font-medium">{item.available_quantity}</span>
@@ -416,11 +459,12 @@ export default function InventoryTable({
                 <td className="px-6 py-4 whitespace-nowrap">
                   {item.next_expiration ? (
                     <div className="space-y-1">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getExpirationStatusColor(item.expiration_status)}`}>
-                        <ClockIcon className="w-3 h-3 mr-1" />
-                        {item.expiration_status === 'expired' ? 'Expired' :
-                         item.expiration_status === 'expiring' ? 'Expiring Soon' : 'Fresh'}
-                      </span>
+                      {(item.expiration_status === 'expired' || item.expiration_status === 'expiring') && (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getExpirationStatusColor(item.expiration_status)}`}>
+                          <ClockIcon className="w-3 h-3 mr-1" />
+                          {item.expiration_status === 'expired' ? 'Expired' : 'Expiring Soon'}
+                        </span>
+                      )}
                       <div className="text-xs text-gray-500">
                         {formatDate(item.next_expiration)}
                       </div>

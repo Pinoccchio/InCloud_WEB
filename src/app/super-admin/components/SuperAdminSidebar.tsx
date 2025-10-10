@@ -7,6 +7,7 @@ import {
   HomeIcon,
   UserGroupIcon,
   ClockIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline'
 import { Logo } from '@/components/ui'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -43,6 +44,12 @@ const navigation: NavItem[] = [
     href: '/super-admin/users',
     icon: UserGroupIcon,
     description: 'Manage all system users'
+  },
+  {
+    name: 'Customers',
+    href: '/super-admin/customers',
+    icon: UsersIcon,
+    description: 'View and manage customers'
   },
   {
     name: 'Audit Logs',

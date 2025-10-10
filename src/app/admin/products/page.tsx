@@ -133,7 +133,7 @@ export default function ProductsPage() {
           cascadeDetails.push(`${result.cascadeInfo.inventory_records} inventory record(s)`)
         }
         if (result.cascadeInfo.price_tiers > 0) {
-          cascadeDetails.push(`${result.cascadeInfo.price_tiers} price tier(s)`)
+          cascadeDetails.push(`${result.cascadeInfo.price_tiers} pricing type(s)`)
         }
         if (result.cascadeInfo.alerts > 0) {
           cascadeDetails.push(`${result.cascadeInfo.alerts} alert(s)`)
@@ -290,7 +290,7 @@ export default function ProductsPage() {
             ? `Are you sure you want to delete "${productToDelete.name}"? This action cannot be undone and will cascade delete:
 
 • All inventory records and stock levels
-• All price tiers (wholesale, retail, box)
+• All pricing types (wholesale, retail, bulk)
 • All product-specific alerts and configurations
 • All product batches and expiration data
 

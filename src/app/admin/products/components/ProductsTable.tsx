@@ -12,7 +12,7 @@ import {
   XCircleIcon
 } from '@heroicons/react/24/outline'
 import { Button, LoadingSpinner } from '@/components/ui'
-import { supabase } from '@/lib/supabase/auth'
+import { createClient } from '@/lib/supabase/client'
 import { createThumbnailUrl } from '@/lib/supabase/storage'
 import { Database } from '@/types/supabase'
 import { getMainBranchId } from '@/lib/constants/branch'
@@ -72,9 +72,90 @@ export default function ProductsTable({
 
   // Fetch products with related data
   const fetchProducts = useCallback(async () => {
+    console.log('🔵 [ProductsTable] Starting product fetch')
+    const startTime = performance.now()
+
     try {
       setLoading(true)
       setError(null)
+
+      console.log('📋 [ProductsTable] Applied filters:', {
+        searchQuery,
+        categoryFilter,
+        brandFilter,
+        statusFilter,
+        stockFilter,
+        sortBy: sortConfig.key,
+        sortDirection: sortConfig.direction
+      })
+
+      // Create a new Supabase client instance to ensure authenticated session is attached
+      const supabase = createClient()
+
+      // Ensure session is loaded before making queries
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError || !session) {
+        console.error('❌ [ProductsTable] No valid session:', sessionError)
+        throw new Error('Authentication session not found. Please log in again.')
+      }
+
+      console.log('✅ [ProductsTable] Session loaded:', {
+        userId: session.user.id,
+        email: session.user.email
+      })
+
+      // Full session details for debugging
+      console.log('🔍 [ProductsTable] Full session object:', JSON.stringify({
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          role: session.user.role,
+          aud: session.user.aud
+        },
+        access_token_present: !!session.access_token,
+        refresh_token_present: !!session.refresh_token
+      }, null, 2))
+
+      // Verify auth state
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      console.log('🔍 [ProductsTable] Current user from getUser():', currentUser?.id)
+
+      // Test simple query first to isolate RLS issues
+      console.log('🧪 [ProductsTable] Testing simple products query...')
+      const { data: testData, error: testError } = await supabase
+        .from('products')
+        .select('id, name')
+        .limit(1)
+
+      console.log('🧪 [ProductsTable] Simple query result:', {
+        success: !testError,
+        hasData: !!testData,
+        dataCount: testData?.length || 0,
+        error: testError ? 'ERROR PRESENT' : null
+      })
+
+      if (testError) {
+        console.error('🧪 [ProductsTable] Simple query FAILED - Products table RLS blocking access')
+        console.error('🧪 [ProductsTable] Simple query error object:', testError)
+        console.error('🧪 [ProductsTable] Simple query error JSON:', JSON.stringify(testError, null, 2))
+      }
+
+      // Test each related table separately
+      console.log('🧪 [ProductsTable] Testing brands table access...')
+      const { data: brandsTest, error: brandsError } = await supabase.from('brands').select('id').limit(1)
+      console.log('🧪 [ProductsTable] Brands access:', brandsError ? '❌ BLOCKED' : '✅ OK', brandsTest?.length || 0, 'records')
+      if (brandsError) console.error('🧪 Brands error:', brandsError)
+
+      console.log('🧪 [ProductsTable] Testing categories table access...')
+      const { data: categoriesTest, error: categoriesError } = await supabase.from('categories').select('id').limit(1)
+      console.log('🧪 [ProductsTable] Categories access:', categoriesError ? '❌ BLOCKED' : '✅ OK', categoriesTest?.length || 0, 'records')
+      if (categoriesError) console.error('🧪 Categories error:', categoriesError)
+
+      console.log('🧪 [ProductsTable] Testing price_tiers table access...')
+      const { data: tiersTest, error: tiersError } = await supabase.from('price_tiers').select('id').limit(1)
+      console.log('🧪 [ProductsTable] Price tiers access:', tiersError ? '❌ BLOCKED' : '✅ OK', tiersTest?.length || 0, 'records')
+      if (tiersError) console.error('🧪 Price tiers error:', tiersError)
 
       let query = supabase
         .from('products')
@@ -92,7 +173,7 @@ export default function ProductsTable({
           ),
           price_tiers (
             id,
-            tier_type,
+            pricing_type,
             price,
             min_quantity,
             max_quantity,
@@ -102,30 +183,88 @@ export default function ProductsTable({
 
       // Apply filters
       if (searchQuery) {
-        query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%`)
+        console.log('🔍 [ProductsTable] Applying search query:', searchQuery)
+        query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,product_id.ilike.%${searchQuery}%`)
       }
 
       if (categoryFilter) {
+        console.log('🏷️ [ProductsTable] Filtering by category:', categoryFilter)
         query = query.eq('category_id', categoryFilter)
       }
 
       if (brandFilter) {
+        console.log('🏷️ [ProductsTable] Filtering by brand:', brandFilter)
         query = query.eq('brand_id', brandFilter)
       }
 
       if (statusFilter) {
+        console.log('🏷️ [ProductsTable] Filtering by status:', statusFilter)
         query = query.eq('status', statusFilter)
       }
 
       // Sort by name by default
       query = query.order(sortConfig.key as string, { ascending: sortConfig.direction === 'asc' })
 
+      console.log('💾 [ProductsTable] Fetching products from database with full query...')
+      console.log('🔍 [ProductsTable] Query details:', {
+        table: 'products',
+        includes: ['brands', 'categories', 'price_tiers'],
+        filters: {
+          search: searchQuery || 'none',
+          category: categoryFilter || 'none',
+          brand: brandFilter || 'none',
+          status: statusFilter || 'none',
+          stock: stockFilter || 'none'
+        },
+        sort: `${sortConfig.key} ${sortConfig.direction}`
+      })
+
       const { data: productsData, error: productsError } = await query
 
-      if (productsError) throw productsError
+      // Log raw response
+      console.log('🔍 [ProductsTable] Raw query response:', {
+        hasData: !!productsData,
+        dataCount: productsData?.length || 0,
+        hasError: !!productsError,
+        errorType: productsError ? typeof productsError : 'none'
+      })
+
+      if (productsError) {
+        console.error('❌❌❌ [ProductsTable] MAIN QUERY FAILED ❌❌❌')
+        console.error('❌ [ProductsTable] Supabase query error FULL OBJECT:', productsError)
+        console.error('❌ [ProductsTable] Error properties:', {
+          message: productsError.message,
+          details: productsError.details,
+          hint: productsError.hint,
+          code: productsError.code,
+          statusCode: (productsError as any).statusCode,
+          status: (productsError as any).status
+        })
+        console.error('❌ [ProductsTable] Error stringified:', JSON.stringify(productsError, null, 2))
+        console.error('❌ [ProductsTable] Error keys:', Object.keys(productsError))
+        console.error('❌ [ProductsTable] Error constructor:', productsError.constructor.name)
+        console.error('❌ [ProductsTable] Error toString:', productsError.toString())
+
+        // Check if it's actually an empty object
+        if (Object.keys(productsError).length === 0) {
+          console.error('❌ [ProductsTable] ERROR IS EMPTY OBJECT - This is unusual!')
+          console.error('❌ [ProductsTable] Typeof error:', typeof productsError)
+          console.error('❌ [ProductsTable] Error prototype:', Object.getPrototypeOf(productsError))
+        }
+
+        throw productsError
+      }
+
+      console.log('✅ [ProductsTable] Products fetched:', {
+        count: productsData?.length || 0,
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
 
       // Get inventory counts for each product (only from main branch)
+      console.log('📦 [ProductsTable] Fetching inventory data for products...')
       const mainBranchId = await getMainBranchId()
+      console.log('🏢 [ProductsTable] Main branch ID:', mainBranchId)
+
       const productsWithInventory = await Promise.all(
         (productsData || []).map(async (product) => {
           const { data: inventoryData } = await supabase
@@ -149,9 +288,14 @@ export default function ProductsTable({
         })
       )
 
+      console.log('✅ [ProductsTable] Inventory data loaded for all products')
+
       // Apply stock level filtering if stockFilter is specified
       let filteredProducts = productsWithInventory
       if (stockFilter) {
+        console.log('📊 [ProductsTable] Applying stock filter:', stockFilter)
+        const beforeCount = productsWithInventory.length
+
         filteredProducts = productsWithInventory.filter(product => {
           const quantity = product.total_stock || 0
           const threshold = 10 // Default threshold, could be made configurable
@@ -169,13 +313,37 @@ export default function ProductsTable({
               return true
           }
         })
+
+        console.log('📊 [ProductsTable] Stock filter applied:', {
+          filter: stockFilter,
+          beforeCount,
+          afterCount: filteredProducts.length,
+          filtered: beforeCount - filteredProducts.length
+        })
       }
+
+      const totalDuration = (performance.now() - startTime).toFixed(0)
+
+      console.log('🎉 [ProductsTable] Product fetch completed successfully:', {
+        totalProducts: filteredProducts.length,
+        totalDuration: `${totalDuration}ms`,
+        withInventory: filteredProducts.filter(p => p.inventory_count > 0).length,
+        lowStock: filteredProducts.filter(p => p.low_stock_count && p.low_stock_count > 0).length,
+        outOfStock: filteredProducts.filter(p => p.total_stock === 0).length
+      })
 
       setProducts(filteredProducts)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch products')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch products'
+      console.error('❌ [ProductsTable] Error fetching products:', err)
+      console.error('📋 [ProductsTable] Error details:', {
+        message: errorMessage,
+        filters: { searchQuery, categoryFilter, brandFilter, statusFilter, stockFilter }
+      })
+      setError(errorMessage)
     } finally {
       setLoading(false)
+      console.log('🏁 [ProductsTable] Fetch operation completed')
     }
   }, [searchQuery, categoryFilter, brandFilter, statusFilter, stockFilter, sortConfig])
 
@@ -312,20 +480,28 @@ export default function ProductsTable({
   }
 
   useEffect(() => {
+    console.log('🔄 [ProductsTable] useEffect triggered - fetching products')
     fetchProducts()
   }, [fetchProducts])
 
   const handleSort = (key: keyof Product) => {
-    setSortConfig(prev => ({
+    const newDirection = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+    console.log('🔄 [ProductsTable] Sort changed:', {
+      sortBy: key,
+      direction: newDirection
+    })
+    setSortConfig({
       key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }))
+      direction: newDirection
+    })
   }
 
   const handleSelectAll = () => {
     if (selectedProducts.size === products.length) {
+      console.log('🔲 [ProductsTable] Deselecting all products')
       setSelectedProducts(new Set())
     } else {
+      console.log('☑️ [ProductsTable] Selecting all products:', products.length)
       setSelectedProducts(new Set(products.map(p => p.id)))
     }
   }
@@ -333,8 +509,10 @@ export default function ProductsTable({
   const handleSelectProduct = (productId: string) => {
     const newSelection = new Set(selectedProducts)
     if (newSelection.has(productId)) {
+      console.log('🔲 [ProductsTable] Deselected product:', productId)
       newSelection.delete(productId)
     } else {
+      console.log('☑️ [ProductsTable] Selected product:', productId)
       newSelection.add(productId)
     }
     setSelectedProducts(newSelection)
@@ -529,7 +707,7 @@ export default function ProductsTable({
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          Product ID: {product.sku || 'N/A'}
+                          Product ID: {product.product_id || 'N/A'}
                         </div>
                       </div>
                     </div>

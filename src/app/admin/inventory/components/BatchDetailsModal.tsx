@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase/auth'
 interface InventoryItem {
   id: string
   product_name: string
-  sku: string
+  product_id: string
   brand_name: string
   category_name: string
 }
@@ -310,13 +310,14 @@ export default function BatchDetailsModal({
                                   {/* Expiration */}
                                   <td className="px-4 py-3 whitespace-nowrap">
                                     <div className="space-y-1">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getExpirationStatusColor(batch.expiration_status)}`}>
-                                        {getExpirationIcon(batch.expiration_status)}
-                                        <span className="ml-1 capitalize">
-                                          {batch.expiration_status === 'expired' ? 'Expired' :
-                                           batch.expiration_status === 'expiring' ? 'Expiring Soon' : 'Fresh'}
+                                      {(batch.expiration_status === 'expired' || batch.expiration_status === 'expiring') && (
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getExpirationStatusColor(batch.expiration_status)}`}>
+                                          {getExpirationIcon(batch.expiration_status)}
+                                          <span className="ml-1 capitalize">
+                                            {batch.expiration_status === 'expired' ? 'Expired' : 'Expiring Soon'}
+                                          </span>
                                         </span>
-                                      </span>
+                                      )}
                                       <div className="text-xs text-gray-500">
                                         {formatDate(batch.expiration_date)}
                                       </div>

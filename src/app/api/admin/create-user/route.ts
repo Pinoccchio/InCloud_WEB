@@ -16,22 +16,29 @@ const supabaseAdmin = createClient(
 )
 
 export async function POST(request: NextRequest) {
-  const apiLogger = logger.child({ service: 'API', operation: 'POST /api/admin/create-user' })
-  apiLogger.time('create-user')
+  const routeLogger = logger.child({
+    route: 'POST /api/admin/create-user',
+    operation: 'createAdminUser'
+  })
+  routeLogger.time('createAdminUser')
 
   try {
-    apiLogger.api('POST', '/api/admin/create-user')
+    routeLogger.info('Starting admin user creation request')
 
     // Get admin context and validate permissions
-    apiLogger.info('Validating super admin permissions')
     const { client, currentAdminId, currentAdminRole, requestBody } = await validateSuperAdminWithContext(request)
     const { email, password, fullName, role } = requestBody
 
-    apiLogger.debug('Request validated', { currentAdminId, currentAdminRole, requestedRole: role, email })
+    routeLogger.debug('Request validated', {
+      currentAdminId,
+      currentAdminRole,
+      requestedRole: role,
+      email
+    })
 
     // Validate required fields
     if (!email || !password || !fullName || !role) {
-      apiLogger.warn('Missing required fields in request')
+      routeLogger.warn('Missing required fields in request')
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -40,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Validate role
     if (!['admin', 'super_admin'].includes(role)) {
-      apiLogger.warn('Invalid role specified', { role })
+      routeLogger.warn('Invalid role specified', { role })
       return NextResponse.json(
         { error: 'Invalid role specified' },
         { status: 400 }
@@ -48,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Create auth user using admin client
-    apiLogger.info('Creating auth user', { email, role })
+    routeLogger.info('Creating auth user', { email, role })
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -60,7 +67,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (authError) {
-      apiLogger.error('Auth user creation failed', authError, { email })
+      routeLogger.error('Auth user creation failed', authError, { email })
       return NextResponse.json(
         { error: authError.message },
         { status: 400 }
@@ -68,20 +75,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (!authUser.user) {
-      apiLogger.error('Auth user creation returned no user')
+      routeLogger.error('Auth user creation returned no user')
       return NextResponse.json(
         { error: 'Failed to create auth user' },
         { status: 500 }
       )
     }
 
-    apiLogger.success('Auth user created', { userId: authUser.user.id })
+    routeLogger.success('Auth user created', { userId: authUser.user.id })
 
     // Step 2: Get main branch ID for regular admins
     let branchesToAssign: string[] = []
 
     if (role === 'admin') {
       // Regular admins get assigned to the main branch
+      routeLogger.info('Assigning admin to main branch')
+      routeLogger.db('SELECT', 'branches')
       const { data: branches, error: branchError } = await client
         .from('branches')
         .select('id')
@@ -91,11 +100,16 @@ export async function POST(request: NextRequest) {
 
       if (!branchError && branches) {
         branchesToAssign = [branches.id]
+        routeLogger.debug('Main branch assigned', { branchId: branches.id })
       }
+    } else {
+      routeLogger.debug('Super admin - no branch assignment (access to all)')
     }
     // Super admins get empty array (access to all branches)
 
     // Step 3: Create admin profile using the service role function
+    routeLogger.info('Creating admin profile via RPC')
+    routeLogger.db('RPC', 'create_admin_profile_service_role')
     const { data: result, error: adminError } = await client
       .rpc('create_admin_profile_service_role', {
         p_user_id: authUser.user.id,
@@ -108,13 +122,15 @@ export async function POST(request: NextRequest) {
       })
 
     if (adminError) {
-      console.error('Admin profile creation error:', adminError)
+      routeLogger.error('Admin profile creation error', adminError)
 
       // Cleanup: Delete the auth user if admin profile creation failed
+      routeLogger.warn('Cleaning up auth user due to profile creation failure', { userId: authUser.user.id })
       try {
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+        routeLogger.debug('Auth user cleanup successful')
       } catch (cleanupError) {
-        console.error('Failed to cleanup auth user:', cleanupError)
+        routeLogger.error('Failed to cleanup auth user', cleanupError as Error)
       }
 
       return NextResponse.json(
@@ -125,11 +141,14 @@ export async function POST(request: NextRequest) {
 
     // Check if the function call was successful
     if (!result?.success) {
+      routeLogger.warn('Admin profile creation failed', { error: result?.error })
       // Cleanup: Delete the auth user if admin profile creation failed
+      routeLogger.info('Cleaning up auth user', { userId: authUser.user.id })
       try {
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+        routeLogger.debug('Auth user cleanup successful')
       } catch (cleanupError) {
-        console.error('Failed to cleanup auth user:', cleanupError)
+        routeLogger.error('Failed to cleanup auth user', cleanupError as Error)
       }
 
       return NextResponse.json(
@@ -138,12 +157,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const duration = apiLogger.timeEnd('create-user')
-    apiLogger.success('Admin user created successfully', {
+    const duration = routeLogger.timeEnd('createAdminUser')
+    routeLogger.success('Admin user created successfully', {
       duration,
       adminId: result.admin_id,
       email,
-      role
+      role,
+      branchesCount: branchesToAssign.length,
+      performedBy: currentAdminId
     })
 
     return NextResponse.json({
@@ -159,7 +180,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    apiLogger.error('Unexpected error in create-user API', error as Error)
+    routeLogger.error('Unexpected error in create-user API', error as Error)
 
     // Handle authentication errors specifically
     if (error instanceof Error) {

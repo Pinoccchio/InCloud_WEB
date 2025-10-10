@@ -90,9 +90,19 @@ export default function OrdersTable({
 
   // Fetch orders data
   const fetchOrders = async () => {
+    console.log('📦 [OrdersTable] Starting orders fetch')
+    const startTime = performance.now()
+
     try {
       setLoading(true)
       setError(null)
+
+      console.log('📋 [OrdersTable] Applied filters:', {
+        searchQuery,
+        statusFilter,
+        paymentFilter,
+        dateRange
+      })
 
       let query = supabase
         .from('orders')
@@ -120,10 +130,12 @@ export default function OrdersTable({
 
       // Apply filters
       if (statusFilter && statusFilter !== 'all') {
+        console.log('🔍 [OrdersTable] Applying status filter:', statusFilter)
         query = query.eq('status', statusFilter)
       }
 
       if (paymentFilter && paymentFilter !== 'all') {
+        console.log('💳 [OrdersTable] Applying payment filter:', paymentFilter)
         query = query.eq('payment_status', paymentFilter)
       }
 
@@ -146,14 +158,25 @@ export default function OrdersTable({
             startDate = new Date(0)
         }
 
+        console.log('📅 [OrdersTable] Applying date range filter:', {
+          dateRange,
+          startDate: startDate.toISOString()
+        })
         query = query.gte('order_date', startDate.toISOString())
       }
 
+      console.log('💾 [OrdersTable] Fetching orders from database...')
       const { data, error: fetchError } = await query
 
       if (fetchError) throw fetchError
 
+      console.log('✅ [OrdersTable] Orders fetched from database:', {
+        count: data?.length || 0,
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
+
       // Transform data
+      console.log('🔄 [OrdersTable] Transforming order data...')
       const transformedOrders: Order[] = (data || []).map(order => ({
         id: order.id,
         order_number: order.order_number,
@@ -172,6 +195,7 @@ export default function OrdersTable({
       let filteredOrders = transformedOrders
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
+        console.log('🔍 [OrdersTable] Applying search filter:', searchQuery)
         filteredOrders = transformedOrders.filter(order =>
           order.order_number.toLowerCase().includes(query) ||
           order.customer_name.toLowerCase().includes(query) ||
@@ -179,22 +203,49 @@ export default function OrdersTable({
         )
       }
 
+      const totalDuration = (performance.now() - startTime).toFixed(0)
+
+      console.log('🎉 [OrdersTable] Orders fetch completed successfully:', {
+        totalOrders: filteredOrders.length,
+        totalDuration: `${totalDuration}ms`,
+        statusBreakdown: {
+          pending: filteredOrders.filter(o => o.status === 'pending').length,
+          confirmed: filteredOrders.filter(o => o.status === 'confirmed').length,
+          in_transit: filteredOrders.filter(o => o.status === 'in_transit').length,
+          delivered: filteredOrders.filter(o => o.status === 'delivered').length,
+          cancelled: filteredOrders.filter(o => o.status === 'cancelled').length
+        },
+        paymentBreakdown: {
+          paid: filteredOrders.filter(o => o.payment_status === 'paid').length,
+          pending: filteredOrders.filter(o => o.payment_status === 'pending').length
+        }
+      })
+
       setOrders(filteredOrders)
     } catch (err) {
-      console.error('Error fetching orders:', err)
+      console.error('❌ [OrdersTable] Error fetching orders:', err)
+      console.error('📋 [OrdersTable] Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        filters: { searchQuery, statusFilter, paymentFilter, dateRange },
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
       setError(err instanceof Error ? err.message : 'Failed to fetch orders')
       showToast('Failed to fetch orders', 'error')
     } finally {
       setLoading(false)
+      console.log('🏁 [OrdersTable] Fetch operation completed')
     }
   }
 
   // Set up real-time subscription
   useEffect(() => {
+    console.log('🔄 [OrdersTable] Component mounted/filters changed - initializing data fetch')
     fetchOrders()
 
     // Subscribe to real-time changes with unique channel name
     const channelName = `orders-table-${Date.now()}`
+    console.log('📡 [OrdersTable] Setting up real-time subscription:', channelName)
+
     const channel = supabase
       .channel(channelName)
       .on(
@@ -204,7 +255,11 @@ export default function OrdersTable({
           schema: 'public',
           table: 'orders'
         },
-        () => {
+        (payload) => {
+          console.log('➕ [OrdersTable] Real-time INSERT detected:', {
+            orderId: payload.new.id,
+            orderNumber: payload.new.order_number
+          })
           fetchOrders() // Refetch when changes occur
         }
       )
@@ -215,19 +270,26 @@ export default function OrdersTable({
           schema: 'public',
           table: 'orders'
         },
-        () => {
+        (payload) => {
+          console.log('🔄 [OrdersTable] Real-time UPDATE detected:', {
+            orderId: payload.new.id,
+            orderNumber: payload.new.order_number,
+            status: payload.new.status
+          })
           fetchOrders() // Refetch when changes occur
         }
       )
       .subscribe()
 
     return () => {
+      console.log('🔌 [OrdersTable] Cleaning up real-time subscription:', channelName)
       supabase.removeChannel(channel)
     }
   }, [statusFilter, paymentFilter, dateRange])
 
   // Refetch when search query changes
   useEffect(() => {
+    console.log('🔍 [OrdersTable] Search query changed - refetching orders')
     fetchOrders()
   }, [searchQuery])
 

@@ -90,14 +90,13 @@ export default function InventoryFilters({
   const hasActiveFilters = categoryFilter || brandFilter || stockStatusFilter || expirationFilter || searchQuery
 
   const stockStatusOptions = [
-    { value: 'healthy', label: 'Healthy Stock', color: 'text-green-600' },
+    { value: 'healthy', label: 'Adequate Stock', color: 'text-green-600' },
     { value: 'low', label: 'Low Stock', color: 'text-yellow-600' },
     { value: 'critical', label: 'Critical Stock', color: 'text-orange-600' },
     { value: 'out', label: 'Out of Stock', color: 'text-red-600' }
   ]
 
   const expirationOptions = [
-    { value: 'fresh', label: 'Fresh Products', color: 'text-green-600' },
     { value: 'expiring', label: 'Expiring Soon', color: 'text-yellow-600' },
     { value: 'expired', label: 'Expired Products', color: 'text-red-600' }
   ]
@@ -112,7 +111,7 @@ export default function InventoryFilters({
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search by product name, SKU, or brand..."
+                placeholder="Search by product name, Product ID, or brand..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="pl-10 w-full"

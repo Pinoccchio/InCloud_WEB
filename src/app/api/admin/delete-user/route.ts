@@ -101,6 +101,8 @@ export async function DELETE(request: NextRequest) {
     routeLogger.info('Starting record reassignment and cleanup', { fromAdmin: adminId, toSystemAdmin: systemAdminId })
 
     // Delete user-specific records (these should be removed, not reassigned)
+    routeLogger.info('Deleting user-specific records')
+    routeLogger.db('DELETE', 'user_preferences, notification_settings')
     const userSpecificTables = ['user_preferences', 'notification_settings']
     for (const table of userSpecificTables) {
       try {
@@ -110,10 +112,10 @@ export async function DELETE(request: NextRequest) {
           .eq('admin_id', adminId)
 
         if (error) {
-          console.warn(`Failed to delete from ${table}:`, error)
+          routeLogger.warn(`Failed to delete from ${table}`, { error: error.message })
         }
       } catch (error) {
-        console.warn(`Error deleting from ${table}:`, error)
+        routeLogger.warn(`Error deleting from ${table}`, { error })
       }
     }
 
@@ -148,6 +150,8 @@ export async function DELETE(request: NextRequest) {
     ]
 
     // Reassign records to system admin
+    routeLogger.info('Reassigning audit trail records to system admin', { updateCount: auditTrailUpdates.length })
+    routeLogger.db('UPDATE', 'multiple tables (audit trail)')
     for (const { table, field } of auditTrailUpdates) {
       try {
         const { error } = await client
@@ -156,12 +160,13 @@ export async function DELETE(request: NextRequest) {
           .eq(field, adminId)
 
         if (error) {
-          console.warn(`Failed to reassign ${table}.${field}:`, error)
+          routeLogger.warn(`Failed to reassign ${table}.${field}`, { error: error.message })
         }
       } catch (error) {
-        console.warn(`Error reassigning ${table}.${field}:`, error)
+        routeLogger.warn(`Error reassigning ${table}.${field}`, { error })
       }
     }
+    routeLogger.debug('Audit trail reassignment completed')
 
     // Handle nullable foreign keys - set to null instead of reassigning
     const nullifyUpdates = [
@@ -184,33 +189,43 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Keep audit_logs for historical purposes (don't reassign admin_id)
+    routeLogger.debug('Audit logs preserved for historical purposes')
 
     // Step 3: Now delete from admins table
+    routeLogger.info('Deleting admin record from admins table', { adminId })
+    routeLogger.db('DELETE', 'admins')
     const { error: deleteAdminError } = await client
       .from('admins')
       .delete()
       .eq('id', adminId)
 
     if (deleteAdminError) {
-      console.error('Error deleting admin record:', deleteAdminError)
+      routeLogger.error('Error deleting admin record', deleteAdminError)
       return NextResponse.json(
         { error: 'Failed to delete admin record after cleanup' },
         { status: 400 }
       )
     }
 
+    routeLogger.debug('Admin record deleted successfully')
+
     // Step 4: Delete from auth.users if user_id exists (for real accounts)
     if (adminToDelete.user_id) {
+      routeLogger.info('Deleting auth user', { userId: adminToDelete.user_id })
       const { error: deleteAuthError } = await client.auth.admin.deleteUser(adminToDelete.user_id)
 
       if (deleteAuthError) {
-        console.error('Error deleting auth user:', deleteAuthError)
+        routeLogger.error('Error deleting auth user', deleteAuthError)
         // Note: Admin record is already deleted, so we log this but don't fail the request
-        console.warn(`Admin record deleted but auth user deletion failed for user_id: ${adminToDelete.user_id}`)
+        routeLogger.warn('Admin record deleted but auth user deletion failed', { userId: adminToDelete.user_id })
+      } else {
+        routeLogger.debug('Auth user deleted successfully')
       }
     }
 
     // Step 5: Add audit log entry
+    routeLogger.info('Creating audit log entry')
+    routeLogger.db('INSERT', 'audit_logs')
     try {
       await client
         .from('audit_logs')
@@ -232,10 +247,21 @@ export async function DELETE(request: NextRequest) {
             timestamp: auditMetadata.timestamp
           }
         })
+      routeLogger.debug('Audit log entry created successfully')
     } catch (auditError) {
-      console.error('Failed to create audit log:', auditError)
+      routeLogger.warn('Failed to create audit log', { error: auditError })
       // Don't fail the request if audit logging fails
     }
+
+    const duration = routeLogger.timeEnd('deleteAdminUser')
+    routeLogger.success('Admin user deleted successfully', {
+      duration,
+      adminId,
+      adminName: adminToDelete.full_name,
+      role: adminToDelete.role,
+      hadAuthUser: !!adminToDelete.user_id,
+      performedBy: currentAdminId
+    })
 
     return NextResponse.json({
       success: true,
@@ -248,7 +274,7 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Unexpected error in delete-user API:', error)
+    routeLogger.error('Unexpected error in delete-user API', error as Error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

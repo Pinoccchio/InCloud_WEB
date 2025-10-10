@@ -305,7 +305,7 @@ export default function InventoryImportModal({
                         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
                           <h4 className="font-semibold text-yellow-900 mb-2">Batch Number Handling</h4>
                           <div className="text-sm text-yellow-900 space-y-1">
-                            <p>• If batch numbers are not provided, they will be auto-generated with format: <code className="bg-yellow-100 px-1 rounded">SKU-YEAR-TIMESTAMP-RANDOM</code></p>
+                            <p>• If batch numbers are not provided, they will be auto-generated with format: <code className="bg-yellow-100 px-1 rounded">ProductID-YEAR-TIMESTAMP-RANDOM</code></p>
                             <p>• If a batch number already exists, the system will automatically generate a unique alternative</p>
                             <p>• All batch conflicts are resolved automatically during import</p>
                           </div>

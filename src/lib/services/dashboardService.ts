@@ -120,7 +120,7 @@ export class DashboardService {
 
     // Calculate metrics
     const totalProducts = productData?.length || 0
-    const activeProducts = productData?.filter(p => p.status === 'active').length || 0
+    const activeProducts = productData?.filter(p => p.status === 'available').length || 0
 
     const totalOrders = orderData?.length || 0
     const activeOrders = orderData?.filter(o =>

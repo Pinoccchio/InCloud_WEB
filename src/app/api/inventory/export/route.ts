@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
+import { logger } from '@/lib/logger'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -8,13 +9,29 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function GET(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'GET /api/inventory/export',
+    operation: 'exportInventory'
+  })
+  routeLogger.time('exportInventory')
+
   try {
+    routeLogger.info('Starting inventory export request')
+
     const { searchParams } = new URL(request.url)
     const format = searchParams.get('format') || 'xlsx'
     const includeExpired = searchParams.get('includeExpired') === 'true'
     const includeBatches = searchParams.get('includeBatches') === 'true'
 
+    routeLogger.debug('Export parameters', {
+      format,
+      includeExpired,
+      includeBatches
+    })
+
     // Get main branch ID
+    routeLogger.info('Loading main branch information')
+    routeLogger.db('SELECT', 'branches')
     const { data: branchData, error: branchError } = await supabase
       .from('branches')
       .select('id')
@@ -24,6 +41,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (branchError || !branchData) {
+      routeLogger.error('Failed to get main branch', branchError)
       return NextResponse.json(
         { error: 'Failed to get main branch information' },
         { status: 500 }
@@ -31,8 +49,11 @@ export async function GET(request: NextRequest) {
     }
 
     const branchId = branchData.id
+    routeLogger.debug('Main branch found', { branchId })
 
     // Fetch inventory with related data
+    routeLogger.info('Fetching inventory data with products and batches')
+    routeLogger.db('SELECT', 'inventory')
     const { data: inventory, error } = await supabase
       .from('inventory')
       .select(`
@@ -73,6 +94,7 @@ export async function GET(request: NextRequest) {
       .order('products(name)')
 
     if (error) {
+      routeLogger.error('Failed to fetch inventory', error)
       return NextResponse.json(
         { error: 'Failed to fetch inventory' },
         { status: 500 }
@@ -80,15 +102,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (!inventory || inventory.length === 0) {
+      routeLogger.warn('No inventory found for export')
       return NextResponse.json(
         { error: 'No inventory found' },
         { status: 404 }
       )
     }
 
+    routeLogger.debug('Inventory data fetched', { count: inventory.length })
+
     const currentDate = new Date()
 
     // Transform data for Excel export
+    routeLogger.info('Transforming data for export', { format })
     const excelData = inventory.map(item => {
       const product = item.products
       const batches = item.product_batches || []
@@ -144,7 +170,10 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    routeLogger.debug('Data transformation completed', { recordCount: excelData.length })
+
     if (format === 'json') {
+      routeLogger.info('Generating JSON export')
       const response: {
         inventory: Record<string, any>[];
         totalCount: number;
@@ -167,6 +196,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (includeBatches) {
+        routeLogger.debug('Including batch data in JSON export')
         response.batches = inventory.flatMap(item =>
           (item.product_batches || []).map(batch => ({
             'Product Name': item.products?.name || '',
@@ -186,13 +216,24 @@ export async function GET(request: NextRequest) {
         )
       }
 
+      const duration = routeLogger.timeEnd('exportInventory')
+      routeLogger.success('JSON export completed', {
+        duration,
+        inventoryCount: inventory.length,
+        batchCount: response.batches?.length || 0,
+        lowStockItems: response.summary.lowStockItems,
+        totalValue: response.summary.totalValue
+      })
+
       return NextResponse.json(response)
     }
 
     // Create Excel workbook
+    routeLogger.info('Generating Excel workbook')
     const workbook = XLSX.utils.book_new()
 
     // Main inventory sheet
+    routeLogger.debug('Creating main inventory worksheet')
     const mainWorksheet = XLSX.utils.json_to_sheet(excelData)
 
     // Set column widths for main sheet
@@ -222,9 +263,11 @@ export async function GET(request: NextRequest) {
     mainWorksheet['!cols'] = mainColumnWidths
 
     XLSX.utils.book_append_sheet(workbook, mainWorksheet, 'Inventory')
+    routeLogger.debug('Main inventory sheet added to workbook')
 
     // Add batches sheet if requested
     if (includeBatches) {
+      routeLogger.debug('Creating batches worksheet')
       const batchData = inventory.flatMap(item =>
         (item.product_batches || [])
           .filter(batch => includeExpired || !batch.expiration_date || new Date(batch.expiration_date) > currentDate)
@@ -271,15 +314,26 @@ export async function GET(request: NextRequest) {
         batchWorksheet['!cols'] = batchColumnWidths
 
         XLSX.utils.book_append_sheet(workbook, batchWorksheet, 'Batches')
+        routeLogger.debug('Batches sheet added to workbook', { batchCount: batchData.length })
       }
     }
 
     // Generate Excel buffer
+    routeLogger.info('Generating Excel file buffer')
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
 
     // Create filename with timestamp
     const timestamp = new Date().toISOString().split('T')[0]
     const filename = `InCloud_Inventory_Export_${timestamp}.xlsx`
+
+    const duration = routeLogger.timeEnd('exportInventory')
+    routeLogger.success('Excel export completed', {
+      duration,
+      filename,
+      inventoryCount: inventory.length,
+      fileSize: excelBuffer.length,
+      includedBatches: includeBatches
+    })
 
     // Return Excel file
     return new NextResponse(excelBuffer, {
@@ -292,7 +346,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Inventory export error:', error)
+    routeLogger.error('Unexpected error in inventory export', error as Error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to export inventory'

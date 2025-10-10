@@ -57,6 +57,13 @@ export interface SalesMetrics {
     orderDate: string
     itemCount: number
   }>
+  monthlySales: Array<{
+    month: string
+    year: number
+    totalOrders: number
+    totalRevenue: number
+    averageOrderValue: number
+  }>
 }
 
 export interface PricingTierAnalysis {
@@ -110,7 +117,7 @@ export class AnalyticsService {
           products!inner(
             id,
             name,
-            price_tiers(price, tier_type)
+            price_tiers(price, pricing_type)
           )
         `)
 
@@ -140,7 +147,7 @@ export class AnalyticsService {
 
       // Calculate value at retail (using retail pricing tier)
       const retailPrice = item.products?.price_tiers?.find(
-        (pt: any) => pt.tier_type === 'retail'
+        (pt: any) => pt.pricing_type === 'retail'
       )?.price || 0
       totalInventoryValueRetail += quantity * parseFloat(retailPrice)
 
@@ -416,12 +423,50 @@ export class AnalyticsService {
         itemCount: order.order_items?.length || 0,
       })) || []
 
+    // Group orders by month and year
+    const monthlyData: Record<string, { orders: any[]; revenue: number; count: number }> = {}
+    orders?.forEach((order: any) => {
+      const orderDate = new Date(order.order_date || order.created_at)
+      const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`
+
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { orders: [], revenue: 0, count: 0 }
+      }
+
+      monthlyData[monthKey].orders.push(order)
+      monthlyData[monthKey].revenue += parseFloat(order.total_amount)
+      monthlyData[monthKey].count++
+    })
+
+    // Convert to array and sort by date (most recent first)
+    const monthlySales = Object.entries(monthlyData)
+      .map(([monthKey, data]) => {
+        const [year, month] = monthKey.split('-')
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December']
+        return {
+          month: monthNames[parseInt(month) - 1],
+          year: parseInt(year),
+          totalOrders: data.count,
+          totalRevenue: data.revenue,
+          averageOrderValue: data.count > 0 ? data.revenue / data.count : 0,
+        }
+      })
+      .sort((a, b) => {
+        // Sort by year then month (most recent first)
+        if (a.year !== b.year) return b.year - a.year
+        const monthIndex = (m: string) => ['January', 'February', 'March', 'April', 'May', 'June',
+                                           'July', 'August', 'September', 'October', 'November', 'December'].indexOf(m)
+        return monthIndex(b.month) - monthIndex(a.month)
+      })
+
     const result = {
       totalOrders,
       totalRevenue,
       averageOrderValue,
       ordersByStatus,
       recentOrders,
+      monthlySales,
     }
 
     const duration = serviceLogger.timeEnd('getSalesMetrics')
@@ -453,7 +498,7 @@ export class AnalyticsService {
 
       const { data, error } = await supabase
         .from('price_tiers')
-        .select('tier_type, price, product_id')
+        .select('pricing_type, price, product_id')
         .eq('is_active', true)
 
       if (error) throw error
@@ -464,11 +509,11 @@ export class AnalyticsService {
       > = {}
 
       data?.forEach((tier: any) => {
-        if (!tierStats[tier.tier_type]) {
-          tierStats[tier.tier_type] = { prices: [], productIds: new Set() }
+        if (!tierStats[tier.pricing_type]) {
+          tierStats[tier.pricing_type] = { prices: [], productIds: new Set() }
         }
-        tierStats[tier.tier_type].prices.push(parseFloat(tier.price))
-        tierStats[tier.tier_type].productIds.add(tier.product_id)
+        tierStats[tier.pricing_type].prices.push(parseFloat(tier.price))
+        tierStats[tier.pricing_type].productIds.add(tier.product_id)
       })
 
       const result = Object.entries(tierStats).map(([tierType, stats]) => ({

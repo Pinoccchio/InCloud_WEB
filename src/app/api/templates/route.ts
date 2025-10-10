@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
+import { logger } from '@/lib/logger'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -8,15 +9,26 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function GET(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'GET /api/templates',
+    operation: 'generateTemplate'
+  })
+  routeLogger.time('generateTemplate')
+
   try {
+    routeLogger.info('Starting template generation request')
+
     const { searchParams } = new URL(request.url)
     const templateType = searchParams.get('type') || 'products'
 
+    routeLogger.debug('Template type requested', { templateType })
+
     if (templateType === 'products') {
-      return generateProductsTemplate()
+      return generateProductsTemplate(routeLogger)
     } else if (templateType === 'inventory') {
-      return generateInventoryTemplate()
+      return generateInventoryTemplate(routeLogger)
     } else {
+      routeLogger.warn('Invalid template type requested', { templateType })
       return NextResponse.json(
         { error: 'Invalid template type. Use "products" or "inventory"' },
         { status: 400 }
@@ -24,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Template generation error:', error)
+    routeLogger.error('Unexpected error in template generation', error as Error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to generate template'
@@ -34,9 +46,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function generateProductsTemplate() {
+async function generateProductsTemplate(routeLogger: ReturnType<typeof logger.child>) {
   try {
+    routeLogger.info('Generating products template')
+
     // Get active categories and brands for reference
+    routeLogger.debug('Fetching categories and brands for reference')
+    routeLogger.db('SELECT', 'categories, brands')
     const [categoriesResult, brandsResult] = await Promise.all([
       supabase.from('categories').select('name').eq('is_active', true).order('name'),
       supabase.from('brands').select('name').eq('is_active', true).order('name')
@@ -45,7 +61,13 @@ async function generateProductsTemplate() {
     const categories = categoriesResult.data || []
     const brands = brandsResult.data || []
 
+    routeLogger.debug('Reference data fetched', {
+      categoriesCount: categories.length,
+      brandsCount: brands.length
+    })
+
     // Create workbook
+    routeLogger.info('Creating Excel workbook for products template')
     const workbook = XLSX.utils.book_new()
 
     // Products template data with headers and sample rows
@@ -53,7 +75,7 @@ async function generateProductsTemplate() {
       {
         'Product Name': 'PF TJ Hotdog Regular 1KG',
         'Description': 'Premium quality hotdog, 1 kilogram pack, frozen food item',
-        'SKU': 'PF-TJ-1KG-001',
+        'Product ID': 'PF-TJ-1KG-001',
         'Barcode': '1234567890123',
         'Category': 'Frozen Foods',
         'Brand': 'Purefoods',
@@ -72,7 +94,7 @@ async function generateProductsTemplate() {
       {
         'Product Name': 'Sample Product 2',
         'Description': 'Description for sample product 2',
-        'SKU': 'SKU-002',
+        'Product ID': 'PRODUCT-ID-002',
         'Barcode': '9876543210987',
         'Category': 'Beverages',
         'Brand': 'Brand Name',
@@ -96,7 +118,7 @@ async function generateProductsTemplate() {
     const columnWidths = [
       { wch: 30 }, // Product Name
       { wch: 50 }, // Description
-      { wch: 15 }, // SKU
+      { wch: 15 }, // Product ID
       { wch: 15 }, // Barcode
       { wch: 20 }, // Category
       { wch: 20 }, // Brand
@@ -121,7 +143,7 @@ async function generateProductsTemplate() {
     const instructionsData = [
       { 'Field': 'Product Name', 'Required': 'YES', 'Type': 'Text', 'Description': 'Product name (e.g., "PF TJ Hotdog Regular 1KG")', 'Example': 'PF TJ Hotdog Regular 1KG' },
       { 'Field': 'Description', 'Required': 'NO', 'Type': 'Text', 'Description': 'Detailed product description', 'Example': 'Premium quality hotdog, 1 kilogram pack' },
-      { 'Field': 'SKU', 'Required': 'NO', 'Type': 'Text', 'Description': 'Stock Keeping Unit - unique product code', 'Example': 'PF-TJ-1KG-001' },
+      { 'Field': 'Product ID', 'Required': 'NO', 'Type': 'Text', 'Description': 'Unique product identifier code', 'Example': 'PF-TJ-1KG-001' },
       { 'Field': 'Barcode', 'Required': 'NO', 'Type': 'Text', 'Description': 'Product barcode number', 'Example': '1234567890123' },
       { 'Field': 'Category', 'Required': 'YES', 'Type': 'Text', 'Description': 'Must match existing category name exactly', 'Example': 'Frozen Foods' },
       { 'Field': 'Brand', 'Required': 'YES', 'Type': 'Text', 'Description': 'Must match existing brand name exactly', 'Example': 'Purefoods' },
@@ -163,9 +185,19 @@ async function generateProductsTemplate() {
     }
 
     // Generate Excel buffer
+    routeLogger.info('Generating Excel file buffer')
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
 
     const filename = 'InCloud_Products_Import_Template.xlsx'
+
+    const duration = routeLogger.timeEnd('generateTemplate')
+    routeLogger.success('Products template generated successfully', {
+      duration,
+      filename,
+      fileSize: excelBuffer.length,
+      categoriesCount: categories.length,
+      brandsCount: brands.length
+    })
 
     return new NextResponse(excelBuffer, {
       status: 200,
@@ -177,27 +209,35 @@ async function generateProductsTemplate() {
     })
 
   } catch (error) {
+    routeLogger.error('Error generating products template', error as Error)
     throw error
   }
 }
 
-async function generateInventoryTemplate() {
+async function generateInventoryTemplate(routeLogger: ReturnType<typeof logger.child>) {
   try {
+    routeLogger.info('Generating inventory template')
+
     // Get sample products for reference
+    routeLogger.debug('Fetching sample products for reference')
+    routeLogger.db('SELECT', 'products')
     const { data: products } = await supabase
       .from('products')
-      .select('sku, name')
-      .eq('status', 'active')
+      .select('product_id, name')
+      .eq('status', 'available')
       .order('name')
       .limit(10)
 
+    routeLogger.debug('Sample products fetched', { count: products?.length || 0 })
+
     // Create workbook
+    routeLogger.info('Creating Excel workbook for inventory template')
     const workbook = XLSX.utils.book_new()
 
     // Inventory template data with headers and sample rows
     const inventoryData = [
       {
-        'SKU': 'PF-TJ-1KG-001',
+        'Product ID': 'PF-TJ-1KG-001',
         'Add Quantity': 50,
         'Cost Per Unit': 185.84,
         'Expiration Date': '2025-12-31',
@@ -210,7 +250,7 @@ async function generateInventoryTemplate() {
         'Notes': 'Regular monthly restock delivery'
       },
       {
-        'SKU': 'SAMPLE-SKU-002',
+        'Product ID': 'SAMPLE-ID-002',
         'Add Quantity': 100,
         'Cost Per Unit': 150.00,
         'Expiration Date': '2025-06-30',
@@ -228,7 +268,7 @@ async function generateInventoryTemplate() {
 
     // Set column widths
     const columnWidths = [
-      { wch: 20 }, // SKU
+      { wch: 20 }, // Product ID
       { wch: 15 }, // Add Quantity
       { wch: 15 }, // Cost Per Unit
       { wch: 15 }, // Expiration Date
@@ -247,7 +287,7 @@ async function generateInventoryTemplate() {
 
     // Add instructions sheet
     const instructionsData = [
-      { 'Field': 'SKU', 'Required': 'YES', 'Type': 'Text', 'Description': 'Product SKU - must match existing product', 'Example': 'PF-TJ-1KG-001' },
+      { 'Field': 'Product ID', 'Required': 'YES', 'Type': 'Text', 'Description': 'Product ID - must match existing product exactly', 'Example': 'PF-TJ-1KG-001' },
       { 'Field': 'Add Quantity', 'Required': 'YES', 'Type': 'Number', 'Description': 'Quantity to add to current stock', 'Example': '50' },
       { 'Field': 'Cost Per Unit', 'Required': 'YES', 'Type': 'Number', 'Description': 'Cost per unit in Philippine Pesos (₱)', 'Example': '185.84' },
       { 'Field': 'Expiration Date', 'Required': 'NO', 'Type': 'Date', 'Description': 'Format: YYYY-MM-DD (e.g., 2025-12-31)', 'Example': '2025-12-31' },
@@ -274,16 +314,25 @@ async function generateInventoryTemplate() {
     if (products && products.length > 0) {
       const productsWorksheet = XLSX.utils.json_to_sheet(products)
       productsWorksheet['!cols'] = [
-        { wch: 20 }, // sku
+        { wch: 20 }, // product_id
         { wch: 30 }  // name
       ]
       XLSX.utils.book_append_sheet(workbook, productsWorksheet, 'Available Products')
     }
 
     // Generate Excel buffer
+    routeLogger.info('Generating Excel file buffer')
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
 
     const filename = 'InCloud_Inventory_Import_Template.xlsx'
+
+    const duration = routeLogger.timeEnd('generateTemplate')
+    routeLogger.success('Inventory template generated successfully', {
+      duration,
+      filename,
+      fileSize: excelBuffer.length,
+      sampleProductsCount: products?.length || 0
+    })
 
     return new NextResponse(excelBuffer, {
       status: 200,
@@ -295,6 +344,7 @@ async function generateInventoryTemplate() {
     })
 
   } catch (error) {
+    routeLogger.error('Error generating inventory template', error as Error)
     throw error
   }
 }

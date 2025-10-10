@@ -191,8 +191,8 @@ export default function ProductFilters({
                 className="w-full rounded-md border border-gray-400 bg-white py-2 px-3 text-sm text-gray-900 font-medium hover:border-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
               >
                 <option value="" className="text-gray-900 font-medium">All Status</option>
-                <option value="active" className="text-gray-900 font-medium">Available</option>
-                <option value="inactive" className="text-gray-900 font-medium">Unavailable</option>
+                <option value="available" className="text-gray-900 font-medium">Available</option>
+                <option value="unavailable" className="text-gray-900 font-medium">Unavailable</option>
                 <option value="discontinued" className="text-gray-900 font-medium">Discontinued</option>
               </select>
             </div>
@@ -244,8 +244,8 @@ export default function ProductFilters({
               <Button
                 type="button"
                 size="sm"
-                variant={statusFilter === 'active' ? 'primary' : 'outline'}
-                onClick={() => onStatusChange(statusFilter === 'active' ? '' : 'active')}
+                variant={statusFilter === 'available' ? 'primary' : 'outline'}
+                onClick={() => onStatusChange(statusFilter === 'available' ? '' : 'available')}
                 className="text-xs"
               >
                 Available Products
@@ -254,8 +254,8 @@ export default function ProductFilters({
               <Button
                 type="button"
                 size="sm"
-                variant={statusFilter === 'inactive' ? 'primary' : 'outline'}
-                onClick={() => onStatusChange(statusFilter === 'inactive' ? '' : 'inactive')}
+                variant={statusFilter === 'unavailable' ? 'primary' : 'outline'}
+                onClick={() => onStatusChange(statusFilter === 'unavailable' ? '' : 'unavailable')}
                 className="text-xs"
               >
                 Unavailable Products
@@ -310,7 +310,7 @@ export default function ProductFilters({
 
                 {statusFilter && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    Status: {statusFilter}
+                    Status: {statusFilter === 'available' ? 'Available' : statusFilter === 'unavailable' ? 'Unavailable' : statusFilter === 'discontinued' ? 'Discontinued' : statusFilter}
                     <button
                       type="button"
                       onClick={() => onStatusChange('')}

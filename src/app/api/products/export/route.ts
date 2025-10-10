@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
           name
         ),
         price_tiers (
-          tier_type,
+          pricing_type,
           price,
           min_quantity,
           max_quantity,
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       .order('name')
 
     if (!includeInactive) {
-      query = query.eq('status', 'active')
+      query = query.eq('status', 'available')
     }
 
     const { data: products, error } = await query
@@ -80,10 +80,10 @@ export async function GET(request: NextRequest) {
     const excelData = products.map(product => {
       // Get pricing tiers
       const priceTiers = product.price_tiers || []
-      const srpTier = priceTiers.find(p => p.tier_type === 'retail')
-      const wspTier = priceTiers.find(p => p.tier_type === 'wholesale')
-      const dsrpTier = priceTiers.find(p => p.tier_type === 'distributor')
-      const asrpTier = priceTiers.find(p => p.tier_type === 'agent')
+      const srpTier = priceTiers.find(p => p.pricing_type === 'retail')
+      const wspTier = priceTiers.find(p => p.pricing_type === 'wholesale')
+      const dsrpTier = priceTiers.find(p => p.pricing_type === 'distributor')
+      const asrpTier = priceTiers.find(p => p.pricing_type === 'agent')
 
       return {
         'Product Name': product.name,

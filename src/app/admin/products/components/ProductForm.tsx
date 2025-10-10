@@ -30,7 +30,7 @@ type Brand = Database['public']['Tables']['brands']['Row']
 
 interface PriceTier {
   id?: string
-  tier_type: Database['public']['Enums']['pricing_tier']
+  pricing_type: Database['public']['Enums']['pricing_tier']
   price: number
   min_quantity: number
   max_quantity?: number
@@ -84,7 +84,7 @@ export default function ProductForm({
     category_id: '',
     brand_id: '',
     unit_of_measure: 'pieces',
-    status: 'active',
+    status: 'available',
     low_stock_threshold: 10,
     images: [],
     pricingTiers: []
@@ -190,11 +190,11 @@ export default function ProductForm({
     setFormData({
       name: product.name,
       description: product.description || '',
-      product_id: product.sku || '',
+      product_id: product.product_id || '',
       category_id: product.category_id || '',
       brand_id: product.brand_id || '',
       unit_of_measure: product.unit_of_measure || 'pieces',
-      status: product.status || 'active',
+      status: product.status || 'available',
       low_stock_threshold: lowStockThreshold,
       images: Array.isArray(product.images) ? product.images.map((img: string | { url: string; path?: string }, index) => ({
         id: `existing-${index}`,
@@ -214,13 +214,13 @@ export default function ProductForm({
 
       if (error) {
         console.error('❌ Error loading pricing tiers:', error)
-        setError('Failed to load pricing tiers')
+        setError('Failed to load pricing types')
         return
       }
 
       const tiers = (priceTiersData || []).map(tier => ({
         id: tier.id,
-        tier_type: tier.tier_type,
+        pricing_type: tier.pricing_type,
         price: Number(tier.price),
         min_quantity: tier.min_quantity || 1,
         max_quantity: tier.max_quantity || undefined,
@@ -236,7 +236,7 @@ export default function ProductForm({
       }))
     } catch (err) {
       console.error('💥 Failed to load pricing tiers:', err)
-      setError('Failed to load pricing tiers')
+      setError('Failed to load pricing types')
     }
   }
 
@@ -248,7 +248,7 @@ export default function ProductForm({
       category_id: '',
       brand_id: '',
       unit_of_measure: 'pieces',
-      status: 'active',
+      status: 'available',
       low_stock_threshold: 10,
       images: [],
       pricingTiers: []
@@ -407,7 +407,7 @@ export default function ProductForm({
     // Try using the enhanced database function first for better integration
     try {
       const pricingTiersForFunction = formData.pricingTiers.map(tier => ({
-        tier_type: tier.tier_type,
+        pricing_type: tier.pricing_type,
         price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
         min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
         max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
@@ -427,7 +427,7 @@ export default function ProductForm({
         {
           p_name: formData.name.trim(),
           p_description: formData.description.trim() || null,
-          p_sku: formData.product_id.trim() || null,
+          p_product_id: formData.product_id.trim() || null,
           p_category_id: formData.category_id || null,
           p_brand_id: formData.brand_id || null,
           p_unit_of_measure: formData.unit_of_measure,
@@ -473,7 +473,7 @@ export default function ProductForm({
       const productData: ProductInsert = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        sku: formData.product_id.trim() || null,
+        product_id: formData.product_id.trim() || null,
         category_id: formData.category_id || null,
         brand_id: formData.brand_id || null,
         unit_of_measure: formData.unit_of_measure,
@@ -505,7 +505,7 @@ export default function ProductForm({
       if (formData.pricingTiers.length > 0) {
         const pricingData = formData.pricingTiers.map(tier => ({
           product_id: product.id,
-          tier_type: tier.tier_type,
+          pricing_type: tier.pricing_type,
           price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
           min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
           max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
@@ -521,7 +521,7 @@ export default function ProductForm({
 
         if (pricingError) {
           console.error('❌ Pricing tiers insert failed:', pricingError)
-          logSupabaseError(pricingError, 'Price tiers insert')
+          logSupabaseError(pricingError, 'Pricing types insert')
           throw pricingError
         }
 
@@ -584,7 +584,7 @@ export default function ProductForm({
     const productData: ProductUpdate = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
-      sku: formData.product_id.trim() || null,
+      product_id: formData.product_id.trim() || null,
       category_id: formData.category_id || null,
       brand_id: formData.brand_id || null,
       unit_of_measure: formData.unit_of_measure,
@@ -619,7 +619,7 @@ export default function ProductForm({
 
     if (deleteError) {
       console.error('❌ Failed to delete existing pricing tiers:', deleteError)
-      logSupabaseError(deleteError, 'Delete existing price tiers')
+      logSupabaseError(deleteError, 'Delete existing pricing types')
       throw deleteError
     }
 
@@ -629,7 +629,7 @@ export default function ProductForm({
     if (formData.pricingTiers.length > 0) {
       const pricingData = formData.pricingTiers.map(tier => ({
         product_id: product.id,
-        tier_type: tier.tier_type,
+        pricing_type: tier.pricing_type,
         price: typeof tier.price === 'string' ? parseFloat(tier.price) || 0 : tier.price,
         min_quantity: typeof tier.min_quantity === 'string' ? parseInt(tier.min_quantity) || 1 : tier.min_quantity,
         max_quantity: typeof tier.max_quantity === 'string' ? (tier.max_quantity === '' ? undefined : parseInt(tier.max_quantity)) : tier.max_quantity,
@@ -645,7 +645,7 @@ export default function ProductForm({
 
       if (pricingError) {
         console.error('❌ Failed to create new pricing tiers:', pricingError)
-        logSupabaseError(pricingError, 'Insert new price tiers')
+        logSupabaseError(pricingError, 'Insert new pricing types')
         throw pricingError
       }
 
@@ -686,9 +686,9 @@ export default function ProductForm({
 
   const getStatusBadge = (status: ProductStatus) => {
     switch (status) {
-      case 'active':
+      case 'available':
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Available</span>
-      case 'inactive':
+      case 'unavailable':
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Unavailable</span>
       case 'discontinued':
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Discontinued</span>
@@ -906,8 +906,8 @@ export default function ProductForm({
                                   onChange={(e) => handleInputChange('status', e.target.value as ProductStatus)}
                                   className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  <option value="active">Available</option>
-                                  <option value="inactive">Unavailable</option>
+                                  <option value="available">Available</option>
+                                  <option value="unavailable">Unavailable</option>
                                   <option value="discontinued">Discontinued</option>
                                 </select>
                               </div>
@@ -1006,8 +1006,8 @@ export default function ProductForm({
                               <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Status</span>
                               <div>
                                 <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium capitalize ${
-                                  formData.status === 'active' ? 'bg-green-100 text-green-800' :
-                                  formData.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                                  formData.status === 'available' ? 'bg-green-100 text-green-800' :
+                                  formData.status === 'unavailable' ? 'bg-yellow-100 text-yellow-800' :
                                   'bg-red-100 text-red-800'
                                 }`}>
                                   {formData.status}

@@ -9,7 +9,7 @@ type PricingTier = Database['public']['Enums']['pricing_tier']
 
 interface PriceTier {
   id?: string
-  tier_type: PricingTier
+  pricing_type: PricingTier
   price: number | string
   min_quantity: number | string
   max_quantity?: number | string
@@ -39,7 +39,7 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [newTier, setNewTier] = useState<PriceTier>({
-    tier_type: 'retail',
+    pricing_type: 'retail',
     price: '',
     min_quantity: '',
     max_quantity: '',
@@ -52,7 +52,7 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
   }, [value])
 
   const getAvailableTierTypes = (): PricingTier[] => {
-    const usedTypes = new Set(tiers.map(t => t.tier_type))
+    const usedTypes = new Set(tiers.map(t => t.pricing_type))
     return (Object.keys(TIER_LABELS) as PricingTier[]).filter(type => !usedTypes.has(type))
   }
 
@@ -83,17 +83,33 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
       return
     }
 
-    const newTiers = [...tiers, newTier]
+    // Create a clean copy to avoid reference issues
+    const tierToAdd = { ...newTier }
+    console.log('🔵 Adding pricing tier:', {
+      type: tierToAdd.pricing_type,
+      price: tierToAdd.price,
+      min_qty: tierToAdd.min_quantity,
+      max_qty: tierToAdd.max_quantity || 'unlimited',
+      active: tierToAdd.is_active
+    })
+
+    const newTiers = [...tiers, tierToAdd]
     setTiers(newTiers)
     onChange(newTiers)
+
+    console.log('✅ Tiers after add:', newTiers.map(t => ({
+      type: t.pricing_type,
+      price: t.price,
+      active: t.is_active
+    })))
 
     // Reset form
     setIsAdding(false)
     const availableTypes = (Object.keys(TIER_LABELS) as PricingTier[]).filter(
-      type => !newTiers.map(t => t.tier_type).includes(type)
+      type => !newTiers.map(t => t.pricing_type).includes(type)
     )
     setNewTier({
-      tier_type: availableTypes[0] || 'retail',
+      pricing_type: availableTypes[0] || 'retail',
       price: '',
       min_quantity: '',
       max_quantity: '',
@@ -170,8 +186,8 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${TIER_BADGE_COLORS[tier.tier_type]}`}>
-                          {TIER_LABELS[tier.tier_type].label}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${TIER_BADGE_COLORS[tier.pricing_type]}`}>
+                          {TIER_LABELS[tier.pricing_type].label}
                         </span>
                         <label className="flex items-center text-sm font-medium text-gray-900">
                           <input
@@ -265,8 +281,8 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                   /* View Mode */
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4 flex-1">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${TIER_BADGE_COLORS[tier.tier_type]}`}>
-                        {TIER_LABELS[tier.tier_type].label}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${TIER_BADGE_COLORS[tier.pricing_type]}`}>
+                        {TIER_LABELS[tier.pricing_type].label}
                       </span>
                       <div className="flex items-center space-x-6 text-sm">
                         <div>
@@ -348,8 +364,8 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                       Type *
                     </label>
                     <select
-                      value={newTier.tier_type}
-                      onChange={(e) => setNewTier({ ...newTier, tier_type: e.target.value as PricingTier })}
+                      value={newTier.pricing_type}
+                      onChange={(e) => setNewTier({ ...newTier, pricing_type: e.target.value as PricingTier })}
                       className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {availableTierTypes.map(type => (
@@ -460,10 +476,10 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
                 return aMin - bMin
               })
               .map((tier, index) => (
-                <div key={index} className="flex justify-between items-center text-sm bg-white bg-opacity-60 px-3 py-2 rounded">
+                <div key={`${tier.pricing_type}-${tier.min_quantity}-${tier.price}-${index}`} className="flex justify-between items-center text-sm bg-white bg-opacity-60 px-3 py-2 rounded">
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TIER_BADGE_COLORS[tier.tier_type]}`}>
-                      {TIER_LABELS[tier.tier_type].label}
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TIER_BADGE_COLORS[tier.pricing_type]}`}>
+                      {TIER_LABELS[tier.pricing_type].label}
                     </span>
                     <span className="text-gray-600 text-xs">
                       {formatQuantityRange(tier.min_quantity, tier.max_quantity)}

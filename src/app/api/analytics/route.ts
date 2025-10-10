@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AnalyticsService } from '@/lib/services/analyticsService'
 import { GeminiService } from '@/lib/services/geminiService'
+import { logger } from '@/lib/logger'
 
 // Cache for analytics data (1 hour)
 let cachedAnalytics: any = null
@@ -12,20 +13,29 @@ let cachedAIInsights: any = null
 let aiCacheTimestamp: number = 0
 
 export async function GET(request: NextRequest) {
-  console.log('\n🔵 [Analytics API] GET request received')
+  const routeLogger = logger.child({
+    route: 'GET /api/analytics',
+    operation: 'getAnalytics'
+  })
+  routeLogger.time('getAnalytics')
+
   try {
+    routeLogger.info('Starting analytics request')
+
     const searchParams = request.nextUrl.searchParams
     const forceRefresh = searchParams.get('refresh') === 'true'
     const includeAI = searchParams.get('includeAI') !== 'false' // Default true
 
-    console.log('⚙️ [Analytics API] Request params:', { forceRefresh, includeAI })
+    routeLogger.debug('Request parameters', { forceRefresh, includeAI })
 
     const now = Date.now()
 
     // Check cache
     if (!forceRefresh && cachedAnalytics && now - cacheTimestamp < CACHE_DURATION) {
       const cacheAge = Math.floor((now - cacheTimestamp) / 1000)
-      console.log(`💾 [Analytics API] Returning cached data (${cacheAge}s old)`)
+      routeLogger.info('Returning cached analytics data', { cacheAge })
+      const duration = routeLogger.timeEnd('getAnalytics')
+      routeLogger.success('Analytics request completed (cached)', { duration, cacheAge })
       return NextResponse.json({
         ...cachedAnalytics,
         cached: true,
@@ -33,40 +43,40 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log('🔄 [Analytics API] Fetching fresh analytics data...')
+    routeLogger.info('Fetching fresh analytics data')
     // Fetch fresh analytics data
     const analyticsSnapshot = await AnalyticsService.getAnalyticsSnapshot()
-    console.log('✅ [Analytics API] Analytics snapshot retrieved')
+    routeLogger.debug('Analytics snapshot retrieved', {
+      inventoryProducts: analyticsSnapshot.inventoryMetrics.totalProducts
+    })
 
     // Get AI insights if requested
     let aiInsights = null
     if (includeAI) {
-      console.log('🤖 [Analytics API] AI insights requested')
+      routeLogger.info('AI insights requested')
       // Check AI cache
       if (!forceRefresh && cachedAIInsights && now - aiCacheTimestamp < CACHE_DURATION) {
         const aiCacheAge = Math.floor((now - aiCacheTimestamp) / 1000)
-        console.log(`💾 [Analytics API] Using cached AI insights (${aiCacheAge}s old)`)
+        routeLogger.debug('Using cached AI insights', { aiCacheAge })
         aiInsights = cachedAIInsights
       } else {
         try {
-          console.log('🚀 [Analytics API] Generating new AI insights...')
-          const startTime = Date.now()
+          routeLogger.info('Generating new AI insights via Gemini')
+          routeLogger.time('aiInsightsGeneration')
           aiInsights = await GeminiService.generatePrescriptiveInsights(analyticsSnapshot)
-          const duration = Date.now() - startTime
-          console.log(`✅ [Analytics API] AI insights generated in ${duration}ms`)
+          const aiDuration = routeLogger.timeEnd('aiInsightsGeneration')
+          routeLogger.success('AI insights generated', { duration: aiDuration })
           cachedAIInsights = aiInsights
           aiCacheTimestamp = now
         } catch (error) {
-          console.error('❌ [Analytics API] AI insights generation failed:', error)
-          console.error('📋 [Analytics API] Error details:', {
-            message: error instanceof Error ? error.message : 'Unknown error',
-            type: error instanceof Error ? error.constructor.name : typeof error,
+          routeLogger.error('AI insights generation failed', error as Error, {
+            willContinueWithoutAI: true
           })
           // Continue without AI insights
         }
       }
     } else {
-      console.log('⏭️ [Analytics API] AI insights not requested')
+      routeLogger.debug('AI insights not requested')
     }
 
     const response = {
@@ -79,15 +89,17 @@ export async function GET(request: NextRequest) {
     cachedAnalytics = response
     cacheTimestamp = now
 
-    console.log('📤 [Analytics API] Sending response with:', {
+    const duration = routeLogger.timeEnd('getAnalytics')
+    routeLogger.success('Analytics request completed', {
+      duration,
       hasAI: !!aiInsights,
       inventoryProducts: analyticsSnapshot.inventoryMetrics.totalProducts,
+      cached: false
     })
 
     return NextResponse.json(response)
   } catch (error) {
-    console.error('❌ [Analytics API] Fatal error:', error)
-    console.error('📋 [Analytics API] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    routeLogger.error('Unexpected error in analytics API', error as Error)
     return NextResponse.json(
       {
         error: 'Failed to fetch analytics data',
@@ -99,28 +111,38 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('\n🟢 [Analytics API] POST request received')
+  const routeLogger = logger.child({
+    route: 'POST /api/analytics',
+    operation: 'analyticsAction'
+  })
+  routeLogger.time('analyticsAction')
+
   try {
+    routeLogger.info('Starting analytics action request')
+
     const body = await request.json()
     const { action } = body
-    console.log('⚙️ [Analytics API] Action requested:', action)
+    routeLogger.debug('Action requested', { action })
 
     if (action === 'regenerateAI') {
-      console.log('🔄 [Analytics API] Force regenerating AI insights...')
+      routeLogger.info('Force regenerating AI insights')
       // Force regenerate AI insights
       const analyticsSnapshot = await AnalyticsService.getAnalyticsSnapshot()
-      console.log('✅ [Analytics API] Analytics snapshot retrieved')
+      routeLogger.debug('Analytics snapshot retrieved')
 
-      console.log('🚀 [Analytics API] Calling Gemini service...')
-      const startTime = Date.now()
+      routeLogger.info('Calling Gemini service for AI insights')
+      routeLogger.time('aiRegeneration')
       const aiInsights = await GeminiService.generatePrescriptiveInsights(analyticsSnapshot)
-      const duration = Date.now() - startTime
-      console.log(`✅ [Analytics API] AI insights regenerated in ${duration}ms`)
+      const aiDuration = routeLogger.timeEnd('aiRegeneration')
+      routeLogger.success('AI insights regenerated', { duration: aiDuration })
 
       // Update cache
       cachedAIInsights = aiInsights
       aiCacheTimestamp = Date.now()
-      console.log('💾 [Analytics API] AI cache updated')
+      routeLogger.debug('AI cache updated')
+
+      const duration = routeLogger.timeEnd('analyticsAction')
+      routeLogger.success('AI regeneration completed', { duration })
 
       return NextResponse.json({
         success: true,
@@ -129,10 +151,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'quickInsights') {
-      console.log('⚡ [Analytics API] Generating quick insights...')
+      routeLogger.info('Generating quick insights')
       const analyticsSnapshot = await AnalyticsService.getAnalyticsSnapshot()
+      routeLogger.time('quickInsights')
       const quickInsights = await GeminiService.generateQuickInsights(analyticsSnapshot)
-      console.log('✅ [Analytics API] Quick insights generated:', quickInsights.length)
+      const qiDuration = routeLogger.timeEnd('quickInsights')
+
+      const duration = routeLogger.timeEnd('analyticsAction')
+      routeLogger.success('Quick insights generated', {
+        duration,
+        quickInsightsDuration: qiDuration,
+        insightCount: quickInsights.length
+      })
 
       return NextResponse.json({
         success: true,
@@ -140,17 +170,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log('⚠️ [Analytics API] Invalid action requested:', action)
+    routeLogger.warn('Invalid action requested', { action })
     return NextResponse.json(
       { error: 'Invalid action' },
       { status: 400 }
     )
   } catch (error) {
-    console.error('❌ [Analytics API] POST Error:', error)
-    console.error('📋 [Analytics API] Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-    })
+    routeLogger.error('Unexpected error in analytics action', error as Error)
     return NextResponse.json(
       {
         error: 'Failed to process request',

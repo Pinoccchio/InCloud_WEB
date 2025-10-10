@@ -24,19 +24,41 @@ export default function DashboardPage() {
   const { addToast } = useToast()
 
   const loadDashboardData = async () => {
+    console.log('🏠 [Dashboard] Loading dashboard data')
+    const startTime = performance.now()
     setIsLoading(true)
+
     try {
+      console.log('📊 [Dashboard] Fetching metrics and activity in parallel...')
+
       // Load dashboard metrics and recent activity in parallel
       const [metrics, activity] = await Promise.all([
         DashboardService.getDashboardMetrics(),
         DashboardService.getRecentActivity(10)
       ])
 
+      const duration = (performance.now() - startTime).toFixed(0)
+
+      console.log('✅ [Dashboard] Dashboard data loaded successfully:', {
+        duration: `${duration}ms`,
+        metrics: {
+          activeProducts: metrics.activeProducts,
+          activeOrders: metrics.activeOrders,
+          lowStockItems: metrics.lowStockItems,
+          criticalAlerts: metrics.criticalAlerts
+        },
+        recentActivityCount: activity.length
+      })
+
       setDashboardData(metrics)
       setRecentActivity(activity)
 
     } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      console.error('❌ [Dashboard] Error loading dashboard data:', error)
+      console.error('📋 [Dashboard] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
       addToast({
         type: 'error',
         title: 'Dashboard Error',
@@ -44,14 +66,17 @@ export default function DashboardPage() {
       })
     } finally {
       setIsLoading(false)
+      console.log('🏁 [Dashboard] Load operation completed')
     }
   }
 
   useEffect(() => {
+    console.log('🔄 [Dashboard] Component mounted - initializing dashboard')
     loadDashboardData()
   }, [])
 
   const handleRefresh = () => {
+    console.log('🔄 [Dashboard] Manual refresh triggered')
     loadDashboardData()
     addToast({
       type: 'success',

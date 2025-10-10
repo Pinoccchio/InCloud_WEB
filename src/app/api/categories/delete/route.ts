@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
+import { logger } from '@/lib/logger'
 
 // Types for the API
 interface DeleteCategoryRequestBody {
@@ -10,16 +11,31 @@ interface DeleteCategoryRequestBody {
 }
 
 export async function DELETE(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'DELETE /api/categories/delete',
+    operation: 'deleteCategory'
+  })
+  routeLogger.time('deleteCategory')
+
   try {
+    routeLogger.info('Starting category deletion request')
+
     // Get admin context and validate permissions
     const { client, currentAdminId, requestBody } = await validateAdminWithContext(request)
     const { categoryId, reason } = requestBody as DeleteCategoryRequestBody
+
+    routeLogger.debug('Request validated', {
+      currentAdminId,
+      categoryId,
+      hasReason: !!reason
+    })
 
     // Get audit metadata
     const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!categoryId) {
+      routeLogger.warn('Missing required field: categoryId')
       return NextResponse.json(
         { error: 'Missing required field: categoryId' },
         { status: 400 }
@@ -27,6 +43,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Get category details before deletion
+    routeLogger.info('Fetching category details', { categoryId })
+    routeLogger.db('SELECT', 'categories')
     const { data: categoryToDelete, error: fetchError } = await client
       .from('categories')
       .select(`
@@ -43,20 +61,28 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (fetchError || !categoryToDelete) {
+      routeLogger.warn('Category not found', { categoryId, error: fetchError?.message })
       return NextResponse.json(
         { error: 'Category not found' },
         { status: 404 }
       )
     }
 
+    routeLogger.debug('Category found', {
+      categoryName: categoryToDelete.name,
+      isTopLevel: !categoryToDelete.parent_id
+    })
+
     // Check for subcategories (prevent deletion if subcategories exist)
+    routeLogger.info('Checking for subcategories')
+    routeLogger.db('SELECT', 'categories')
     const { data: subcategories, error: subcategoriesError } = await client
       .from('categories')
       .select('id, name')
       .eq('parent_id', categoryId)
 
     if (subcategoriesError) {
-      console.error('Error checking subcategories:', subcategoriesError)
+      routeLogger.error('Error checking subcategories', subcategoriesError)
       return NextResponse.json(
         { error: 'Failed to check category hierarchy' },
         { status: 500 }
@@ -65,6 +91,10 @@ export async function DELETE(request: NextRequest) {
 
     // Prevent deletion if subcategories exist
     if (subcategories && subcategories.length > 0) {
+      routeLogger.warn('Cannot delete category with subcategories', {
+        categoryName: categoryToDelete.name,
+        subcategoryCount: subcategories.length
+      })
       return NextResponse.json(
         {
           error: 'Cannot delete category with subcategories',
@@ -81,14 +111,18 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    routeLogger.debug('No subcategories found')
+
     // Check for products using this category (prevent deletion if products exist)
+    routeLogger.info('Checking for associated products')
+    routeLogger.db('SELECT', 'products')
     const { data: associatedProducts, error: productsError } = await client
       .from('products')
       .select('id, name, sku')
       .eq('category_id', categoryId)
 
     if (productsError) {
-      console.error('Error checking associated products:', productsError)
+      routeLogger.error('Error checking associated products', productsError)
       return NextResponse.json(
         { error: 'Failed to check category dependencies' },
         { status: 500 }
@@ -97,6 +131,10 @@ export async function DELETE(request: NextRequest) {
 
     // Prevent deletion if products are still using this category
     if (associatedProducts && associatedProducts.length > 0) {
+      routeLogger.warn('Cannot delete category with associated products', {
+        categoryName: categoryToDelete.name,
+        productCount: associatedProducts.length
+      })
       return NextResponse.json(
         {
           error: 'Cannot delete category with associated products',
@@ -114,9 +152,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    routeLogger.debug('No associated products found - safe to delete')
+
     // Get parent category info for audit trail
     let parentCategoryInfo = null
     if (categoryToDelete.parent_id) {
+      routeLogger.debug('Fetching parent category for audit trail')
+      routeLogger.db('SELECT', 'categories')
       const { data: parentCategory } = await client
         .from('categories')
         .select('id, name')
@@ -128,24 +170,31 @@ export async function DELETE(request: NextRequest) {
           id: parentCategory.id,
           name: parentCategory.name
         }
+        routeLogger.debug('Parent category found', { parentName: parentCategory.name })
       }
     }
 
     // Delete the category (safe since no subcategories or products reference it)
+    routeLogger.info('Deleting category from database', { categoryId, categoryName: categoryToDelete.name })
+    routeLogger.db('DELETE', 'categories')
     const { error: deleteError } = await client
       .from('categories')
       .delete()
       .eq('id', categoryId)
 
     if (deleteError) {
-      console.error('Error deleting category:', deleteError)
+      routeLogger.error('Error deleting category', deleteError)
       return NextResponse.json(
         { error: 'Failed to delete category' },
         { status: 400 }
       )
     }
 
+    routeLogger.debug('Category deleted from database')
+
     // Create audit log entry
+    routeLogger.info('Creating audit log entry')
+    routeLogger.db('INSERT', 'audit_logs')
     try {
       await client
         .from('audit_logs')
@@ -166,10 +215,20 @@ export async function DELETE(request: NextRequest) {
             timestamp: auditMetadata.timestamp
           }
         })
+      routeLogger.debug('Audit log entry created')
     } catch (auditError) {
-      console.error('Failed to create audit log:', auditError)
+      routeLogger.warn('Failed to create audit log', { error: auditError })
       // Don't fail the request if audit logging fails
     }
+
+    const duration = routeLogger.timeEnd('deleteCategory')
+    routeLogger.success('Category deleted successfully', {
+      duration,
+      categoryId,
+      categoryName: categoryToDelete.name,
+      wasTopLevel: !categoryToDelete.parent_id,
+      performedBy: currentAdminId
+    })
 
     return NextResponse.json({
       success: true,
@@ -182,7 +241,7 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Unexpected error in delete category API:', error)
+    routeLogger.error('Unexpected error in delete category API', error as Error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

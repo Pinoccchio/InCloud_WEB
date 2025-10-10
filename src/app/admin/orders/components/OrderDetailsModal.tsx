@@ -10,7 +10,9 @@ import {
   CheckCircleIcon,
   TruckIcon,
   ArrowPathIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  PhotoIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline'
 import { supabase } from '@/lib/supabase/auth'
 import { useToast } from '@/contexts/ToastContext'
@@ -56,10 +58,18 @@ interface OrderDetails {
   delivery_date: string | null
   subtotal: number
   discount_amount: number | null
-  tax_amount: number | null
   total_amount: number
   notes: string | null
   delivery_address: Record<string, unknown> | null
+  proof_of_payment_url: string | null
+  proof_of_payment_status: string | null
+  proof_submitted_at: string | null
+  proof_reviewed_by: string | null
+  proof_reviewed_at: string | null
+  proof_rejection_reason: string | null
+  cancellation_reason: string | null
+  cancelled_at: string | null
+  cancelled_by: string | null
   customer: CustomerData
   branch: BranchData
   order_items: Array<{
@@ -67,12 +77,12 @@ interface OrderDetails {
     quantity: number
     unit_price: number
     total_price: number
-    pricing_tier: PricingTier
+    pricing_type: PricingTier
     fulfillment_status: string | null
     product: {
       id: string
       name: string
-      sku: string | null
+      product_id: string | null
       unit_of_measure: string | null
       images: string[]
     }
@@ -159,6 +169,13 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
   const [loading, setLoading] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [statusNotes, setStatusNotes] = useState('')
+  const [showProofFullscreen, setShowProofFullscreen] = useState(false)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [processingProof, setProcessingProof] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancellationReason, setCancellationReason] = useState('')
+  const [cancellingOrder, setCancellingOrder] = useState(false)
   const { addToast } = useToast()
 
   // Fetch order details with proper error handling
@@ -190,12 +207,12 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
             quantity,
             unit_price,
             total_price,
-            pricing_tier,
+            pricing_type,
             fulfillment_status,
             products!inner(
               id,
               name,
-              sku,
+              product_id,
               unit_of_measure,
               images
             )
@@ -282,10 +299,18 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
         delivery_date: orderData.delivery_date,
         subtotal: orderData.subtotal,
         discount_amount: orderData.discount_amount || null,
-        tax_amount: orderData.tax_amount || null,
         total_amount: orderData.total_amount,
         notes: orderData.notes,
         delivery_address: processDeliveryAddress(orderData.delivery_address),
+        proof_of_payment_url: orderData.proof_of_payment_url || null,
+        proof_of_payment_status: orderData.proof_of_payment_status || null,
+        proof_submitted_at: orderData.proof_submitted_at || null,
+        proof_reviewed_by: orderData.proof_reviewed_by || null,
+        proof_reviewed_at: orderData.proof_reviewed_at || null,
+        proof_rejection_reason: orderData.proof_rejection_reason || null,
+        cancellation_reason: orderData.cancellation_reason || null,
+        cancelled_at: orderData.cancelled_at || null,
+        cancelled_by: orderData.cancelled_by || null,
         customer: orderData.customers,
         branch: orderData.branches,
         order_items: orderData.order_items.map(item => ({
@@ -293,12 +318,12 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.total_price,
-          pricing_tier: item.pricing_tier,
+          pricing_type: item.pricing_type,
           fulfillment_status: item.fulfillment_status,
           product: {
             id: item.products.id,
             name: item.products.name,
-            sku: item.products.sku,
+            product_id: item.products.product_id,
             unit_of_measure: item.products.unit_of_measure,
             images: processProductImages(item.products.images)
           }
@@ -352,7 +377,24 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
         updateData.delivery_date = new Date().toISOString()
       }
 
-      // Update order status - database trigger will automatically create status history
+      // IMPORTANT: Manually create status history entry BEFORE updating order
+      // This allows the database trigger to detect it and skip creating a duplicate
+      const { error: historyError } = await supabase
+        .from('order_status_history')
+        .insert({
+          order_id: order.id,
+          old_status: order.status,
+          new_status: newStatus,
+          changed_by_user_id: adminData.user.id,
+          notes: statusNotes.trim() || `Status updated to ${statusConfig[newStatus].label}`
+        })
+
+      if (historyError) {
+        console.error('Failed to create status history:', historyError)
+        throw new Error(`Failed to create status history: ${historyError.message}`)
+      }
+
+      // Update order status - database trigger will check for recent manual entries
       const { error: updateError } = await supabase
         .from('orders')
         .update(updateData)
@@ -393,6 +435,188 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
     }
   }
 
+  // Approve proof of payment
+  const approveProofOfPayment = async () => {
+    if (!order) return
+
+    try {
+      setProcessingProof(true)
+
+      const { data: adminData } = await supabase.auth.getUser()
+      if (!adminData.user) throw new Error('Not authenticated')
+
+      // Get admin ID from admins table (not auth user ID)
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('user_id', adminData.user.id)
+        .single()
+
+      if (adminError || !adminProfile) {
+        throw new Error('Admin profile not found')
+      }
+
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          proof_of_payment_status: 'approved',
+          proof_reviewed_by: adminProfile.id,
+          proof_reviewed_at: new Date().toISOString(),
+          proof_rejection_reason: null,
+          payment_status: 'paid' // Automatically mark as paid when proof is approved
+        })
+        .eq('id', order.id)
+
+      if (updateError) throw updateError
+
+      addToast({
+        type: 'success',
+        title: 'Proof of Payment Approved',
+        message: 'The proof of payment has been approved and payment status updated.'
+      })
+
+      await fetchOrderDetails()
+    } catch (err) {
+      console.error('Error approving proof of payment:', err)
+      addToast({
+        type: 'error',
+        title: 'Failed to approve payment',
+        message: err instanceof Error ? err.message : 'Unknown error occurred'
+      })
+    } finally {
+      setProcessingProof(false)
+    }
+  }
+
+  // Reject proof of payment
+  const rejectProofOfPayment = async () => {
+    if (!order || !rejectionReason.trim()) {
+      addToast({
+        type: 'error',
+        title: 'Rejection reason required',
+        message: 'Please provide a reason for rejecting the proof of payment.'
+      })
+      return
+    }
+
+    try {
+      setProcessingProof(true)
+
+      const { data: adminData } = await supabase.auth.getUser()
+      if (!adminData.user) throw new Error('Not authenticated')
+
+      // Get admin ID from admins table (not auth user ID)
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('user_id', adminData.user.id)
+        .single()
+
+      if (adminError || !adminProfile) {
+        throw new Error('Admin profile not found')
+      }
+
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          proof_of_payment_status: 'rejected',
+          proof_reviewed_by: adminProfile.id,
+          proof_reviewed_at: new Date().toISOString(),
+          proof_rejection_reason: rejectionReason.trim()
+        })
+        .eq('id', order.id)
+
+      if (updateError) throw updateError
+
+      addToast({
+        type: 'success',
+        title: 'Proof of Payment Rejected',
+        message: 'The customer will be notified to submit a new proof of payment.'
+      })
+
+      setShowRejectModal(false)
+      setRejectionReason('')
+      await fetchOrderDetails()
+    } catch (err) {
+      console.error('Error rejecting proof of payment:', err)
+      addToast({
+        type: 'error',
+        title: 'Failed to reject payment',
+        message: err instanceof Error ? err.message : 'Unknown error occurred'
+      })
+    } finally {
+      setProcessingProof(false)
+    }
+  }
+
+  // Cancel order
+  const cancelOrder = async () => {
+    if (!order || !cancellationReason.trim()) {
+      addToast({
+        type: 'error',
+        title: 'Cancellation reason required',
+        message: 'Please provide a reason for cancelling this order.'
+      })
+      return
+    }
+
+    try {
+      setCancellingOrder(true)
+
+      const { data: adminData } = await supabase.auth.getUser()
+      if (!adminData.user) throw new Error('Not authenticated')
+
+      // Get admin ID from profiles/admins table
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('user_id', adminData.user.id)
+        .single()
+
+      if (adminError || !adminProfile) {
+        throw new Error('Admin profile not found')
+      }
+
+      // Update order to cancelled status
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: cancellationReason.trim(),
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: adminProfile.id,
+          payment_status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', order.id)
+
+      if (updateError) {
+        console.error('Order cancellation error details:', updateError)
+        throw new Error(`Failed to cancel order: ${updateError.message || 'Unknown database error'}`)
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Order Cancelled',
+        message: 'The order has been successfully cancelled.'
+      })
+
+      setShowCancelModal(false)
+      setCancellationReason('')
+      await fetchOrderDetails()
+
+    } catch (err) {
+      console.error('Error cancelling order:', err)
+      addToast({
+        type: 'error',
+        title: 'Failed to cancel order',
+        message: err instanceof Error ? err.message : 'Unknown error occurred'
+      })
+    } finally {
+      setCancellingOrder(false)
+    }
+  }
+
   useEffect(() => {
     if (isOpen && orderId) {
       fetchOrderDetails()
@@ -425,6 +649,11 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
   }
 
   const canUpdateStatus = () => {
+    return order && order.status && ['pending', 'confirmed', 'in_transit'].includes(order.status)
+  }
+
+  const canCancelOrder = () => {
+    // Orders can be cancelled if they're not already delivered, cancelled, or returned
     return order && order.status && ['pending', 'confirmed', 'in_transit'].includes(order.status)
   }
 
@@ -506,6 +735,17 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                               {updating ? 'Updating...' : `Mark as ${statusConfig[getNextStatus()!].label}`}
                             </Button>
                           )}
+                          {canCancelOrder() && (
+                            <Button
+                              onClick={() => setShowCancelModal(true)}
+                              disabled={updating || cancellingOrder}
+                              size="sm"
+                              variant="outline"
+                              className="border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                              Cancel Order
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -523,6 +763,28 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                       </div>
                     )}
                   </div>
+
+                  {/* Cancellation Information */}
+                  {order.status === 'cancelled' && order.cancellation_reason && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-red-900 mb-2 flex items-center">
+                        <XMarkIcon className="w-4 h-4 mr-2" />
+                        Order Cancellation Details
+                      </h4>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-sm font-medium text-red-800">Reason</p>
+                          <p className="text-sm text-red-700 mt-1">{order.cancellation_reason}</p>
+                        </div>
+                        {order.cancelled_at && (
+                          <div>
+                            <p className="text-sm font-medium text-red-800">Cancelled At</p>
+                            <p className="text-sm text-red-700">{formatDate(order.cancelled_at)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Customer Information */}
                   <div>
@@ -546,6 +808,124 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                       </div>
                     </div>
                   </div>
+
+                  {/* Proof of Payment */}
+                  {order.proof_of_payment_url && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                        <PhotoIcon className="w-4 h-4 mr-2" />
+                        Proof of Payment
+                      </h4>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex flex-col md:flex-row gap-4">
+                          {/* Payment Image Preview */}
+                          <div className="flex-shrink-0">
+                            <div className="relative w-full md:w-48 h-48 border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100">
+                              <Image
+                                src={order.proof_of_payment_url}
+                                alt="Proof of Payment"
+                                fill
+                                className="object-contain"
+                              />
+                              <button
+                                onClick={() => setShowProofFullscreen(true)}
+                                className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-all flex items-center justify-center group"
+                              >
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-2">
+                                  <EyeIcon className="w-6 h-6 text-gray-900" />
+                                </div>
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => setShowProofFullscreen(true)}
+                              className="mt-2 w-full text-xs text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                              View Full Size
+                            </button>
+                          </div>
+
+                          {/* Payment Details */}
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">Status</p>
+                              <div className="mt-1">
+                                {order.proof_of_payment_status === 'approved' && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <CheckCircleIcon className="w-3 h-3 mr-1" />
+                                    Approved
+                                  </span>
+                                )}
+                                {order.proof_of_payment_status === 'pending' && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    <ClockIcon className="w-3 h-3 mr-1" />
+                                    Pending Review
+                                  </span>
+                                )}
+                                {order.proof_of_payment_status === 'rejected' && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <XMarkIcon className="w-3 h-3 mr-1" />
+                                    Rejected
+                                  </span>
+                                )}
+                                {!order.proof_of_payment_status && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    Not Submitted
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {order.proof_submitted_at && (
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">Submitted</p>
+                                <p className="text-sm text-gray-600">{formatDate(order.proof_submitted_at)}</p>
+                              </div>
+                            )}
+
+                            {order.proof_reviewed_at && (
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">Reviewed</p>
+                                <p className="text-sm text-gray-600">{formatDate(order.proof_reviewed_at)}</p>
+                              </div>
+                            )}
+
+                            {order.proof_rejection_reason && (
+                              <div className="pt-2 border-t border-gray-200">
+                                <p className="text-sm font-medium text-red-700">Rejection Reason</p>
+                                <p className="text-sm text-gray-700 mt-1">{order.proof_rejection_reason}</p>
+                              </div>
+                            )}
+
+                            {/* Action Buttons for Pending Proofs */}
+                            {order.proof_of_payment_status === 'pending' && (
+                              <div className="pt-3 border-t border-gray-200">
+                                <p className="text-sm font-medium text-gray-700 mb-2">Review Actions</p>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={approveProofOfPayment}
+                                    disabled={processingProof}
+                                    size="sm"
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                  >
+                                    {processingProof ? 'Processing...' : 'Approve Payment'}
+                                  </Button>
+                                  <Button
+                                    onClick={() => setShowRejectModal(true)}
+                                    disabled={processingProof}
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                                  >
+                                    Reject
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Order Items */}
                   <div>
@@ -573,11 +953,11 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium text-gray-900">{item.product.name}</p>
-                                      {item.product.sku && (
-                                        <p className="text-sm text-gray-500">SKU: {item.product.sku}</p>
+                                      {item.product.product_id && (
+                                        <p className="text-sm text-gray-500">Product ID: {item.product.product_id}</p>
                                       )}
                                       <p className="text-sm text-gray-500">
-                                        {item.quantity} {item.product.unit_of_measure || 'units'} • {item.pricing_tier.toUpperCase()} Price
+                                        {item.quantity} {item.product.unit_of_measure || 'units'} • {item.pricing_type.toUpperCase()} Price
                                       </p>
                                     </div>
                                   </div>
@@ -611,12 +991,6 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Discount</span>
                             <span className="text-green-600">-{formatCurrency(order.discount_amount || 0)}</span>
-                          </div>
-                        )}
-                        {(order.tax_amount || 0) > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Tax</span>
-                            <span className="text-gray-900">{formatCurrency(order.tax_amount || 0)}</span>
                           </div>
                         )}
                         <div className="border-t border-gray-200 pt-2">
@@ -702,6 +1076,172 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
           </DialogPanel>
         </div>
       </div>
+
+      {/* Fullscreen Proof of Payment Modal */}
+      <Dialog open={showProofFullscreen} onClose={() => setShowProofFullscreen(false)} className="relative z-[60]">
+        <div className="fixed inset-0 bg-black/90" onClick={() => setShowProofFullscreen(false)} />
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <DialogPanel className="relative w-full max-w-5xl">
+              {/* Close Button */}
+              <button
+                onClick={() => setShowProofFullscreen(false)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+              >
+                <XMarkIcon className="w-8 h-8" />
+              </button>
+
+              {/* Full Size Image */}
+              {order?.proof_of_payment_url && (
+                <div className="relative w-full bg-white rounded-lg overflow-hidden shadow-2xl" style={{ minHeight: '500px', maxHeight: '80vh' }}>
+                  <Image
+                    src={order.proof_of_payment_url}
+                    alt="Proof of Payment - Full Size"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              )}
+
+              {/* Image Info */}
+              <div className="mt-4 text-center text-white text-sm">
+                <p>Proof of Payment for Order {order?.order_number}</p>
+                {order?.proof_submitted_at && (
+                  <p className="text-gray-300 mt-1">
+                    Submitted on {order.proof_submitted_at ? formatDate(order.proof_submitted_at) : 'N/A'}
+                  </p>
+                )}
+              </div>
+            </DialogPanel>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Rejection Reason Modal */}
+      <Dialog open={showRejectModal} onClose={() => !processingProof && setShowRejectModal(false)} className="relative z-[60]">
+        <div className="fixed inset-0 bg-black/25" />
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <DialogTitle className="text-lg font-medium text-gray-900">
+                  Reject Proof of Payment
+                </DialogTitle>
+                <button
+                  onClick={() => !processingProof && setShowRejectModal(false)}
+                  disabled={processingProof}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <label htmlFor="rejection-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Rejection *
+                </label>
+                <textarea
+                  id="rejection-reason"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={4}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Please provide a clear reason why the proof of payment is being rejected..."
+                  disabled={processingProof}
+                />
+                <p className="mt-2 text-sm text-gray-600">
+                  The customer will see this message and be able to submit a new proof of payment.
+                </p>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRejectModal(false)}
+                  disabled={processingProof}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={rejectProofOfPayment}
+                  disabled={processingProof || !rejectionReason.trim()}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {processingProof ? 'Rejecting...' : 'Reject Payment'}
+                </Button>
+              </div>
+            </DialogPanel>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Order Cancellation Modal */}
+      <Dialog open={showCancelModal} onClose={() => !cancellingOrder && setShowCancelModal(false)} className="relative z-[60]">
+        <div className="fixed inset-0 bg-black/25" />
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <DialogTitle className="text-lg font-medium text-gray-900">
+                  Cancel Order
+                </DialogTitle>
+                <button
+                  onClick={() => !cancellingOrder && setShowCancelModal(false)}
+                  disabled={cancellingOrder}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mt-2 mb-6">
+                <p className="text-sm text-gray-600">
+                  You are about to cancel order <span className="font-semibold">{order?.order_number}</span>.
+                  This action will mark the order as cancelled and notify the customer.
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <label htmlFor="cancellation-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Cancellation *
+                </label>
+                <textarea
+                  id="cancellation-reason"
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  rows={4}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Please provide a clear reason for cancelling this order..."
+                  disabled={cancellingOrder}
+                />
+                <p className="mt-2 text-sm text-gray-600">
+                  The customer will see this cancellation reason in their order history.
+                </p>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={cancellingOrder}
+                >
+                  Keep Order
+                </Button>
+                <Button
+                  onClick={cancelOrder}
+                  disabled={cancellingOrder || !cancellationReason.trim()}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {cancellingOrder ? 'Cancelling...' : 'Cancel Order'}
+                </Button>
+              </div>
+            </DialogPanel>
+          </div>
+        </div>
+      </Dialog>
     </Dialog>
   )
 }

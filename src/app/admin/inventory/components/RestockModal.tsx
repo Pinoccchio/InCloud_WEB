@@ -16,13 +16,13 @@ import { Button, Input, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { getMainBranchId } from '@/lib/constants/branch'
-import { getPhilippineDate, isFutureDate, getMinDate, getMaxExpirationDate, toPhilippineDate } from '@/lib/utils/philippine-date'
+import { getPhilippineDate, isFutureDate, getMinDate, getMaxExpirationDate } from '@/lib/utils/philippine-date'
 
 interface InventoryItem {
   id: string
-  product_id?: string
+  product_id: string // UUID foreign key to products table (REQUIRED)
   product_name: string
-  sku: string
+  product_code: string // Human-readable product ID (e.g., "SF-TP-1KG")
   brand_name: string
   category_name: string
   quantity: number
@@ -42,7 +42,7 @@ interface RestockModalProps {
 interface Product {
   id: string
   name: string
-  sku: string
+  product_id: string
   brand_name: string
   category_name: string
   inventory_id?: string
@@ -105,13 +105,13 @@ export default function RestockModal({
       setLoadingProducts(true)
       console.log('🔄 RestockModal: Loading available products')
 
-      // Get all active products (not just those with existing inventory)
+      // Get all available products (not just those with existing inventory)
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select(`
           id,
           name,
-          sku,
+          product_id,
           status,
           brands!inner (
             name
@@ -120,7 +120,7 @@ export default function RestockModal({
             name
           )
         `)
-        .eq('status', 'active')
+        .eq('status', 'available')
         .order('name')
 
       if (productsError) throw productsError
@@ -159,7 +159,7 @@ export default function RestockModal({
         return {
           id: product.id,
           name: product.name,
-          sku: product.sku,
+          product_id: product.product_id,
           brand_name: product.brands?.name || 'Unknown',
           category_name: product.categories?.name || 'Unknown',
           inventory_id: inventoryInfo?.inventory_id,
@@ -185,9 +185,9 @@ export default function RestockModal({
       if (item) {
         // Specific item restocking - pre-fill data
         const product: Product = {
-          id: item.product_id || item.id,
+          id: item.product_id, // UUID for database queries
           name: item.product_name,
-          sku: item.sku,
+          product_id: item.product_code, // Human-readable code for display
           brand_name: item.brand_name,
           category_name: item.category_name,
           inventory_id: item.id,
@@ -196,14 +196,14 @@ export default function RestockModal({
         }
         setSelectedProduct(product)
         setFormData({
-          selectedProductId: item.product_id || item.id,
+          selectedProductId: item.product_id, // Use UUID for validation
           quantity: '',
           costPerUnit: item.cost_per_unit ? item.cost_per_unit.toString() : '',
           expirationDate: '',
           supplierName: '',
           supplierContact: '',
           supplierEmail: '',
-          batchNumber: `${item.sku || 'BATCH'}-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
+          batchNumber: `${item.product_code || 'BATCH'}-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
           purchaseOrderRef: '',
           receivedDate: getPhilippineDate(),
           notes: ''
@@ -244,7 +244,7 @@ export default function RestockModal({
         ...prev,
         selectedProductId: productId,
         costPerUnit: product.cost_per_unit ? product.cost_per_unit.toString() : '',
-        batchNumber: `${product.sku || 'BATCH'}-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`
+        batchNumber: `${product.product_id || 'BATCH'}-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`
       }))
     }
   }
@@ -302,11 +302,6 @@ export default function RestockModal({
   }
 
   const handleSubmit = async () => {
-    // Track operations for better error reporting (declare at function scope)
-    const operationLog: string[] = []
-    let createdInventoryId: string | null = null
-    let createdBatchId: string | null = null
-
     // Validate all steps
     for (let i = 1; i <= 2; i++) {
       const validation = validateStep(i)
@@ -326,313 +321,65 @@ export default function RestockModal({
       setLoading(true)
       setError(null)
 
-      // Additional pre-flight validations
-      console.log('🔄 Starting restock operation with validations...')
-
-      // Validate admin permissions
-      if (!admin.id) {
-        throw new Error('Invalid admin session. Please log in again.')
-      }
-
-      // Validate branch access
+      // Get branch ID
       const branchId = await getMainBranchId()
       if (!branchId) {
         throw new Error('Unable to determine target branch. Please contact system administrator.')
       }
 
-      // Validate the selected product still exists and is active
+      // Get product ID
       const productId = item?.product_id || selectedProduct?.id
       if (!productId) {
         throw new Error('No valid product selected for restocking.')
       }
 
-      const { data: productCheck, error: productError } = await supabase
-        .from('products')
-        .select('id, name, status')
-        .eq('id', productId)
-        .eq('status', 'active')
-        .single()
+      // Get inventory ID (if exists)
+      const inventoryId = item?.id || selectedProduct?.inventory_id || null
 
-      if (productError || !productCheck) {
-        console.error('Product validation failed:', productError)
-        throw new Error('Selected product is no longer available or has been deactivated.')
-      }
-
-      console.log('✅ Pre-flight validations passed for product:', productCheck.name)
-
-      // Validate batch number uniqueness
-      const { data: existingBatch, error: batchCheckError } = await supabase
-        .from('product_batches')
-        .select('id, batch_number')
-        .eq('batch_number', formData.batchNumber.trim())
-        .limit(1)
-
-      if (batchCheckError) {
-        console.warn('Could not check batch uniqueness:', batchCheckError)
-        // Continue with operation but log the warning
-      } else if (existingBatch && existingBatch.length > 0) {
-        throw new Error(`Batch number "${formData.batchNumber}" already exists. Please use a unique batch number.`)
-      }
-
-      // Additional form data validation
-      const quantity = Number(formData.quantity)
-      const costPerUnit = Number(formData.costPerUnit)
-
-      if (quantity <= 0 || quantity > 1000000) {
-        throw new Error('Quantity must be between 1 and 1,000,000 units.')
-      }
-
-      if (costPerUnit < 0 || costPerUnit > 1000000) {
-        throw new Error('Cost per unit must be between ₱0.00 and ₱1,000,000.00.')
-      }
-
-      if (!formData.supplierName.trim()) {
-        throw new Error('Supplier name is required and cannot be empty.')
-      }
-
-      if (formData.supplierName.trim().length > 255) {
-        throw new Error('Supplier name is too long (maximum 255 characters).')
-      }
-
-      // Validate dates using Philippine timezone
-      operationLog.push('🗓️ Validating dates with Philippine timezone')
-
-      // Use Philippine timezone-aware date validation
-      if (isFutureDate(formData.receivedDate)) {
-        throw new Error('Received date cannot be in the future.')
-      }
-
-      // Convert to Date objects for expiration comparison
-      const receivedDate = toPhilippineDate(formData.receivedDate)
-      const expirationDate = toPhilippineDate(formData.expirationDate)
-
-      if (expirationDate <= receivedDate) {
-        throw new Error('Expiration date must be after the received date.')
-      }
-
-      operationLog.push('✅ Date validation passed')
-
-      // Check if dates are too far in the past or future (business rule)
-      const now = new Date()
-      const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-      const fiveYearsFromNow = new Date(now.getFullYear() + 5, now.getMonth(), now.getDate())
-
-      if (receivedDate < oneYearAgo) {
-        throw new Error('Received date cannot be more than 1 year in the past.')
-      }
-
-      if (expirationDate > fiveYearsFromNow) {
-        throw new Error('Expiration date seems unusually far in the future (more than 5 years).')
-      }
-
-      console.log('✅ All validations passed, proceeding with restock...')
-
-      // All validations passed, proceeding with restock
-      operationLog.push('✅ All validations passed, proceeding with restock')
-
-      // Handle case where we need to create inventory record for new products
-      let targetInventoryId: string
-      let currentQuantity = 0
-
-      if (item) {
-        // Restocking existing inventory item
-        targetInventoryId = item.id
-        currentQuantity = item.quantity
-        operationLog.push('Using existing inventory record')
-      } else if (selectedProduct) {
-        // General restocking - check if inventory exists
-        if (selectedProduct.inventory_id) {
-          // Inventory exists
-          targetInventoryId = selectedProduct.inventory_id
-          currentQuantity = selectedProduct.current_stock || 0
-          operationLog.push('Using existing inventory record')
-        } else {
-          // No inventory record exists - create one
-          console.log('🔄 Creating new inventory record for product:', selectedProduct.name)
-          operationLog.push('Creating new inventory record')
-
-          const newInventoryData = {
-            product_id: selectedProduct.id,
-            branch_id: branchId,
-            quantity: 0,
-            reserved_quantity: 0,
-            min_stock_level: 10,
-            low_stock_threshold: 10,
-            cost_per_unit: 0,
-            location: 'Main Storage',
-            created_by: admin?.id
-          }
-
-          const { data: newInventory, error: createInventoryError } = await supabase
-            .from('inventory')
-            .insert(newInventoryData)
-            .select()
-            .single()
-
-          if (createInventoryError) {
-            console.error('Failed to create inventory record:', createInventoryError)
-            operationLog.push(`❌ Failed to create inventory record: ${createInventoryError.message}`)
-            throw new Error(`Failed to create inventory record: ${createInventoryError.message}`)
-          }
-
-          console.log('✅ Created new inventory record:', newInventory.id)
-          operationLog.push(`✅ Created inventory record: ${newInventory.id}`)
-          createdInventoryId = newInventory.id
-          targetInventoryId = newInventory.id
-          currentQuantity = 0
-        }
-      } else {
-        throw new Error('No product selected for restocking')
-      }
-
-      // Create batch record
-      const batchData = {
-        inventory_id: targetInventoryId,
-        batch_number: formData.batchNumber,
-        quantity: Number(formData.quantity),
-        received_date: formData.receivedDate,
-        expiration_date: formData.expirationDate,
-        cost_per_unit: Number(formData.costPerUnit),
-        supplier_name: formData.supplierName,
-        supplier_info: {
-          contact: formData.supplierContact,
-          email: formData.supplierEmail,
-          purchase_order_ref: formData.purchaseOrderRef
+      // Call the API route
+      const response = await fetch('/api/inventory/restock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        status: 'active',
-        is_active: true,
-        created_by: admin?.id
+        body: JSON.stringify({
+          productId,
+          branchId,
+          quantity: Number(formData.quantity),
+          costPerUnit: Number(formData.costPerUnit),
+          expirationDate: formData.expirationDate,
+          supplierName: formData.supplierName.trim(),
+          supplierContact: formData.supplierContact,
+          supplierEmail: formData.supplierEmail,
+          batchNumber: formData.batchNumber.trim(),
+          purchaseOrderRef: formData.purchaseOrderRef,
+          receivedDate: formData.receivedDate,
+          notes: formData.notes,
+          inventoryId,
+          currentAdminId: admin.id,
+          currentAdminRole: admin.role
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to process restock operation')
       }
 
-      console.log('🔄 Creating product batch...', batchData)
-      operationLog.push('Creating product batch')
-      const { data: batchResult, error: batchError } = await supabase
-        .from('product_batches')
-        .insert(batchData)
-        .select()
-        .single()
-
-      if (batchError) {
-        console.error('Batch creation error:', batchError)
-        operationLog.push(`❌ Failed to create batch: ${batchError.message}`)
-        throw new Error(`Failed to create product batch: ${batchError.message}`)
-      }
-
-      console.log('✅ Created product batch:', batchResult.id)
-      operationLog.push(`✅ Created batch: ${batchResult.id}`)
-      createdBatchId = batchResult.id
-
-      // Update inventory quantities
-      const newQuantity = currentQuantity + Number(formData.quantity)
-      const inventoryUpdateData = {
-        quantity: newQuantity,
-        cost_per_unit: Number(formData.costPerUnit),
-        last_restock_date: formData.receivedDate,
-        updated_at: new Date().toISOString(),
-        updated_by: admin?.id
-      }
-
-      console.log('🔄 Updating inventory quantities...', inventoryUpdateData)
-      operationLog.push('Updating inventory quantities')
-      const { error: inventoryError } = await supabase
-        .from('inventory')
-        .update(inventoryUpdateData)
-        .eq('id', targetInventoryId)
-
-      if (inventoryError) {
-        console.error('Inventory update error:', inventoryError)
-        operationLog.push(`❌ Failed to update inventory: ${inventoryError.message}`)
-        throw new Error(`Failed to update inventory: ${inventoryError.message}`)
-      }
-
-      console.log('✅ Updated inventory quantities')
-      operationLog.push('✅ Updated inventory quantities')
-
-      // Create inventory movement record
-      const movementData = {
-        inventory_id: targetInventoryId,
-        movement_type: 'restock',
-        quantity_change: Number(formData.quantity),
-        quantity_before: currentQuantity,
-        quantity_after: newQuantity,
-        reference_id: batchResult.id,
-        reference_type: 'batch',
-        notes: formData.notes || `Restock from ${formData.supplierName}`,
-        performed_by: admin.id
-      }
-
-      console.log('🔄 Creating inventory movement record...', movementData)
-      operationLog.push('Creating inventory movement record')
-      const { error: movementError } = await supabase
-        .from('inventory_movements')
-        .insert(movementData)
-
-      if (movementError) {
-        console.error('Movement record error:', movementError)
-        operationLog.push(`❌ Failed to create movement record: ${movementError.message}`)
-        throw new Error(`Failed to create inventory movement record: ${movementError.message}`)
-      }
-
-      console.log('✅ Created inventory movement record')
-      operationLog.push('✅ Created inventory movement record')
-
-      // Create restock history record
-      const restockHistoryData = {
-        inventory_id: targetInventoryId,
-        batch_id: batchResult.id,
-        quantity: Number(formData.quantity),
-        cost_per_unit: Number(formData.costPerUnit),
-        supplier_info: {
-          name: formData.supplierName,
-          contact: formData.supplierContact,
-          email: formData.supplierEmail
-        },
-        purchase_order_ref: formData.purchaseOrderRef,
-        received_date: formData.receivedDate,
-        performed_by: admin.id,
-        notes: formData.notes
-      }
-
-      console.log('🔄 Creating restock history record...', restockHistoryData)
-      operationLog.push('Creating restock history record')
-      const { error: historyError } = await supabase
-        .from('restock_history')
-        .insert(restockHistoryData)
-
-      if (historyError) {
-        console.error('Restock history error:', historyError)
-        operationLog.push(`❌ Failed to create restock history: ${historyError.message}`)
-        throw new Error(`Failed to create restock history: ${historyError.message}`)
-      }
-
-      console.log('✅ Restock operation completed successfully!')
-      operationLog.push('✅ Restock operation completed successfully')
+      // Success!
       onSuccess()
       onClose()
     } catch (err) {
-      console.error('Error processing restock:', err)
-      console.error('Operation log:', operationLog)
-
       // Extract meaningful error message
       let errorMessage = 'Failed to process restock operation'
 
       if (err instanceof Error) {
-        // Use the actual error message from our structured errors
         errorMessage = err.message
-      } else if (err && typeof err === 'object') {
-        // Handle Supabase error objects
-        const supabaseError = err as Record<string, unknown>
-        if (typeof supabaseError.message === 'string') {
-          errorMessage = `Database error: ${supabaseError.message}`
-        } else if (typeof supabaseError.error_description === 'string') {
-          errorMessage = `API error: ${supabaseError.error_description}`
-        } else if (typeof supabaseError.details === 'string') {
-          errorMessage = `Error details: ${supabaseError.details}`
-        }
       }
 
       // Add specific error handling for common issues
-      if (errorMessage.includes('duplicate key')) {
+      if (errorMessage.includes('duplicate key') || errorMessage.includes('already exists')) {
         errorMessage = 'A batch with this number already exists. Please use a different batch number.'
       } else if (errorMessage.includes('foreign key')) {
         errorMessage = 'Invalid product or inventory reference. Please refresh the page and try again.'
@@ -640,19 +387,6 @@ export default function RestockModal({
         errorMessage = 'You do not have permission to perform this operation.'
       } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.'
-      }
-
-      // Add operation context if anything was created (for debugging)
-      if (createdInventoryId || createdBatchId) {
-        const debugInfo = []
-        if (createdInventoryId) debugInfo.push(`Inventory: ${createdInventoryId}`)
-        if (createdBatchId) debugInfo.push(`Batch: ${createdBatchId}`)
-        console.warn('Partial operations completed:', debugInfo.join(', '))
-
-        // Add helpful context for admins
-        if (debugInfo.length > 0) {
-          errorMessage += ` (Note: Some records may have been created - contact administrator if needed: ${debugInfo.join(', ')})`
-        }
       }
 
       setError(errorMessage)
@@ -792,7 +526,7 @@ export default function RestockModal({
                                   <option value="">Choose a product...</option>
                                   {availableProducts.map((product) => (
                                     <option key={product.id} value={product.id}>
-                                      {product.name} ({product.sku}) - {product.brand_name}
+                                      {product.name} ({product.product_id}) - {product.brand_name}
                                     </option>
                                   ))}
                                 </select>
@@ -803,7 +537,7 @@ export default function RestockModal({
                               <div className="mt-2 p-3 bg-blue-50 rounded-lg">
                                 <div className="text-sm text-blue-900">
                                   <p><span className="font-semibold">Product:</span> {selectedProduct.name}</p>
-                                  <p><span className="font-semibold">SKU:</span> {selectedProduct.sku}</p>
+                                  <p><span className="font-semibold">Product ID:</span> {selectedProduct.product_id}</p>
                                   <p><span className="font-semibold">Current Stock:</span> {selectedProduct.current_stock} units</p>
                                   <p><span className="font-semibold">Category:</span> {selectedProduct.category_name}</p>
                                 </div>
@@ -1012,8 +746,8 @@ export default function RestockModal({
                               <p className="text-sm text-gray-900 font-semibold">{displayItem?.product_name || displayItem?.name}</p>
                             </div>
                             <div>
-                              <span className="text-sm font-semibold text-gray-500">SKU:</span>
-                              <p className="text-sm text-gray-900">{displayItem?.sku}</p>
+                              <span className="text-sm font-semibold text-gray-500">Product ID:</span>
+                              <p className="text-sm text-gray-900">{selectedProduct?.product_id || item?.product_code}</p>
                             </div>
                             <div>
                               <span className="text-sm font-semibold text-gray-500">Quantity to Add:</span>

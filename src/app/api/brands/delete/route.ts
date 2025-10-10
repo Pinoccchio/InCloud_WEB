@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
 type SupabaseClient = ReturnType<typeof createClient<any>>
 
@@ -247,10 +248,20 @@ interface ProductRecord {
  * ```
  */
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  const routeLogger = logger.child({
+    route: 'DELETE /api/brands/delete',
+    operation: 'deleteBrand'
+  })
+  routeLogger.time('deleteBrand')
+
   try {
+    routeLogger.info('Starting brand deletion request')
+
     // Get admin context and validate permissions
     const { client, currentAdminId, requestBody } = await validateAdminWithContext(request)
     const { brandId: rawBrandId, reason: rawReason } = requestBody as DeleteBrandRequestBody
+
+    routeLogger.debug('Request validated', { currentAdminId, hasReason: !!rawReason })
 
     // Get audit metadata
     const auditMetadata = getRequestMetadata(request)
@@ -260,28 +271,41 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const reason = sanitizeString(rawReason)
 
     // Validate input
+    routeLogger.debug('Validating brand ID input')
     const validationError = validateInput(brandId)
     if (validationError) {
+      routeLogger.warn('Brand ID validation failed', { brandId })
       return validationError
     }
 
     // Get brand details before deletion
+    routeLogger.info('Fetching brand details', { brandId })
+    routeLogger.db('SELECT', 'brands')
     const { data: brandToDelete, error: fetchError } = await fetchBrandDetails(client, brandId!)
 
     if (fetchError || !brandToDelete) {
+      routeLogger.warn('Brand not found', { brandId, error: fetchError })
       return createErrorResponse(ERROR_MESSAGES.BRAND_NOT_FOUND, HTTP_STATUS.NOT_FOUND)
     }
 
+    routeLogger.debug('Brand found', { brandName: brandToDelete.name })
+
     // Check for products using this brand (prevent deletion if products exist)
+    routeLogger.info('Checking for associated products')
+    routeLogger.db('SELECT', 'products')
     const { data: associatedProducts, error: productsError } = await checkAssociatedProducts(client, brandId!)
 
     if (productsError) {
-      // Log error for debugging but don't expose internal details
+      routeLogger.error('Error checking associated products', productsError as Error)
       return createErrorResponse(ERROR_MESSAGES.CHECK_DEPENDENCIES_FAILED, HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
 
     // Prevent deletion if products are still using this brand
     if (associatedProducts && associatedProducts.length > 0) {
+      routeLogger.warn('Cannot delete brand with associated products', {
+        brandName: brandToDelete.name,
+        productCount: associatedProducts.length
+      })
       const details = {
         message: `This brand is currently used by ${associatedProducts.length} product(s). Please reassign or delete these products first.`,
         associatedProducts: associatedProducts.map((p: ProductRecord) => ({
@@ -294,19 +318,36 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       return createErrorResponse(ERROR_MESSAGES.BRAND_HAS_PRODUCTS, HTTP_STATUS.CONFLICT, details)
     }
 
+    routeLogger.debug('No associated products found - safe to delete')
+
     // Delete the brand (safe since no products reference it)
+    routeLogger.info('Deleting brand from database', { brandId, brandName: brandToDelete.name })
+    routeLogger.db('DELETE', 'brands')
     const { error: deleteError } = await client
       .from('brands')
       .delete()
       .eq('id', brandId)
 
     if (deleteError) {
-      // Log error for debugging but don't expose internal details
+      routeLogger.error('Error deleting brand', deleteError)
       return createErrorResponse(ERROR_MESSAGES.DELETE_FAILED, HTTP_STATUS.BAD_REQUEST)
     }
 
+    routeLogger.debug('Brand deleted from database')
+
     // Create audit log entry
+    routeLogger.info('Creating audit log entry')
+    routeLogger.db('INSERT', 'audit_logs')
     await createAuditLog(client, currentAdminId, brandToDelete, reason, auditMetadata)
+    routeLogger.debug('Audit log entry created')
+
+    const duration = routeLogger.timeEnd('deleteBrand')
+    routeLogger.success('Brand deleted successfully', {
+      duration,
+      brandId,
+      brandName: brandToDelete.name,
+      performedBy: currentAdminId
+    })
 
     return createSuccessResponse({
       message: `Brand "${brandToDelete.name}" has been deleted successfully`,
@@ -316,8 +357,8 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       }
     })
 
-  } catch {
-    // Log error for debugging but don't expose internal details
+  } catch (error) {
+    routeLogger.error('Unexpected error in delete brand API', error as Error)
     return createErrorResponse(ERROR_MESSAGES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }

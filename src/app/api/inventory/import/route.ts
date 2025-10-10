@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
+import { logger } from '@/lib/logger'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -8,7 +9,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 interface InventoryImportRow {
-  'SKU': string
+  'Product ID': string
   'Add Quantity': number
   'Cost Per Unit': number
   'Expiration Date': string
@@ -112,12 +113,27 @@ const getPhilippineDate = (): string => {
 }
 
 export async function POST(request: NextRequest) {
+  const routeLogger = logger.child({
+    route: 'POST /api/inventory/import',
+    operation: 'importInventory'
+  })
+  routeLogger.time('importInventory')
+
   try {
+    routeLogger.info('Starting inventory import request')
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const adminId = formData.get('adminId') as string
 
+    routeLogger.debug('Request parameters', {
+      fileName: file?.name,
+      fileSize: file?.size,
+      adminId
+    })
+
     if (!file) {
+      routeLogger.warn('No file provided in request')
       return NextResponse.json(
         { error: 'No file provided' },
         { status: 400 }
@@ -125,6 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!adminId) {
+      routeLogger.warn('Admin ID required but not provided')
       return NextResponse.json(
         { error: 'Admin ID required' },
         { status: 400 }
@@ -137,18 +154,23 @@ export async function POST(request: NextRequest) {
     const isValidFile = validExtensions.some(ext => fileName.endsWith(ext))
 
     if (!isValidFile) {
+      routeLogger.warn('Invalid file type', { fileName })
       return NextResponse.json(
         { error: 'File must be Excel (.xlsx, .xls) or CSV (.csv) format' },
         { status: 400 }
       )
     }
 
+    routeLogger.info('File validated', { fileName, size: file.size })
+
     // Read and parse file based on format
+    routeLogger.info('Parsing file', { fileName })
     const arrayBuffer = await file.arrayBuffer()
     let workbook
 
     if (fileName.endsWith('.csv')) {
       // Parse CSV file - simplified options for compatibility
+      routeLogger.debug('Parsing CSV file')
       const text = new TextDecoder('utf-8').decode(arrayBuffer)
       workbook = XLSX.read(text, {
         type: 'string',
@@ -157,6 +179,7 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // Parse Excel files (XLSX/XLS) with minimal options
+      routeLogger.debug('Parsing Excel file')
       workbook = XLSX.read(arrayBuffer, {
         type: 'buffer',
         cellDates: false    // Don't auto-convert dates (we handle this manually)
@@ -167,7 +190,10 @@ export async function POST(request: NextRequest) {
     const worksheet = workbook.Sheets[sheetName]
     const jsonData = XLSX.utils.sheet_to_json(worksheet) as InventoryImportRow[]
 
+    routeLogger.info('File parsed successfully', { rowCount: jsonData.length })
+
     if (jsonData.length === 0) {
+      routeLogger.warn('File is empty or has no valid data')
       return NextResponse.json(
         { error: 'File is empty or has no valid data' },
         { status: 400 }
@@ -185,6 +211,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get main branch ID
+    routeLogger.info('Loading main branch information')
+    routeLogger.db('SELECT', 'branches')
     const { data: branchData, error: branchError } = await supabase
       .from('branches')
       .select('id')
@@ -194,6 +222,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (branchError || !branchData) {
+      routeLogger.error('Failed to get main branch', branchError)
       return NextResponse.json(
         { error: 'Failed to get main branch information' },
         { status: 500 }
@@ -201,32 +230,48 @@ export async function POST(request: NextRequest) {
     }
 
     const branchId = branchData.id
+    routeLogger.debug('Main branch found', { branchId })
 
-    // Get all products for SKU lookup
+    // Get all products for Product ID lookup
+    routeLogger.info('Loading products for Product ID lookup')
+    routeLogger.db('SELECT', 'products')
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, sku, name')
-      .eq('status', 'active')
+      .select('id, product_id, name')
+      .eq('status', 'available')
 
     if (productsError) {
+      routeLogger.error('Failed to load products', productsError)
       return NextResponse.json(
         { error: 'Failed to load products' },
         { status: 500 }
       )
     }
 
-    const skuToProductMap = new Map(
-      products?.filter(p => p.sku).map(p => [p.sku.toLowerCase(), p]) || []
+    const productIdToProductMap = new Map(
+      products?.filter(p => p.product_id).map(p => [p.product_id.toLowerCase(), p]) || []
     )
+    routeLogger.debug('Products loaded for Product ID mapping', { count: products?.length || 0 })
 
     // Process each row
+    routeLogger.info('Starting row processing', { totalRows: jsonData.length })
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i]
       const rowNumber = i + 2 // Excel row number (accounting for header)
 
+      // Log progress every 10 rows
+      if (i > 0 && i % 10 === 0) {
+        routeLogger.debug('Processing progress', {
+          processed: i,
+          total: jsonData.length,
+          successCount: result.successCount,
+          errorCount: result.errors.length
+        })
+      }
+
       try {
         // Convert and validate required fields using safe conversion
-        const sku = safeStringField(row['SKU'], 'SKU')
+        const productId = safeStringField(row['Product ID'], 'Product ID')
         const supplierName = safeStringField(row['Supplier Name'], 'Supplier Name')
         const supplierContact = safeStringField(row['Supplier Contact'], 'Supplier Contact')
         const supplierEmail = safeStringField(row['Supplier Email'], 'Supplier Email')
@@ -242,11 +287,11 @@ export async function POST(request: NextRequest) {
         const costPerUnit = safeNumericField(row['Cost Per Unit'], 'Cost Per Unit')
 
         // Validate required fields
-        if (!sku) {
+        if (!productId) {
           result.errors.push({
             row: rowNumber,
-            field: 'SKU',
-            message: 'SKU is required'
+            field: 'Product ID',
+            message: 'Product ID is required'
           })
           continue
         }
@@ -278,13 +323,13 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Find product by SKU
-        const product = skuToProductMap.get(sku.toLowerCase())
+        // Find product by Product ID
+        const product = productIdToProductMap.get(productId.toLowerCase())
         if (!product) {
           result.errors.push({
             row: rowNumber,
-            field: 'SKU',
-            message: `Product with SKU "${sku}" not found`
+            field: 'Product ID',
+            message: `Product with Product ID "${productId}" not found`
           })
           continue
         }
@@ -341,7 +386,7 @@ export async function POST(request: NextRequest) {
         if (!finalBatchNumber) {
           const timestamp = Date.now()
           const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase()
-          finalBatchNumber = `${sku}-${new Date().getFullYear()}-${timestamp.toString().slice(-6)}-${randomSuffix}`
+          finalBatchNumber = `${productId}-${new Date().getFullYear()}-${timestamp.toString().slice(-6)}-${randomSuffix}`
         }
 
         // Check if batch number already exists with retry logic
@@ -371,7 +416,7 @@ export async function POST(request: NextRequest) {
             if (attempts < maxAttempts) {
               const timestamp = Date.now() + attempts // Add attempts to ensure uniqueness
               const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase()
-              finalBatchNumber = `${sku}-${new Date().getFullYear()}-${timestamp.toString().slice(-6)}-${randomSuffix}-${attempts}`
+              finalBatchNumber = `${productId}-${new Date().getFullYear()}-${timestamp.toString().slice(-6)}-${randomSuffix}-${attempts}`
             } else {
               // Max attempts reached
               result.errors.push({
@@ -462,6 +507,7 @@ export async function POST(request: NextRequest) {
           created_by: adminId
         }
 
+        routeLogger.db('INSERT', 'product_batches')
         const { data: batchResult, error: batchError } = await supabase
           .from('product_batches')
           .insert(batchData)
@@ -481,6 +527,7 @@ export async function POST(request: NextRequest) {
 
         // Update inventory quantities
         const newQuantity = currentQuantity + addQuantity
+        routeLogger.db('UPDATE', 'inventory')
         const { error: updateInventoryError } = await supabase
           .from('inventory')
           .update({
@@ -504,6 +551,7 @@ export async function POST(request: NextRequest) {
         result.updatedInventory?.push(inventoryId)
 
         // Create inventory movement record
+        routeLogger.db('INSERT', 'inventory_movements')
         const { error: movementError } = await supabase
           .from('inventory_movements')
           .insert({
@@ -519,7 +567,7 @@ export async function POST(request: NextRequest) {
           })
 
         if (movementError) {
-          console.warn('Failed to create movement record:', movementError)
+          routeLogger.warn('Failed to create movement record', { error: movementError.message })
           // Don't fail the entire operation for movement record errors
         }
 
@@ -538,10 +586,20 @@ export async function POST(request: NextRequest) {
     result.errorCount = result.errors.length
     result.success = result.successCount > 0
 
+    const duration = routeLogger.timeEnd('importInventory')
+    routeLogger.success('Inventory import completed', {
+      duration,
+      totalRows: result.totalRows,
+      successCount: result.successCount,
+      errorCount: result.errorCount,
+      createdBatches: result.createdBatches?.length || 0,
+      updatedInventory: result.updatedInventory?.length || 0
+    })
+
     return NextResponse.json(result)
 
   } catch (error) {
-    console.error('Inventory import error:', error)
+    routeLogger.error('Unexpected error in inventory import', error as Error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to import inventory',

@@ -150,14 +150,14 @@ export default function ProductDetailsModal({
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <CheckCircleIcon className="w-3 h-3 mr-1" />
-            Active
+            Available
           </span>
         )
       case 'inactive':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <ExclamationTriangleIcon className="w-3 h-3 mr-1" />
-            Inactive
+            Unavailable
           </span>
         )
       case 'discontinued':
@@ -219,8 +219,8 @@ export default function ProductDetailsModal({
                     {product.name}
                   </DialogTitle>
                   <div className="flex items-center space-x-2 mt-1">
-                    {product.sku && (
-                      <span className="text-sm text-gray-500">SKU: {product.sku}</span>
+                    {product.product_id && (
+                      <span className="text-sm text-gray-500">Product ID: {product.product_id}</span>
                     )}
                     {getStatusBadge(product.status)}
                   </div>
@@ -342,12 +342,12 @@ export default function ProductDetailsModal({
                     </div>
 
                     <div className="space-y-4">
-                      {product.sku && (
+                      {product.product_id && (
                         <div className="flex items-center space-x-3">
                           <TagIcon className="w-5 h-5 text-gray-400" />
                           <div>
-                            <p className="text-sm font-medium text-gray-700">SKU</p>
-                            <p className="text-sm text-gray-900 font-mono">{product.sku}</p>
+                            <p className="text-sm font-medium text-gray-700">Product ID</p>
+                            <p className="text-sm text-gray-900 font-mono">{product.product_id}</p>
                           </div>
                         </div>
                       )}
@@ -381,7 +381,7 @@ export default function ProductDetailsModal({
                           <div key={tier.id} className="border border-gray-200 rounded-lg p-3">
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium text-gray-900 capitalize">
-                                {tier.tier_type}
+                                {tier.pricing_type}
                               </span>
                               <CurrencyDollarIcon className="w-4 h-4 text-gray-400" />
                             </div>

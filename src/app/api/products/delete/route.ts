@@ -38,26 +38,31 @@ export async function DELETE(request: NextRequest) {
       .select(`
         id,
         name,
-        sku,
+        product_id,
         description,
         status,
-        brands!inner (name),
-        categories!inner (name)
+        brands (name),
+        categories (name)
       `)
       .eq('id', productId)
       .single()
 
     if (fetchError || !productToDelete) {
-      routeLogger.warn('Product not found', { productId, error: fetchError?.message })
+      routeLogger.error('Product fetch failed', {
+        productId,
+        error: fetchError?.message,
+        errorCode: fetchError?.code,
+        errorDetails: fetchError?.details
+      })
       return NextResponse.json(
-        { error: 'Product not found' },
+        { error: 'Product not found', details: fetchError?.message },
         { status: 404 }
       )
     }
 
     routeLogger.debug('Product found', {
       productName: productToDelete.name,
-      sku: productToDelete.sku,
+      product_id: productToDelete.product_id,
       status: productToDelete.status
     })
 
@@ -135,8 +140,22 @@ export async function DELETE(request: NextRequest) {
 
     if (deleteError) {
       routeLogger.error('Error deleting product', deleteError)
+
+      // Check if error is due to RLS/permission denial
+      const isPolicyError = deleteError.message?.includes('policy') ||
+                           deleteError.message?.includes('permission') ||
+                           deleteError.code === 'PGRST301' ||
+                           deleteError.code === '42501'
+
+      if (isPolicyError) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions to delete this product' },
+          { status: 403 }
+        )
+      }
+
       return NextResponse.json(
-        { error: 'Failed to delete product' },
+        { error: 'Failed to delete product', details: deleteError.message },
         { status: 400 }
       )
     }
@@ -155,7 +174,7 @@ export async function DELETE(request: NextRequest) {
           old_data: productToDelete,
           metadata: {
             deleted_product_name: productToDelete.name,
-            deleted_product_sku: productToDelete.sku,
+            deleted_product_id: productToDelete.product_id,
             brand_name: productToDelete.brands?.name,
             category_name: productToDelete.categories?.name,
             cascade_summary: cascadeData,
@@ -176,7 +195,7 @@ export async function DELETE(request: NextRequest) {
       duration,
       productId,
       productName: productToDelete.name,
-      sku: productToDelete.sku,
+      product_id: productToDelete.product_id,
       cascadedRecords: cascadeData.inventory_records + cascadeData.price_tiers + cascadeData.alerts + cascadeData.alert_configurations
     })
 
@@ -186,7 +205,7 @@ export async function DELETE(request: NextRequest) {
       deletedProduct: {
         id: productToDelete.id,
         name: productToDelete.name,
-        sku: productToDelete.sku
+        product_id: productToDelete.product_id
       },
       cascadeInfo: cascadeData,
       warningMessage: hasBusinessHistory

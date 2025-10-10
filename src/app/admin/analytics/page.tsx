@@ -109,7 +109,6 @@ export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [activeTab, setActiveTab] = useState<'descriptive' | 'prescriptive'>('descriptive')
   const { addToast } = useToast()
 
@@ -162,64 +161,6 @@ export default function AnalyticsPage() {
       setIsLoading(false)
       setIsRefreshing(false)
       console.log('🔷 [Analytics Page] Load analytics complete')
-    }
-  }
-
-  const regenerateAIInsights = async () => {
-    console.log('\n🟣 [Analytics Page] Regenerating AI insights...')
-    try {
-      setIsGeneratingAI(true)
-      console.log('📡 [Analytics Page] Sending POST request to /api/analytics')
-
-      const startTime = Date.now()
-      const response = await fetch('/api/analytics', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'regenerateAI' }),
-      })
-      const duration = Date.now() - startTime
-      console.log(`⏱️ [Analytics Page] POST response in ${duration}ms, status: ${response.status}`)
-
-      if (!response.ok) {
-        console.error('❌ [Analytics Page] Response not OK:', response.status, response.statusText)
-        throw new Error('Failed to regenerate AI insights')
-      }
-
-      const result = await response.json()
-      console.log('📊 [Analytics Page] AI result received:', {
-        success: result.success,
-        hasInsights: !!result.aiInsights,
-        insightCount: result.aiInsights?.insights?.length || 0,
-      })
-
-      if (analyticsData) {
-        console.log('🔄 [Analytics Page] Updating analytics data with new AI insights')
-        setAnalyticsData({
-          ...analyticsData,
-          aiInsights: result.aiInsights,
-        })
-      }
-
-      addToast({
-        type: 'success',
-        title: 'AI Insights Generated',
-        message: 'New AI recommendations have been generated.',
-      })
-      console.log('✅ [Analytics Page] AI insights regenerated successfully')
-    } catch (error) {
-      console.error('❌ [Analytics Page] Error regenerating AI insights:', error)
-      console.error('📋 [Analytics Page] Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      })
-      addToast({
-        type: 'error',
-        title: 'AI Generation Error',
-        message: 'Failed to generate AI insights. Please try again.',
-      })
-    } finally {
-      setIsGeneratingAI(false)
-      console.log('🟣 [Analytics Page] Regenerate AI complete')
     }
   }
 
@@ -440,6 +381,53 @@ export default function AnalyticsPage() {
             )}
           </div>
 
+          {/* Monthly Sales Breakdown */}
+          {salesMetrics.monthlySales && salesMetrics.monthlySales.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Monthly Sales Breakdown
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Month
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Orders
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Revenue
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Avg Order Value
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {salesMetrics.monthlySales.map((monthData, index) => (
+                      <tr key={`${monthData.year}-${monthData.month}`} className={index === 0 ? 'bg-primary-50' : ''}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {monthData.month} {monthData.year}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                          {monthData.totalOrders}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                          ₱{monthData.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                          ₱{monthData.averageOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Expiration Alerts */}
           {expirationMetrics.criticalBatches.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -531,25 +519,11 @@ export default function AnalyticsPage() {
       {activeTab === 'prescriptive' && (
         <div className="space-y-6">
           {aiInsights ? (
-            <>
-              <div className="flex justify-end">
-                <Button
-                  onClick={regenerateAIInsights}
-                  variant="outline"
-                  disabled={isGeneratingAI}
-                >
-                  <SparklesIcon
-                    className={`w-4 h-4 mr-2 ${isGeneratingAI ? 'animate-pulse' : ''}`}
-                  />
-                  {isGeneratingAI ? 'Generating...' : 'Regenerate AI Insights'}
-                </Button>
-              </div>
-              <AIInsightsPanel
-                summary={aiInsights.summary}
-                keyRecommendations={aiInsights.keyRecommendations}
-                insights={aiInsights.insights}
-              />
-            </>
+            <AIInsightsPanel
+              summary={aiInsights.summary}
+              keyRecommendations={aiInsights.keyRecommendations}
+              insights={aiInsights.insights}
+            />
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
               <div className="text-center">
@@ -557,13 +531,9 @@ export default function AnalyticsPage() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   AI Insights Not Available
                 </h3>
-                <p className="text-gray-500 mb-4">
-                  Click the button below to generate AI-powered recommendations.
+                <p className="text-gray-500">
+                  AI insights are generated automatically when analytics data is loaded. Click the Refresh button above to reload analytics with new AI insights.
                 </p>
-                <Button onClick={regenerateAIInsights} disabled={isGeneratingAI}>
-                  <SparklesIcon className="w-4 h-4 mr-2" />
-                  {isGeneratingAI ? 'Generating...' : 'Generate AI Insights'}
-                </Button>
               </div>
             </div>
           )}

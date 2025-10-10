@@ -48,11 +48,18 @@ export default function AlertsPage() {
   const { addToast } = useToast()
 
   const loadAlertSummary = useCallback(async () => {
+    console.log('🔔 [AlertsPage] Starting alert summary load')
+    const startTime = performance.now()
+
     try {
       setIsLoading(true)
+
+      console.log('🏢 [AlertsPage] Fetching main branch ID...')
       const branchId = await getMainBranchId()
+      console.log('✅ [AlertsPage] Branch ID retrieved:', branchId)
 
       // Load alert summary from unified notifications table
+      console.log('💾 [AlertsPage] Fetching notifications from database...')
       const { data: notificationsData, error } = await supabase
         .from('notifications')
         .select('severity')
@@ -60,8 +67,14 @@ export default function AlertsPage() {
 
       if (error) throw error
 
+      console.log('✅ [AlertsPage] Notifications fetched from database:', {
+        count: notificationsData?.length || 0,
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
+
       if (notificationsData) {
         // Calculate alert summary by severity
+        console.log('🔄 [AlertsPage] Calculating alert summary by severity...')
         const totalAlerts = notificationsData.length
         let criticalAlerts = 0
         let highAlerts = 0
@@ -85,16 +98,35 @@ export default function AlertsPage() {
           }
         })
 
-        setAlertSummary({
+        const summary = {
           total_alerts: totalAlerts,
           critical_alerts: criticalAlerts,
           high_alerts: highAlerts,
           medium_alerts: mediumAlerts,
           low_alerts: lowAlerts
+        }
+
+        const totalDuration = (performance.now() - startTime).toFixed(0)
+
+        console.log('🎉 [AlertsPage] Alert summary load completed successfully:', {
+          totalDuration: `${totalDuration}ms`,
+          summary: {
+            total: summary.total_alerts,
+            critical: summary.critical_alerts,
+            high: summary.high_alerts,
+            medium: summary.medium_alerts,
+            low: summary.low_alerts
+          }
         })
+
+        setAlertSummary(summary)
       }
     } catch (error) {
-      console.error('Error loading alert data:', error)
+      console.error('❌ [AlertsPage] Error loading alert data:', error)
+      console.error('📋 [AlertsPage] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        duration: `${(performance.now() - startTime).toFixed(0)}ms`
+      })
       addToast({
         type: 'error',
         title: 'Load Failed',
@@ -102,14 +134,17 @@ export default function AlertsPage() {
       })
     } finally {
       setIsLoading(false)
+      console.log('🏁 [AlertsPage] Load operation completed')
     }
   }, [])
 
   useEffect(() => {
+    console.log('🔄 [AlertsPage] Component mounted/refresh triggered - loading alert summary')
     loadAlertSummary()
   }, [refreshTrigger, loadAlertSummary])
 
   const handleRefreshData = () => {
+    console.log('🔄 [AlertsPage] Manual refresh triggered')
     setRefreshTrigger(prev => prev + 1)
     addToast({
       type: 'info',

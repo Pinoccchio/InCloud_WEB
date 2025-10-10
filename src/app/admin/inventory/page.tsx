@@ -25,8 +25,9 @@ import InventoryImportModal from './components/InventoryImportModal'
 
 interface InventoryItem {
   id: string
+  product_id: string // UUID foreign key to products table
   product_name: string
-  sku: string
+  product_code: string // Human-readable product ID (e.g., "SF-TP-1KG")
   brand_name: string
   category_name: string
   quantity: number
@@ -203,7 +204,7 @@ export default function InventoryPage() {
           products!inner (
             id,
             name,
-            sku
+            product_id
           ),
           product_batches (
             expiration_date,
