@@ -408,44 +408,12 @@ export default function ProductsTable({
     })
   }
 
-  // Calculate position when dropdown opens and after content renders
+  // Calculate position when dropdown opens
   useLayoutEffect(() => {
     if (openDropdown) {
       setTimeout(() => calculateDropdownPosition(openDropdown), 0)
     }
   }, [openDropdown])
-
-  // Recalculate position after dropdown content is rendered
-  useLayoutEffect(() => {
-    if (dropdownPosition && dropdownContentRef.current) {
-      const content = dropdownContentRef.current
-      const actualHeight = content.scrollHeight
-
-      const buttonRef = dropdownRefs.current[openDropdown!]
-      if (buttonRef) {
-        const buttonRect = buttonRef.getBoundingClientRect()
-        const viewportHeight = window.innerHeight
-        const spaceBelow = viewportHeight - buttonRect.bottom
-        const spaceAbove = buttonRect.top
-
-        let needsRepositioning = false
-
-        if (dropdownPosition.position === 'bottom' && spaceBelow < actualHeight + 16) {
-          if (spaceAbove > spaceBelow) {
-            needsRepositioning = true
-          }
-        } else if (dropdownPosition.position === 'top' && spaceAbove < actualHeight + 16) {
-          if (spaceBelow > spaceAbove) {
-            needsRepositioning = true
-          }
-        }
-
-        if (needsRepositioning) {
-          calculateDropdownPosition(openDropdown!)
-        }
-      }
-    }
-  }, [dropdownPosition, openDropdown])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -520,14 +488,14 @@ export default function ProductsTable({
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case 'active':
+      case 'available':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <CheckCircleIcon className="w-3 h-3 mr-1" />
             Available
           </span>
         )
-      case 'inactive':
+      case 'unavailable':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <ExclamationTriangleIcon className="w-3 h-3 mr-1" />

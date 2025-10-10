@@ -149,14 +149,14 @@ export default function ProductDetailsModal({
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case 'active':
+      case 'available':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <CheckCircleIcon className="w-3 h-3 mr-1" />
             Available
           </span>
         )
-      case 'inactive':
+      case 'unavailable':
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <ExclamationTriangleIcon className="w-3 h-3 mr-1" />
