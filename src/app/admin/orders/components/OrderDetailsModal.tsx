@@ -345,7 +345,7 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
     }
   }, [orderId, addToast])
 
-  // Update order status with proper error handling
+  // Update order status with proper error handling using secure RPC function
   const updateOrderStatus = async (newStatus: OrderStatus) => {
     if (!order) return
 
@@ -355,54 +355,21 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
       const { data: adminData } = await supabase.auth.getUser()
       if (!adminData.user) throw new Error('Not authenticated')
 
-      // Prepare update data
-      const updateData: {
-        status: string
-        updated_at: string
-        notes?: string
-      } = {
-        status: newStatus,
-        updated_at: new Date().toISOString()
+      // Call the secure RPC function to update order status
+      const { data: result, error: rpcError } = await supabase.rpc('admin_update_order_status', {
+        p_order_id: order.id,
+        p_new_status: newStatus,
+        p_notes: statusNotes.trim() || `Status updated to ${statusConfig[newStatus].label}`
+      })
+
+      if (rpcError) {
+        console.error('RPC error updating order status:', rpcError)
+        throw new Error(`Failed to update order: ${rpcError.message || 'Unknown database error'}`)
       }
 
-      // Add status notes to order notes if provided
-      if (statusNotes.trim()) {
-        updateData.notes = order.notes
-          ? `${order.notes}\n\nStatus Update: ${statusNotes.trim()}`
-          : `Status Update: ${statusNotes.trim()}`
-      }
-
-      // Set delivery date when marking as delivered
-      if (newStatus === 'delivered') {
-        updateData.delivery_date = new Date().toISOString()
-      }
-
-      // IMPORTANT: Manually create status history entry BEFORE updating order
-      // This allows the database trigger to detect it and skip creating a duplicate
-      const { error: historyError } = await supabase
-        .from('order_status_history')
-        .insert({
-          order_id: order.id,
-          old_status: order.status,
-          new_status: newStatus,
-          changed_by_user_id: adminData.user.id,
-          notes: statusNotes.trim() || `Status updated to ${statusConfig[newStatus].label}`
-        })
-
-      if (historyError) {
-        console.error('Failed to create status history:', historyError)
-        throw new Error(`Failed to create status history: ${historyError.message}`)
-      }
-
-      // Update order status - database trigger will check for recent manual entries
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', order.id)
-
-      if (updateError) {
-        console.error('Order update error details:', updateError)
-        throw new Error(`Failed to update order: ${updateError.message || 'Unknown database error'}`)
+      // Check the result from the RPC function
+      if (result && !result.success) {
+        throw new Error(result.error || 'Failed to update order status')
       }
 
       addToast({
