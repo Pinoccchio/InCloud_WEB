@@ -110,12 +110,21 @@ export default function NotificationDropdown({ isOpen, onToggle, onClose }: Noti
       }
     }
 
-    // Navigate to related page based on notification type
-    if (notification.type === 'order' && notification.relatedId) {
-      window.location.href = '/admin/orders'
-    } else if (notification.type === 'alert' || notification.type === 'inventory') {
-      window.location.href = '/admin/alerts'
+    // Navigate using action_url if available (includes filter parameters)
+    if (notification.action_url) {
+      window.location.href = notification.action_url as string
+    } else {
+      // Fallback to old behavior for backward compatibility
+      if (notification.type === 'order' && notification.relatedId) {
+        window.location.href = '/admin/orders'
+      } else if (notification.type === 'alert' || notification.type === 'inventory' ||
+                 notification.type === 'stock' || notification.type === 'expiration') {
+        window.location.href = '/admin/inventory'
+      }
     }
+
+    // Close dropdown after navigation
+    onClose()
   }
 
   return (

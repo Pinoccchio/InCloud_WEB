@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   PlusIcon,
   ArrowPathIcon,
@@ -71,6 +72,36 @@ export default function InventoryPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(true)
 
   const { addToast } = useToast()
+  const searchParams = useSearchParams()
+
+  // Apply filters from URL parameters (from notification redirects)
+  useEffect(() => {
+    const stockStatus = searchParams.get('stockStatus')
+    const expirationStatus = searchParams.get('expirationStatus')
+
+    if (stockStatus) {
+      setStockStatusFilter(stockStatus)
+      // Show toast to indicate filter was applied
+      addToast({
+        type: 'info',
+        title: 'Filter Applied',
+        message: `Showing ${
+          stockStatus === 'out' ? 'out of stock' :
+          stockStatus === 'critical' ? 'critical stock' :
+          stockStatus === 'low' ? 'low stock' : stockStatus
+        } items`
+      })
+    }
+
+    if (expirationStatus) {
+      setExpirationFilter(expirationStatus)
+      addToast({
+        type: 'info',
+        title: 'Filter Applied',
+        message: `Showing ${expirationStatus === 'expired' ? 'expired' : 'expiring'} products`
+      })
+    }
+  }, [searchParams, addToast])
 
   const handleRestock = () => {
     setSelectedInventoryItem(null)
@@ -456,6 +487,7 @@ export default function InventoryPage() {
           setIsBatchDetailsModalOpen(false)
           setSelectedInventoryItem(null)
         }}
+        onBatchRemoved={() => setRefreshTrigger(prev => prev + 1)}
       />
 
       {/* Inventory Import Modal */}

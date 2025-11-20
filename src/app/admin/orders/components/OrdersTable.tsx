@@ -285,6 +285,20 @@ export default function OrdersTable({
           fetchOrders() // Refetch when changes occur
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('🗑️ [OrdersTable] Real-time DELETE detected:', {
+            orderId: payload.old.id
+          })
+          fetchOrders() // Refetch when changes occur
+        }
+      )
       .subscribe()
 
     return () => {

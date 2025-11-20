@@ -150,17 +150,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               console.log('🔔 New notification detected:', payload.new)
 
               const newNotification = payload.new
+
+              // Validate notification data before processing
+              if (!newNotification?.id) {
+                console.error('❌ Invalid notification payload - missing ID:', payload)
+                return
+              }
+
               const notification: AdminNotification = {
                 id: newNotification.id,
-                type: newNotification.type,
-                severity: newNotification.severity,
-                title: newNotification.title,
-                message: newNotification.message,
-                data: newNotification.metadata || {},
-                isRead: false,
-                isAcknowledged: false,
-                isResolved: false,
-                createdAt: newNotification.created_at,
+                type: newNotification.type || 'system',
+                severity: newNotification.severity || 'medium',
+                title: newNotification.title || 'Notification',
+                message: newNotification.message || '',
+                data: (newNotification.metadata && typeof newNotification.metadata === 'object')
+                  ? newNotification.metadata
+                  : {},
+                isRead: newNotification.admin_is_read === true,
+                isAcknowledged: newNotification.is_acknowledged === true,
+                isResolved: newNotification.is_resolved === true,
+                acknowledgedAt: newNotification.acknowledged_at,
+                resolvedAt: newNotification.resolved_at,
+                createdAt: newNotification.created_at || new Date().toISOString(),
                 relatedId: newNotification.related_entity_id,
               }
 
@@ -193,14 +204,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               filter: `branch_id=eq.${branchId}`
             },
             async (payload) => {
-              console.log('🔄 Notification updated:', payload.new.id)
               const updatedNotification = payload.new
+
+              // Validate update data before processing
+              if (!updatedNotification?.id) {
+                console.error('❌ Invalid update payload - missing ID:', payload)
+                return
+              }
+
+              console.log('🔄 Notification updated:', updatedNotification.id)
+
               setNotifications(prev =>
                 prev.map(notif =>
                   notif.id === updatedNotification.id
                     ? {
                         ...notif,
-                        isRead: updatedNotification.admin_is_read || notif.isRead,
+                        isRead: updatedNotification.admin_is_read === true || notif.isRead,
                         isAcknowledged: updatedNotification.is_acknowledged || notif.isAcknowledged,
                         isResolved: updatedNotification.is_resolved || notif.isResolved,
                         acknowledgedAt: updatedNotification.acknowledged_at || notif.acknowledgedAt,
@@ -211,9 +230,40 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               )
             }
           )
+          .on(
+            'postgres_changes',
+            {
+              event: 'DELETE',
+              schema: 'public',
+              table: 'notifications',
+              filter: `branch_id=eq.${branchId}`
+            },
+            async (payload) => {
+              const deletedNotification = payload.old
+
+              // Validate delete data before processing
+              if (!deletedNotification?.id) {
+                console.error('❌ Invalid delete payload - missing ID:', payload)
+                return
+              }
+
+              console.log('🗑️ Notification deleted:', deletedNotification.id)
+
+              setNotifications(prev =>
+                prev.filter(notif => notif.id !== deletedNotification.id)
+              )
+            }
+          )
           .subscribe((status, err) => {
             console.log('📡 Subscription status changed:', status)
-            if (err) console.error('❌ Subscription error:', err)
+
+            if (err) {
+              console.error('❌ Subscription error:', err)
+              // Handle schema mismatch specifically
+              if (err.message?.includes('mismatch')) {
+                console.warn('⚠️ Schema mismatch detected - REPLICA IDENTITY FULL should resolve this')
+              }
+            }
 
             setIsConnected(status === 'SUBSCRIBED')
 

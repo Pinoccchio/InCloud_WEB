@@ -129,6 +129,17 @@ export default function OrdersPage() {
           fetchStats()
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'orders'
+        },
+        () => {
+          fetchStats()
+        }
+      )
       .subscribe()
 
     return () => {

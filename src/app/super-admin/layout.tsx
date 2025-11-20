@@ -71,10 +71,7 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600 font-medium">Loading super admin panel...</p>
-        </div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

@@ -61,9 +61,8 @@ export function AuditLogTable({
   if (loading) {
     return (
       <Card>
-        <div className="p-12 flex flex-col items-center justify-center">
+        <div className="p-12 flex items-center justify-center">
           <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading audit history...</p>
         </div>
       </Card>
     )

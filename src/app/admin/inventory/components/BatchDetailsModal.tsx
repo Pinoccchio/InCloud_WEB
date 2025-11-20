@@ -7,9 +7,11 @@ import {
   ClockIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  ArchiveBoxIcon
+  ArchiveBoxIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 import { LoadingSpinner } from '@/components/ui'
+import { useToast } from '@/contexts/ToastContext'
 import { supabase } from '@/lib/supabase/auth'
 
 interface InventoryItem {
@@ -24,6 +26,7 @@ interface BatchDetailsModalProps {
   inventoryItem: InventoryItem | null
   isOpen: boolean
   onClose: () => void
+  onBatchRemoved?: () => void
 }
 
 interface ProductBatch {
@@ -47,11 +50,18 @@ interface ProductBatch {
 export default function BatchDetailsModal({
   inventoryItem,
   isOpen,
-  onClose
+  onClose,
+  onBatchRemoved
 }: BatchDetailsModalProps) {
   const [batches, setBatches] = useState<ProductBatch[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [removingBatchId, setRemovingBatchId] = useState<string | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [batchToRemove, setBatchToRemove] = useState<ProductBatch | null>(null)
+  const [removalError, setRemovalError] = useState<string | null>(null)
+
+  const { addToast } = useToast()
 
   // Load batch data
   const loadBatchData = useCallback(async () => {
@@ -108,6 +118,71 @@ export default function BatchDetailsModal({
     }
   }, [isOpen, inventoryItem, loadBatchData])
 
+  // Handle batch removal
+  const handleRemoveBatchClick = (batch: ProductBatch) => {
+    setBatchToRemove(batch)
+    setRemovalError(null)
+    setShowConfirmDialog(true)
+  }
+
+  const handleConfirmRemoval = async () => {
+    if (!batchToRemove) return
+
+    setRemovingBatchId(batchToRemove.id)
+    setRemovalError(null)
+
+    try {
+      // Get current admin user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('Not authenticated')
+      }
+
+      // Call RPC function to remove batch
+      const { data, error } = await supabase.rpc('remove_expired_batch', {
+        p_batch_id: batchToRemove.id,
+        p_admin_id: user.id,
+        p_reason: 'Expired product disposal'
+      })
+
+      if (error) throw error
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to remove batch')
+      }
+
+      // Success - show toast notification to user
+      addToast({
+        type: 'success',
+        title: 'Batch Removed Successfully',
+        message: `Successfully removed ${batchToRemove.quantity} units from batch ${batchToRemove.batch_number}`
+      })
+
+      // Reload batch data
+      await loadBatchData()
+
+      // Notify parent component to refresh inventory table
+      if (onBatchRemoved) {
+        onBatchRemoved()
+      }
+
+      // Close dialog
+      setShowConfirmDialog(false)
+      setBatchToRemove(null)
+    } catch (err) {
+      console.error('Error removing batch:', err)
+      setRemovalError(err instanceof Error ? err.message : 'Failed to remove batch')
+    } finally {
+      setRemovingBatchId(null)
+    }
+  }
+
+  const handleCancelRemoval = () => {
+    setShowConfirmDialog(false)
+    setBatchToRemove(null)
+    setRemovalError(null)
+  }
+
   const getExpirationStatusColor = (status: string) => {
     switch (status) {
       case 'expired': return 'text-red-600 bg-red-50 border-red-200'
@@ -153,6 +228,7 @@ export default function BatchDetailsModal({
   if (!inventoryItem) return null
 
   return (
+    <>
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
@@ -178,7 +254,7 @@ export default function BatchDetailsModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-xl bg-white text-left align-middle shadow-2xl transition-all">
+              <Dialog.Panel className="w-full max-w-4xl transform overflow-hidden rounded-xl bg-white text-left align-middle shadow-2xl transition-all">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 bg-white">
                   <div>
@@ -278,6 +354,9 @@ export default function BatchDetailsModal({
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                   Supplier
                                 </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Actions
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -333,6 +412,21 @@ export default function BatchDetailsModal({
                                       Received: {formatDate(batch.received_date)}
                                     </div>
                                   </td>
+
+                                  {/* Actions */}
+                                  <td className="px-4 py-3 whitespace-nowrap">
+                                    {batch.expiration_status === 'expired' && (
+                                      <button
+                                        onClick={() => handleRemoveBatchClick(batch)}
+                                        disabled={removingBatchId !== null}
+                                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500"
+                                        title="Remove expired batch"
+                                        aria-label={`Remove expired batch ${batch.batch_number}`}
+                                      >
+                                        <TrashIcon className="w-5 h-5" />
+                                      </button>
+                                    )}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -358,5 +452,107 @@ export default function BatchDetailsModal({
         </div>
       </Dialog>
     </Transition>
+
+    {/* Confirmation Dialog for Batch Removal */}
+    <Transition appear show={showConfirmDialog} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={handleCancelRemoval}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/60" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                      <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-gray-900">
+                        Remove Expired Batch?
+                      </Dialog.Title>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500 mb-3">
+                          This action cannot be undone. The batch will be marked as removed and inventory will be reduced.
+                        </p>
+                        {batchToRemove && (
+                          <div className="bg-gray-50 rounded-lg p-3 space-y-1 border border-gray-200">
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-700">Batch Number:</span>
+                              <span className="text-sm text-gray-900">{batchToRemove.batch_number}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-700">Product:</span>
+                              <span className="text-sm text-gray-900">{inventoryItem?.product_name}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-700">Quantity:</span>
+                              <span className="text-sm text-gray-900">{batchToRemove.quantity} units</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-700">Expired:</span>
+                              <span className="text-sm text-red-600">{formatDate(batchToRemove.expiration_date)}</span>
+                            </div>
+                          </div>
+                        )}
+                        {removalError && (
+                          <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-700">{removalError}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-3">
+                  <button
+                    type="button"
+                    disabled={removingBatchId !== null}
+                    onClick={handleConfirmRemoval}
+                    className="inline-flex w-full justify-center items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto transition-colors"
+                  >
+                    {removingBatchId ? (
+                      <>
+                        <LoadingSpinner size="sm" />
+                        <span className="ml-2">Removing...</span>
+                      </>
+                    ) : (
+                      'Remove Batch'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={removingBatchId !== null}
+                    onClick={handleCancelRemoval}
+                    className="mt-3 inline-flex w-full justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed sm:mt-0 sm:w-auto transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  </>
   )
 }

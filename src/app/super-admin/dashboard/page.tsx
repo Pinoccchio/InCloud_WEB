@@ -93,10 +93,7 @@ export default function SuperAdminDashboard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600 font-medium">Loading dashboard...</p>
-        </div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
