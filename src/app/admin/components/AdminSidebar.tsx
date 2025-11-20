@@ -10,6 +10,7 @@ import {
   ChartBarIcon,
   BellIcon,
   BuildingStorefrontIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { Logo } from '@/components/ui'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -64,6 +65,12 @@ const navigation: NavItem[] = [
     href: '/admin/analytics',
     icon: ChartBarIcon,
     description: 'Reports and insights'
+  },
+  {
+    name: 'Audit History',
+    href: '/admin/audit-history',
+    icon: DocumentTextIcon,
+    description: 'View your action history'
   },
   {
     name: 'Alerts',

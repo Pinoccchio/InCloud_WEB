@@ -1,0 +1,122 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  public: {
+    Tables: {
+      orders: {
+        Row: {
+          assigned_to: string | null
+          branch_id: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string | null
+          created_by_user_id: string | null
+          customer_id: string | null
+          delivery_address: Json | null
+          delivery_date: string | null
+          discount_amount: number | null
+          gcash_reference_number: string | null
+          id: string
+          notes: string | null
+          order_date: string | null
+          order_number: string
+          payment_method: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
+          proof_of_payment_status: string | null
+          proof_of_payment_url: string | null
+          proof_rejection_reason: string | null
+          proof_reviewed_at: string | null
+          proof_reviewed_by: string | null
+          proof_submitted_at: string | null
+          status: Database["public"]["Enums"]["order_status"] | null
+          subtotal: number
+          temp_status_notes: string | null
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          branch_id: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string | null
+          created_by_user_id?: string | null
+          customer_id?: string | null
+          delivery_address?: Json | null
+          delivery_date?: string | null
+          discount_amount?: number | null
+          gcash_reference_number?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string | null
+          order_number: string
+          payment_method?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null
+          proof_of_payment_status?: string | null
+          proof_of_payment_url?: string | null
+          proof_rejection_reason?: string | null
+          proof_reviewed_at?: string | null
+          proof_reviewed_by?: string | null
+          proof_submitted_at?: string | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          subtotal?: number
+          temp_status_notes?: string | null
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          branch_id?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string | null
+          created_by_user_id?: string | null
+          customer_id?: string | null
+          delivery_address?: Json | null
+          delivery_date?: string | null
+          discount_amount?: number | null
+          gcash_reference_number?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string | null
+          order_number?: string
+          payment_method?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null
+          proof_of_payment_status?: string | null
+          proof_of_payment_url?: string | null
+          proof_rejection_reason?: string | null
+          proof_reviewed_at?: string | null
+          proof_reviewed_by?: string | null
+          proof_submitted_at?: string | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          subtotal?: number
+          temp_status_notes?: string | null
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {}
+    Functions: {}
+    Enums: {
+      order_status:
+        | "pending"
+        | "confirmed"
+        | "in_transit"
+        | "delivered"
+        | "cancelled"
+        | "returned"
+      payment_status: "pending" | "paid" | "partial" | "refunded" | "cancelled"
+    }
+  }
+}

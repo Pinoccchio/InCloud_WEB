@@ -14,7 +14,8 @@ import {
   PhotoIcon,
   EyeIcon,
   CreditCardIcon,
-  MapPinIcon
+  MapPinIcon,
+  CurrencyDollarIcon
 } from '@heroicons/react/24/outline'
 import { supabase } from '@/lib/supabase/auth'
 import { useToast } from '@/contexts/ToastContext'
@@ -109,6 +110,17 @@ interface OrderDetails {
     user_display_name: string
     user_type: 'Admin' | 'Customer' | 'System'
   }>
+  price_history: Array<{
+    id: string
+    created_at: string
+    old_total_amount: number
+    new_total_amount: number
+    old_discount_amount: number
+    new_discount_amount: number
+    adjustment_reason: string
+    admin_name: string
+    amount_change: number
+  }>
 }
 
 const statusConfig = {
@@ -188,7 +200,17 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
   const [cancellingOrder, setCancellingOrder] = useState(false)
-  const { addToast } = useToast()
+  // Price editing state
+  const [showPriceEditModal, setShowPriceEditModal] = useState(false)
+  const [editingPrice, setEditingPrice] = useState({
+    subtotal: 0,
+    discountAmount: 0,
+    totalAmount: 0,
+    reason: ''
+  })
+  const [updatingPrice, setUpdatingPrice] = useState(false)
+  const [priceError, setPriceError] = useState('')
+  const { addToast} = useToast()
 
   // Fetch order details with proper error handling
   const fetchOrderDetails = useCallback(async () => {
@@ -252,6 +274,17 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
 
       if (historyError) {
         console.warn('Could not fetch status history:', historyError)
+      }
+
+      // Fetch price edit history from the view
+      const { data: priceHistory, error: priceHistoryError } = await supabase
+        .from('order_price_edit_history')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+
+      if (priceHistoryError) {
+        console.warn('Could not fetch price history:', priceHistoryError)
       }
 
       // Fetch user details for status history
@@ -343,7 +376,8 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
             images: processProductImages(item.products.images)
           }
         })),
-        status_history: processedHistory
+        status_history: processedHistory,
+        price_history: priceHistory || []
       }
 
       setOrder(transformedOrder)
@@ -597,6 +631,100 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
     } finally {
       setCancellingOrder(false)
     }
+  }
+
+  // Price editing functions
+  const updateOrderPrice = async () => {
+    if (!order) return
+
+    // Validation
+    if (!editingPrice.reason.trim()) {
+      setPriceError('Please provide a reason for the price adjustment')
+      return
+    }
+
+    if (editingPrice.totalAmount < 0) {
+      setPriceError('Total amount cannot be negative')
+      return
+    }
+
+    if (editingPrice.discountAmount < 0) {
+      setPriceError('Discount amount cannot be negative')
+      return
+    }
+
+    try {
+      setUpdatingPrice(true)
+      setPriceError('')
+
+      // Check authentication
+      const { data: adminData } = await supabase.auth.getUser()
+      if (!adminData.user) {
+        throw new Error('Not authenticated')
+      }
+
+      // Call RPC function
+      const { data: result, error: rpcError } = await supabase.rpc(
+        'admin_update_order_price',
+        {
+          p_order_id: order.id,
+          p_new_total_amount: editingPrice.totalAmount,
+          p_new_discount_amount: editingPrice.discountAmount,
+          p_adjustment_reason: editingPrice.reason.trim()
+        }
+      )
+
+      if (rpcError) {
+        throw new Error(rpcError.message)
+      }
+
+      if (result && !result.success) {
+        throw new Error(result.error || 'Failed to update price')
+      }
+
+      // Success!
+      addToast({
+        type: 'success',
+        title: 'Order Price Updated',
+        message: `Total changed to ${formatCurrency(editingPrice.totalAmount)}`
+      })
+
+      // Close modal and refresh
+      setShowPriceEditModal(false)
+      setEditingPrice({ subtotal: 0, discountAmount: 0, totalAmount: 0, reason: '' })
+      await fetchOrderDetails()
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setPriceError(errorMessage)
+
+      addToast({
+        type: 'error',
+        title: 'Failed to Update Price',
+        message: errorMessage
+      })
+    } finally {
+      setUpdatingPrice(false)
+    }
+  }
+
+  const openPriceEditModal = () => {
+    if (!order) return
+
+    setEditingPrice({
+      subtotal: order.subtotal,
+      discountAmount: order.discount_amount || 0,
+      totalAmount: order.total_amount,
+      reason: ''
+    })
+    setPriceError('')
+    setShowPriceEditModal(true)
+  }
+
+  const calculateNewTotal = (discount: number) => {
+    const subtotal = editingPrice.subtotal
+    const newTotal = Math.max(0, subtotal - discount)
+    setEditingPrice(prev => ({ ...prev, discountAmount: discount, totalAmount: newTotal }))
   }
 
   useEffect(() => {
@@ -1043,7 +1171,22 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
 
                   {/* Order Summary */}
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">Order Summary</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-medium text-gray-900">Order Summary</h4>
+                      {order.status !== 'delivered' && order.status !== 'returned' && (
+                        <button
+                          onClick={openPriceEditModal}
+                          className="text-sm text-blue-600 hover:text-blue-800 font-medium
+                                   flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                          Edit Price
+                        </button>
+                      )}
+                    </div>
                     <div className="bg-gray-50 rounded-lg p-4">
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
@@ -1065,6 +1208,72 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                       </div>
                     </div>
                   </div>
+
+                  {/* Price Adjustment History */}
+                  {order.price_history.length > 0 && (
+                    <div className="mb-8">
+                      <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                        <CurrencyDollarIcon className="w-4 h-4 mr-2" />
+                        Price Adjustment History
+                      </h4>
+                      <div className="flow-root">
+                        <ul className="-mb-8">
+                          {order.price_history.map((history, index) => {
+                            const isIncrease = history.amount_change < 0 // Negative change means increase
+                            const changeAmount = Math.abs(history.amount_change)
+
+                            return (
+                              <li key={history.id}>
+                                <div className="relative pb-8">
+                                  {index !== order.price_history.length - 1 && (
+                                    <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" />
+                                  )}
+                                  <div className="relative flex space-x-3">
+                                    <div>
+                                      <span className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center ring-8 ring-white">
+                                        <CurrencyDollarIcon className="w-4 h-4 text-green-600" />
+                                      </span>
+                                    </div>
+                                    <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                      <div>
+                                        <p className="text-sm text-gray-500">
+                                          Price adjusted from{' '}
+                                          <span className="font-medium text-gray-900">
+                                            {formatCurrency(history.old_total_amount)}
+                                          </span>{' '}
+                                          to{' '}
+                                          <span className="font-medium text-gray-900">
+                                            {formatCurrency(history.new_total_amount)}
+                                          </span>
+                                          {changeAmount > 0 && (
+                                            <span className={`ml-2 text-xs font-medium ${isIncrease ? 'text-red-600' : 'text-green-600'}`}>
+                                              ({isIncrease ? '+' : '-'}{formatCurrency(changeAmount)})
+                                            </span>
+                                          )}
+                                        </p>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                          Discount: {formatCurrency(history.old_discount_amount || 0)} → {formatCurrency(history.new_discount_amount)}
+                                        </p>
+                                        {history.adjustment_reason && (
+                                          <p className="text-sm text-gray-600 mt-2 italic">
+                                            "{history.adjustment_reason}"
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="text-right text-sm whitespace-nowrap text-gray-500">
+                                        <p>{formatDate(history.created_at)}</p>
+                                        <p>by {history.admin_name}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Status History */}
                   {order.status_history.length > 0 && (
@@ -1299,6 +1508,131 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   {cancellingOrder ? 'Cancelling...' : 'Cancel Order'}
+                </Button>
+              </div>
+            </DialogPanel>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Price Edit Modal */}
+      <Dialog open={showPriceEditModal} onClose={() => !updatingPrice && setShowPriceEditModal(false)} className="relative z-[60]">
+        <div className="fixed inset-0 bg-black/25" />
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <DialogTitle className="text-lg font-medium text-gray-900">
+                  Edit Order Price
+                </DialogTitle>
+                <button
+                  onClick={() => !updatingPrice && setShowPriceEditModal(false)}
+                  disabled={updatingPrice}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Current Values */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
+                <div className="flex justify-between mb-2">
+                  <span className="text-gray-600">Current Subtotal:</span>
+                  <span className="font-semibold text-gray-900">{formatCurrency(order?.subtotal || 0)}</span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-gray-600">Current Discount:</span>
+                  <span className="font-semibold text-gray-900">{formatCurrency(order?.discount_amount || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current Total:</span>
+                  <span className="font-semibold text-blue-600">{formatCurrency(order?.total_amount || 0)}</span>
+                </div>
+              </div>
+
+              {/* Discount Input */}
+              <div className="mb-4">
+                <label htmlFor="discount-amount" className="block text-sm font-medium text-gray-700 mb-2">
+                  Discount Amount
+                </label>
+                <input
+                  type="number"
+                  id="discount-amount"
+                  value={editingPrice.discountAmount === 0 ? '' : editingPrice.discountAmount}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value)
+                    if (!isNaN(value)) {
+                      calculateNewTotal(value)
+                    }
+                  }}
+                  min="0"
+                  max={editingPrice.subtotal}
+                  step="0.01"
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                  disabled={updatingPrice}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Maximum: {formatCurrency(editingPrice.subtotal)}
+                </p>
+              </div>
+
+              {/* New Total Preview */}
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">New Total:</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    {formatCurrency(editingPrice.totalAmount)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Reason Input */}
+              <div className="mb-4">
+                <label htmlFor="price-adjustment-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Price Adjustment *
+                </label>
+                <textarea
+                  id="price-adjustment-reason"
+                  value={editingPrice.reason}
+                  onChange={(e) => setEditingPrice(prev => ({ ...prev, reason: e.target.value }))}
+                  rows={3}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Customer loyalty discount, Damaged goods compensation, Promotional offer..."
+                  disabled={updatingPrice}
+                />
+                <p className="mt-2 text-xs text-gray-600">
+                  This reason will be logged in the audit trail for record-keeping.
+                </p>
+              </div>
+
+              {/* Error Display */}
+              {priceError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{priceError}</p>
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="mt-6 flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPriceEditModal(false)
+                    setPriceError('')
+                  }}
+                  disabled={updatingPrice}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={updateOrderPrice}
+                  disabled={updatingPrice || !editingPrice.reason.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {updatingPrice ? 'Updating...' : 'Update Price'}
                 </Button>
               </div>
             </DialogPanel>
