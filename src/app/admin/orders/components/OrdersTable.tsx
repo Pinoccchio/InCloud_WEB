@@ -20,6 +20,8 @@ interface Order {
   customer_email: string
   status: 'pending' | 'confirmed' | 'in_transit' | 'delivered' | 'cancelled' | 'returned'
   payment_status: 'pending' | 'paid' | 'partial' | 'refunded' | 'cancelled'
+  payment_method: string | null
+  gcash_reference_number: string | null
   order_date: string
   delivery_date: string | null
   total_amount: number
@@ -111,6 +113,8 @@ export default function OrdersTable({
           order_number,
           status,
           payment_status,
+          payment_method,
+          gcash_reference_number,
           order_date,
           delivery_date,
           total_amount,
@@ -184,6 +188,8 @@ export default function OrdersTable({
         customer_email: order.customers?.email || '',
         status: order.status,
         payment_status: order.payment_status,
+        payment_method: order.payment_method || null,
+        gcash_reference_number: order.gcash_reference_number || null,
         order_date: order.order_date,
         delivery_date: order.delivery_date,
         total_amount: order.total_amount,
@@ -420,9 +426,26 @@ export default function OrdersTable({
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[order.payment_status].color}`}>
-                      {paymentStatusConfig[order.payment_status].label}
-                    </span>
+                    <div className="space-y-1">
+                      {/* Payment Method Badge */}
+                      {order.payment_method === 'online_payment' ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <CheckCircleIcon className="w-3 h-3 mr-1" />
+                          GCash
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <TruckIcon className="w-3 h-3 mr-1" />
+                          COD
+                        </span>
+                      )}
+                      {/* Payment Status Badge */}
+                      <div>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[order.payment_status].color}`}>
+                          {paymentStatusConfig[order.payment_status].label}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatDate(order.order_date)}

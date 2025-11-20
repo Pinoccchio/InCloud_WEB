@@ -12,7 +12,8 @@ import {
   ArrowPathIcon,
   DocumentTextIcon,
   PhotoIcon,
-  EyeIcon
+  EyeIcon,
+  CreditCardIcon
 } from '@heroicons/react/24/outline'
 import { supabase } from '@/lib/supabase/auth'
 import { useToast } from '@/contexts/ToastContext'
@@ -61,6 +62,8 @@ interface OrderDetails {
   total_amount: number
   notes: string | null
   delivery_address: Record<string, unknown> | null
+  payment_method: string | null
+  gcash_reference_number: string | null
   proof_of_payment_url: string | null
   proof_of_payment_status: string | null
   proof_submitted_at: string | null
@@ -302,6 +305,8 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
         total_amount: orderData.total_amount,
         notes: orderData.notes,
         delivery_address: processDeliveryAddress(orderData.delivery_address),
+        payment_method: orderData.payment_method || null,
+        gcash_reference_number: orderData.gcash_reference_number || null,
         proof_of_payment_url: orderData.proof_of_payment_url || null,
         proof_of_payment_status: orderData.proof_of_payment_status || null,
         proof_submitted_at: orderData.proof_submitted_at || null,
@@ -772,6 +777,50 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                           <p className="text-sm text-gray-500">Customer Type</p>
                           <p className="text-sm font-medium text-gray-900 capitalize">{order.customer.customer_type || 'Not specified'}</p>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Information */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                      <CreditCardIcon className="w-4 h-4 mr-2" />
+                      Payment Information
+                    </h4>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="space-y-3">
+                        {/* Payment Method */}
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Payment Method</p>
+                          <div className="mt-2">
+                            {order.payment_method === 'online_payment' ? (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                Online Payment (GCash)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                                <TruckIcon className="w-4 h-4 mr-2" />
+                                Cash on Delivery
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* GCash Reference (conditional - only for online payment) */}
+                        {order.payment_method === 'online_payment' && order.gcash_reference_number && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">GCash Reference Number</p>
+                            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <code className="text-sm font-mono font-semibold text-green-800">
+                                {order.gcash_reference_number}
+                              </code>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500 italic">
+                              Use this reference to verify payment in GCash transaction history
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
