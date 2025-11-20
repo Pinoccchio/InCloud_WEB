@@ -13,7 +13,8 @@ import {
   DocumentTextIcon,
   PhotoIcon,
   EyeIcon,
-  CreditCardIcon
+  CreditCardIcon,
+  MapPinIcon
 } from '@heroicons/react/24/outline'
 import { supabase } from '@/lib/supabase/auth'
 import { useToast } from '@/contexts/ToastContext'
@@ -36,6 +37,14 @@ interface CustomerData {
   email: string
   phone: string | null
   customer_type: string | null
+  address: {
+    street?: string
+    barangay?: string
+    city?: string
+    province?: string
+    postal_code?: string
+    notes?: string
+  } | null
 }
 
 interface BranchData {
@@ -198,7 +207,8 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
             full_name,
             email,
             phone,
-            customer_type
+            customer_type,
+            address
           ),
           branches!inner(
             id,
@@ -778,6 +788,43 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                           <p className="text-sm font-medium text-gray-900 capitalize">{order.customer.customer_type || 'Not specified'}</p>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Customer Address */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                      <MapPinIcon className="w-4 h-4 mr-2" />
+                      Customer Registered Address
+                    </h4>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      {order.customer.address ? (
+                        <div className="space-y-2 text-sm text-gray-700">
+                          {order.customer.address.street && (
+                            <p className="font-medium text-gray-900">{order.customer.address.street}</p>
+                          )}
+                          {order.customer.address.barangay && (
+                            <p>{order.customer.address.barangay}</p>
+                          )}
+                          <p>
+                            {order.customer.address.city || 'Manila'}
+                            {order.customer.address.province && `, ${order.customer.address.province}`}
+                          </p>
+                          {order.customer.address.postal_code && (
+                            <p className="text-gray-500">Postal Code: {order.customer.address.postal_code}</p>
+                          )}
+                          {order.customer.address.notes && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <p className="text-xs font-medium text-gray-600 mb-1">Delivery Notes:</p>
+                              <p className="italic text-gray-600">{order.customer.address.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">
+                          Customer has not provided a registered address
+                        </p>
+                      )}
                     </div>
                   </div>
 
