@@ -133,6 +133,7 @@ export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isRegeneratingAI, setIsRegeneratingAI] = useState(false)
   const [activeTab, setActiveTab] = useState<'descriptive' | 'prescriptive'>('descriptive')
   const { addToast } = useToast()
 
@@ -185,6 +186,50 @@ export default function AnalyticsPage() {
       setIsLoading(false)
       setIsRefreshing(false)
       console.log('🔷 [Analytics Page] Load analytics complete')
+    }
+  }
+
+  const regenerateAIInsights = async () => {
+    console.log('\n🔷 [Analytics Page] Regenerating AI insights...')
+    setIsRegeneratingAI(true)
+    try {
+      console.log('📡 [Analytics Page] Calling POST /api/analytics with action: regenerateAI')
+      const response = await fetch('/api/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'regenerateAI' })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to regenerate AI insights')
+      }
+
+      const data = await response.json()
+      console.log('✅ [Analytics Page] AI insights regenerated successfully:', {
+        insightCount: data.aiInsights?.insights?.length || 0
+      })
+
+      // Update only the AI insights portion
+      setAnalyticsData(prev => ({
+        ...prev!,
+        aiInsights: data.aiInsights
+      }))
+
+      addToast({
+        type: 'success',
+        title: 'AI Insights Regenerated',
+        message: 'Fresh AI analysis completed successfully'
+      })
+    } catch (error) {
+      console.error('❌ [Analytics Page] Error regenerating AI insights:', error)
+      addToast({
+        type: 'error',
+        title: 'Regeneration Failed',
+        message: 'Could not regenerate AI insights. Please try again.'
+      })
+    } finally {
+      setIsRegeneratingAI(false)
+      console.log('🔷 [Analytics Page] Regenerate AI insights complete')
     }
   }
 
@@ -266,6 +311,18 @@ export default function AnalyticsPage() {
               />
               Refresh
             </Button>
+            {activeTab === 'prescriptive' && (
+              <Button
+                onClick={regenerateAIInsights}
+                variant="primary"
+                disabled={isRegeneratingAI}
+              >
+                <SparklesIcon
+                  className={`w-4 h-4 mr-2 ${isRegeneratingAI ? 'animate-spin' : ''}`}
+                />
+                Regenerate AI Insights
+              </Button>
+            )}
           </div>
         </div>
 

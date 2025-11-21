@@ -119,7 +119,12 @@ export class GeminiService {
       salesMetrics,
       pricingTierAnalysis,
       productStockStatus,
+      productTrafficMetrics,
     } = data
+
+    // Separate low-traffic and high-traffic products
+    const lowTrafficProducts = productTrafficMetrics?.filter((p: any) => p.isLowTraffic) || []
+    const highTrafficProducts = productTrafficMetrics?.filter((p: any) => !p.isLowTraffic) || []
 
     return `You are an expert inventory management consultant for J.A's Food Trading, a frozen food distribution business with 3 branches in Sampaloc, Manila, Philippines.
 
@@ -137,12 +142,36 @@ Analyze the following business data and provide specific, actionable recommendat
 ## CATEGORY PERFORMANCE
 ${categoryPerformance.map((cat: any) => `- ${cat.categoryName}: ${cat.productCount} products, ${cat.totalInventory} units (${cat.percentageOfTotal.toFixed(1)}% of total)`).join('\n')}
 
-## EXPIRATION METRICS
-- Expiring in 7 days: ${expirationMetrics.expiringSoon7Days} batches
-- Expiring in 14 days: ${expirationMetrics.expiringSoon14Days} batches
-- Expiring in 30 days: ${expirationMetrics.expiringSoon30Days} batches
-- Already expired: ${expirationMetrics.expired} batches
-- Critical batches: ${expirationMetrics.criticalBatches.length} items requiring immediate attention
+## ⚠️ CRITICAL EXPIRATION ALERTS (FROZEN FOOD - URGENT!)
+- **EXPIRED**: ${expirationMetrics.expired} batches (PAST expiration - health hazard!)
+- **URGENT (< 7 days)**: ${expirationMetrics.expiringSoon7Days} batches (Immediate action required)
+- **WARNING (7-14 days)**: ${expirationMetrics.expiringSoon14Days} batches (Plan discount/promotion)
+- **WATCH (14-30 days)**: ${expirationMetrics.expiringSoon30Days} batches (Monitor closely)
+- **Total Active Batches**: ${expirationMetrics.totalBatches} batches tracked
+
+${expirationMetrics.criticalBatches.length > 0 ? `
+### Top Critical Batches Requiring IMMEDIATE Action:
+${expirationMetrics.criticalBatches.slice(0, 5).map((b: any) =>
+  `- **${b.productName}** (Batch: ${b.batchNumber}): ${b.quantity} units, expires in ${b.daysUntilExpiry} days (${new Date(b.expirationDate).toLocaleDateString()})`
+).join('\n')}
+
+**EXPIRATION STRATEGY REQUIRED:**
+- Batches expiring < 3 days: Emergency discount (40-50% off) or donate
+- Batches expiring 3-7 days: Promotional pricing (25-35% off)
+- Batches expiring 7-14 days: Feature in marketing, bundle deals
+- Batches expiring 14-30 days: Normal operations, monitor daily
+` : '- No critical batches at this time'}
+
+## PRODUCT TRAFFIC ANALYSIS (Last 30 Days)
+**Low-Traffic Products** (< 10 orders): ${lowTrafficProducts.length} products
+${lowTrafficProducts.length > 0 ? lowTrafficProducts.slice(0, 5).map((p: any) =>
+  `- ${p.productName}: ${p.orderCount} orders, ${p.totalQuantity} units sold`
+).join('\n') : '- None'}
+
+**High-Traffic Products** (≥ 10 orders): ${highTrafficProducts.length} products
+${highTrafficProducts.length > 0 ? highTrafficProducts.slice(0, 5).map((p: any) =>
+  `- ${p.productName}: ${p.orderCount} orders, ${p.totalQuantity} units sold`
+).join('\n') : '- None'}
 
 ## SALES METRICS
 - Total Orders: ${salesMetrics.totalOrders}
@@ -177,14 +206,44 @@ Provide your analysis in the following JSON format ONLY (no additional text):
   ]
 }
 
-Focus on:
-1. **Immediate restocking priorities** - Which products need urgent reordering
-2. **Expiration risk mitigation** - Strategies to minimize waste from expiring products
-3. **Pricing optimization** - Opportunities to improve margins or move slow inventory
-4. **Category-specific strategies** - Tailored recommendations per product category
-5. **Sales improvement** - Ways to increase order volume and average order value
+## CRITICAL RESTRICTIONS & RULES:
 
-Provide 5-8 specific, actionable insights. Be concrete with numbers and deadlines. Consider Philippine business context and frozen food industry best practices.`
+**PRICING OPTIMIZATION RULES:**
+1. ❌ DO NOT recommend price changes for LOW-TRAFFIC products (< 10 orders in 30 days)
+2. ✅ ONLY recommend pricing adjustments for HIGH-TRAFFIC products (≥ 10 orders)
+3. For low-traffic items, recommend: inventory reduction, product discontinuation, or marketing campaigns
+4. Focus pricing optimization on products with proven customer demand
+
+**PRIORITY RANKING (MUST FOLLOW):**
+1. **CRITICAL** - Expired batches, products expiring < 7 days, zero stock on high-demand items
+2. **HIGH** - Products expiring 7-14 days, low stock (< threshold), negative profit margins
+3. **MEDIUM** - Products expiring 14-30 days, pricing optimization (high-traffic only), operational improvements
+4. **LOW** - General operational suggestions, long-term strategic planning
+
+**FOCUS AREAS (In Order of Importance):**
+1. **Expiration Risk Mitigation (TOP PRIORITY)** - Frozen food safety is critical
+   - Address ALL expired batches immediately (health hazard)
+   - Urgent action on batches expiring < 7 days (promotional pricing)
+   - Plan ahead for batches expiring 7-30 days
+
+2. **Critical Stock Management** - Prevent lost sales
+   - Restock out-of-stock items immediately (especially high-traffic)
+   - Address low stock before reaching zero
+
+3. **Traffic-Based Inventory Optimization** - Data-driven decisions
+   - Reduce/discontinue low-traffic products to free up capital
+   - Increase stock for high-traffic products
+
+4. **Pricing Optimization (High-Traffic Products Only)** - Maximize margins
+   - Adjust prices on products with ≥10 orders/month
+   - Test price increases on popular items
+   - Bundle slow-moving items with best-sellers
+
+5. **Sales Growth Strategies** - Increase revenue
+   - Marketing campaigns for specific categories
+   - Cross-selling and upselling opportunities
+
+Provide 5-8 specific, actionable insights. Be concrete with numbers, specific products, and deadlines. Consider Philippine business context and frozen food industry best practices (FIFO, cold chain, health regulations).`
   }
 
   /**
@@ -234,17 +293,60 @@ Provide 5-8 specific, actionable insights. Be concrete with numbers and deadline
    */
   private static getFallbackInsights(data: any): AIAnalysisResponse {
     const insights: PrescriptiveInsight[] = []
-    const { inventoryMetrics, expirationMetrics, productStockStatus } = data
+    const { inventoryMetrics, expirationMetrics, productStockStatus, productTrafficMetrics } = data
+
+    // Separate low-traffic and high-traffic products
+    const lowTrafficProducts = productTrafficMetrics?.filter((p: any) => p.isLowTraffic) || []
+    const highTrafficProducts = productTrafficMetrics?.filter((p: any) => !p.isLowTraffic) || []
+
+    // CRITICAL: Expired batches (highest priority)
+    if (expirationMetrics.expired > 0) {
+      insights.push({
+        priority: 'critical',
+        category: 'Expiration',
+        title: 'Expired Batches Detected - Health Hazard',
+        description: `${expirationMetrics.expired} batches have ALREADY EXPIRED. These products pose a health and safety risk and must be removed from inventory immediately.`,
+        action: 'Remove all expired batches from inventory TODAY. Dispose properly and update inventory records. Review expiration monitoring procedures.',
+        expectedImpact: 'Eliminate health risks, comply with food safety regulations, avoid potential legal issues',
+        timeframe: 'immediate',
+      })
+    }
+
+    // CRITICAL: Products expiring within 7 days
+    if (expirationMetrics.expiringSoon7Days > 0) {
+      insights.push({
+        priority: 'critical',
+        category: 'Expiration',
+        title: 'Urgent: Products Expiring Within 7 Days',
+        description: `${expirationMetrics.expiringSoon7Days} batches are expiring within the next 7 days. Without immediate action, these will become waste.`,
+        action: 'Apply 25-35% promotional discount on expiring items. Feature these products prominently. Prioritize FIFO in all order fulfillment.',
+        expectedImpact: 'Recover costs through sales, reduce waste, maintain cash flow',
+        timeframe: 'immediate',
+      })
+    }
+
+    // HIGH: Products expiring 7-14 days
+    if (expirationMetrics.expiringSoon14Days > 0) {
+      insights.push({
+        priority: 'high',
+        category: 'Expiration',
+        title: 'Products Expiring in 7-14 Days',
+        description: `${expirationMetrics.expiringSoon14Days} batches will expire in 1-2 weeks. Plan promotional campaigns to move this inventory.`,
+        action: 'Create bundle deals with expiring products. Feature in weekly promotions. Monitor daily and adjust pricing as needed.',
+        expectedImpact: 'Prevent future waste, maintain healthy inventory turnover',
+        timeframe: 'this week',
+      })
+    }
 
     // Critical stock items
     if (inventoryMetrics.outOfStockItems > 0) {
       insights.push({
         priority: 'critical',
         category: 'Inventory',
-        title: 'Out of Stock Items Detected',
-        description: `You have ${inventoryMetrics.outOfStockItems} products that are completely out of stock. This may result in lost sales and disappointed customers.`,
-        action: 'Immediately review and reorder out-of-stock items from suppliers.',
-        expectedImpact: 'Prevent lost sales and maintain customer satisfaction',
+        title: 'Out of Stock Items - Lost Sales',
+        description: `${inventoryMetrics.outOfStockItems} products are completely out of stock. This results in lost sales and may drive customers to competitors.`,
+        action: 'Immediately review out-of-stock items. Prioritize restocking high-traffic products (≥10 orders/month). Place emergency supplier orders.',
+        expectedImpact: 'Recover lost revenue, maintain customer satisfaction and loyalty',
         timeframe: 'immediate',
       })
     }
@@ -254,48 +356,79 @@ Provide 5-8 specific, actionable insights. Be concrete with numbers and deadline
       insights.push({
         priority: 'high',
         category: 'Inventory',
-        title: 'Low Stock Alert',
-        description: `${inventoryMetrics.lowStockItems} products are running low and need restocking soon to avoid stock-outs.`,
-        action: 'Create purchase orders for low stock items based on sales velocity.',
-        expectedImpact: 'Maintain adequate inventory levels and avoid emergency orders',
+        title: 'Low Stock Alert - Reorder Needed',
+        description: `${inventoryMetrics.lowStockItems} products are running low. Stock-outs are imminent without reordering.`,
+        action: 'Create purchase orders for low stock items. Focus on high-traffic products first. Implement reorder point alerts for automation.',
+        expectedImpact: 'Maintain adequate inventory levels, avoid emergency rush orders',
         timeframe: 'this week',
       })
     }
 
-    // Expiration warnings
-    if (expirationMetrics.expiringSoon7Days > 0) {
+    // Low-traffic product optimization (only if we have traffic data)
+    if (lowTrafficProducts.length > 0) {
       insights.push({
-        priority: 'critical',
-        category: 'Expiration',
-        title: 'Products Expiring Within 7 Days',
-        description: `${expirationMetrics.expiringSoon7Days} batches are expiring within the next 7 days. Immediate action required to minimize waste.`,
-        action: 'Implement promotional pricing or prioritize these items in sales orders. Consider FIFO enforcement.',
-        expectedImpact: 'Reduce inventory waste and recover costs through sales',
-        timeframe: 'immediate',
+        priority: 'medium',
+        category: 'Operations',
+        title: 'Low-Traffic Product Optimization',
+        description: `${lowTrafficProducts.length} products have less than 10 orders in the past 30 days. These tie up capital and storage space.`,
+        action: 'Review low-traffic products for discontinuation or reduction. Consider marketing campaigns to boost sales. Avoid price changes on these items without demand validation.',
+        expectedImpact: 'Free up working capital, optimize storage space, focus on profitable products',
+        timeframe: 'this month',
       })
     }
 
-    // Inventory value insight
-    insights.push({
-      priority: 'medium',
-      category: 'Operations',
-      title: 'Inventory Value Analysis',
-      description: `Total inventory value is ₱${inventoryMetrics.totalInventoryValueRetail.toFixed(2)} at retail pricing with potential profit of ₱${(inventoryMetrics.totalInventoryValueRetail - inventoryMetrics.totalInventoryValue).toFixed(2)}.`,
-      action: 'Review pricing strategy and ensure optimal markup across all tiers.',
-      expectedImpact: 'Maximize profitability while remaining competitive',
-      timeframe: 'this month',
-    })
+    // High-traffic pricing optimization (only if we have high-traffic products)
+    if (highTrafficProducts.length > 0) {
+      insights.push({
+        priority: 'medium',
+        category: 'Pricing',
+        title: 'Pricing Optimization for Popular Products',
+        description: `${highTrafficProducts.length} products have strong demand (≥10 orders in 30 days). These are candidates for margin improvement.`,
+        action: 'Test small price increases (5-10%) on high-demand products. Monitor sales velocity. Bundle popular items with slower-moving stock.',
+        expectedImpact: 'Increase profit margins while maintaining sales volume',
+        timeframe: 'this month',
+      })
+    }
+
+    // Summary based on most critical issues
+    let summary = `Your inventory has ${inventoryMetrics.totalProducts} active products. `
+    if (expirationMetrics.expired > 0 || expirationMetrics.expiringSoon7Days > 0) {
+      summary += `URGENT: ${expirationMetrics.expired + expirationMetrics.expiringSoon7Days} batches require immediate attention for expiration. `
+    }
+    if (inventoryMetrics.outOfStockItems + inventoryMetrics.lowStockItems > 0) {
+      summary += `${inventoryMetrics.outOfStockItems + inventoryMetrics.lowStockItems} products need restocking. `
+    }
+    summary += 'Focus on expiration management and critical stock replenishment.'
+
+    // Key recommendations prioritizing expiration and stock issues
+    const recommendations: string[] = []
+
+    if (expirationMetrics.expired > 0) {
+      recommendations.push(`URGENT: Remove ${expirationMetrics.expired} expired batches immediately (health hazard)`)
+    }
+    if (expirationMetrics.expiringSoon7Days > 0) {
+      recommendations.push(`Apply discounts to ${expirationMetrics.expiringSoon7Days} batches expiring within 7 days`)
+    }
+    if (inventoryMetrics.outOfStockItems > 0) {
+      recommendations.push(`Restock ${inventoryMetrics.outOfStockItems} out-of-stock items (prioritize high-traffic products)`)
+    }
+    if (inventoryMetrics.lowStockItems > 0) {
+      recommendations.push(`Place orders for ${inventoryMetrics.lowStockItems} low-stock products before stock-out`)
+    }
+    if (lowTrafficProducts.length > 0) {
+      recommendations.push(`Review ${lowTrafficProducts.length} low-traffic products for reduction/discontinuation`)
+    }
+
+    // Ensure we have at least 3 recommendations
+    if (recommendations.length < 3) {
+      recommendations.push('Implement automated reorder point system for critical products')
+      recommendations.push('Conduct weekly inventory reviews to prevent future issues')
+    }
 
     return {
       insights,
-      summary: `Your inventory currently has ${inventoryMetrics.totalProducts} active products with ${inventoryMetrics.lowStockItems + inventoryMetrics.outOfStockItems} items requiring attention. Focus on restocking and managing ${expirationMetrics.expiringSoon7Days} products expiring soon.`,
-      keyRecommendations: [
-        `Reorder ${inventoryMetrics.outOfStockItems + inventoryMetrics.lowStockItems} low/out-of-stock products immediately`,
-        `Address ${expirationMetrics.expiringSoon7Days} batches expiring within 7 days`,
-        'Review and optimize pricing tiers for better profit margins',
-        'Implement automated reorder points to prevent future stock-outs',
-        'Conduct weekly inventory reviews to maintain optimal stock levels',
-      ],
+      summary,
+      keyRecommendations: recommendations.slice(0, 5), // Top 5
       generatedAt: new Date().toISOString(),
     }
   }

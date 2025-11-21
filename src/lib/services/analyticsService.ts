@@ -92,6 +92,14 @@ export interface ProductStockStatus {
   daysOfStock: number
 }
 
+export interface ProductTrafficMetrics {
+  productId: string
+  productName: string
+  orderCount: number
+  totalQuantity: number
+  isLowTraffic: boolean
+}
+
 export class AnalyticsService {
   /**
    * Get comprehensive inventory metrics
@@ -685,6 +693,119 @@ export class AnalyticsService {
   }
 
   /**
+   * Get product traffic metrics (order frequency in last 30 days)
+   * Used to identify low-traffic products that should not get price change recommendations
+   */
+  static async getProductTrafficMetrics(): Promise<ProductTrafficMetrics[]> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getProductTrafficMetrics'
+    })
+    serviceLogger.time('getProductTrafficMetrics')
+
+    const supabase = isServer ? createServerClient() : createClient()
+    const branchId = await getMainBranchId()
+    const LOW_TRAFFIC_THRESHOLD = 10 // Products with < 10 orders in 30 days are low-traffic
+
+    try {
+      serviceLogger.info('Fetching product traffic metrics (30-day window)', {
+        branchId,
+        threshold: LOW_TRAFFIC_THRESHOLD
+      })
+
+      // Calculate date 30 days ago
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      serviceLogger.db('SELECT', 'order_items with orders join')
+
+      // Query order_items with orders joined, filtered to last 30 days
+      const { data, error } = await supabase
+        .from('order_items')
+        .select(`
+          product_id,
+          quantity,
+          orders!inner(
+            id,
+            created_at,
+            status,
+            branch_id
+          ),
+          products!inner(
+            name
+          )
+        `)
+        .eq('orders.branch_id', branchId)
+        .neq('orders.status', 'cancelled')
+        .gte('orders.created_at', thirtyDaysAgo.toISOString())
+
+      if (error) {
+        serviceLogger.error('Failed to fetch order items', error)
+        throw error
+      }
+
+      serviceLogger.debug('Order items fetched', {
+        count: data?.length || 0,
+        sample: data?.[0]?.product_id || 'none'
+      })
+
+      // Group by product_id and calculate metrics
+      const productTraffic: Record<string, {
+        productName: string
+        orderCount: number
+        totalQuantity: number
+      }> = {}
+
+      data?.forEach((item: any) => {
+        const productId = item.product_id
+        const productName = item.products?.name || 'Unknown Product'
+
+        if (!productTraffic[productId]) {
+          productTraffic[productId] = {
+            productName,
+            orderCount: 0,
+            totalQuantity: 0
+          }
+        }
+
+        productTraffic[productId].orderCount++
+        productTraffic[productId].totalQuantity += item.quantity || 0
+      })
+
+      // Convert to array and add isLowTraffic flag
+      const result: ProductTrafficMetrics[] = Object.entries(productTraffic).map(
+        ([productId, metrics]) => ({
+          productId,
+          productName: metrics.productName,
+          orderCount: metrics.orderCount,
+          totalQuantity: metrics.totalQuantity,
+          isLowTraffic: metrics.orderCount < LOW_TRAFFIC_THRESHOLD,
+        })
+      )
+
+      // Sort by order count (descending) for better insights
+      result.sort((a, b) => b.orderCount - a.orderCount)
+
+      const lowTrafficCount = result.filter(p => p.isLowTraffic).length
+      const highTrafficCount = result.filter(p => !p.isLowTraffic).length
+
+      const duration = serviceLogger.timeEnd('getProductTrafficMetrics')
+      serviceLogger.success('Product traffic metrics fetched successfully', {
+        duration,
+        totalProducts: result.length,
+        lowTrafficCount,
+        highTrafficCount,
+        threshold: LOW_TRAFFIC_THRESHOLD
+      })
+
+      return result
+    } catch (error) {
+      serviceLogger.error('Error fetching product traffic metrics', error as Error)
+      throw error
+    }
+  }
+
+  /**
    * Get aggregated analytics data for AI insights
    */
   static async getAnalyticsSnapshot() {
@@ -704,6 +825,7 @@ export class AnalyticsService {
         salesMetrics,
         pricingTierAnalysis,
         productStockStatus,
+        productTrafficMetrics,
       ] = await Promise.all([
         this.getInventoryMetrics(),
         this.getCategoryPerformance(),
@@ -711,6 +833,7 @@ export class AnalyticsService {
         this.getSalesMetrics(),
         this.getPricingTierAnalysis(),
         this.getProductStockStatus(),
+        this.getProductTrafficMetrics(),
       ])
 
       const result = {
@@ -720,6 +843,7 @@ export class AnalyticsService {
         salesMetrics,
         pricingTierAnalysis,
         productStockStatus: productStockStatus.slice(0, 20), // Top 20 products
+        productTrafficMetrics,
         timestamp: new Date().toISOString(),
       }
 
