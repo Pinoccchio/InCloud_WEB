@@ -9,9 +9,11 @@ import {
   ArrowPathIcon,
   SparklesIcon,
   ClockIcon,
+  DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 import MetricsCard from '@/components/analytics/MetricsCard'
 import InventoryDistributionChart from '@/components/analytics/InventoryDistributionChart'
 import CategoryBarChart from '@/components/analytics/CategoryBarChart'
@@ -20,6 +22,7 @@ import SalesBarChart from '@/components/analytics/SalesBarChart'
 import SalesChartFilters from '@/components/analytics/SalesChartFilters'
 import EmptyStateChart from '@/components/analytics/EmptyStateChart'
 import AIInsightsPanel from '@/components/analytics/AIInsightsPanel'
+import GenerateReportModal, { ReportGenerationOptions } from '@/components/analytics/GenerateReportModal'
 
 interface AIInsight {
   category: string
@@ -150,7 +153,9 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<'descriptive' | 'prescriptive'>('descriptive')
   const [dateFilterStart, setDateFilterStart] = useState<string | undefined>(undefined)
   const [dateFilterEnd, setDateFilterEnd] = useState<string | undefined>(undefined)
+  const [showReportModal, setShowReportModal] = useState(false)
   const { addToast } = useToast()
+  const { user } = useAuth()
 
   const loadAnalytics = async (forceRefresh = false, startDate?: string, endDate?: string) => {
     console.log('\n🔷 [Analytics Page] Loading analytics...', { forceRefresh, startDate, endDate })
@@ -259,6 +264,68 @@ export default function AnalyticsPage() {
     loadAnalytics(false, startDate, endDate)
   }
 
+  const handleGenerateReport = async (options: ReportGenerationOptions) => {
+    try {
+      console.log('📄 [Analytics Page] Generating PDF report...', options)
+
+      const response = await fetch('/api/analytics/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: options.startDate,
+          endDate: options.endDate,
+          includeAI: options.includeAI,
+          generatedBy: user?.full_name || user?.email || 'Admin',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to generate report')
+      }
+
+      // Get the blob from response
+      const blob = await response.blob()
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+
+      // Generate filename
+      const currentDate = new Date().toISOString().split('T')[0]
+      const dateRangeSuffix = options.startDate && options.endDate
+        ? `_${options.startDate}_to_${options.endDate}`
+        : options.startDate
+        ? `_from_${options.startDate}`
+        : options.endDate
+        ? `_until_${options.endDate}`
+        : '_All_Time'
+
+      a.download = `InCloud_Analytics_Report${dateRangeSuffix}_${currentDate}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      console.log('✅ [Analytics Page] PDF report generated successfully')
+
+      addToast({
+        type: 'success',
+        title: 'Report Generated',
+        message: 'Your analytics report has been downloaded successfully',
+      })
+    } catch (error) {
+      console.error('❌ [Analytics Page] Error generating report:', error)
+      addToast({
+        type: 'error',
+        title: 'Generation Failed',
+        message: error instanceof Error ? error.message : 'Could not generate report. Please try again.',
+      })
+      throw error
+    }
+  }
+
   useEffect(() => {
     loadAnalytics(false, dateFilterStart, dateFilterEnd)
   }, [])
@@ -328,6 +395,13 @@ export default function AnalyticsPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              onClick={() => setShowReportModal(true)}
+              variant="primary"
+            >
+              <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
+              Generate Report
+            </Button>
             <Button
               onClick={() => loadAnalytics(true)}
               variant="outline"
@@ -616,6 +690,17 @@ export default function AnalyticsPage() {
           )}
         </div>
       )}
+
+      {/* Generate Report Modal */}
+      <GenerateReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onGenerate={handleGenerateReport}
+        currentDateRange={{
+          startDate: dateFilterStart,
+          endDate: dateFilterEnd,
+        }}
+      />
     </div>
   )
 }
