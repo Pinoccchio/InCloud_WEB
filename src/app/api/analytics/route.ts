@@ -3,9 +3,9 @@ import { AnalyticsService } from '@/lib/services/analyticsService'
 import { GeminiService } from '@/lib/services/geminiService'
 import { logger } from '@/lib/logger'
 
-// Cache for analytics data (1 hour)
-let cachedAnalytics: any = null
-let cacheTimestamp: number = 0
+// Cache for analytics data (1 hour) - multi-key cache for different date ranges
+let cachedAnalytics: Record<string, any> = {}
+let cacheTimestamps: Record<string, number> = {}
 const CACHE_DURATION = 60 * 60 * 1000 // 1 hour
 
 // Cache for AI insights (1 hour)
@@ -25,27 +25,38 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const forceRefresh = searchParams.get('refresh') === 'true'
     const includeAI = searchParams.get('includeAI') !== 'false' // Default true
+    const startDate = searchParams.get('startDate') || undefined
+    const endDate = searchParams.get('endDate') || undefined
 
-    routeLogger.debug('Request parameters', { forceRefresh, includeAI })
+    // Create cache key based on date range
+    const cacheKey = `sales-${startDate || 'all'}-${endDate || 'all'}`
+
+    routeLogger.debug('Request parameters', {
+      forceRefresh,
+      includeAI,
+      startDate: startDate || 'all',
+      endDate: endDate || 'all',
+      cacheKey
+    })
 
     const now = Date.now()
 
-    // Check cache
-    if (!forceRefresh && cachedAnalytics && now - cacheTimestamp < CACHE_DURATION) {
-      const cacheAge = Math.floor((now - cacheTimestamp) / 1000)
-      routeLogger.info('Returning cached analytics data', { cacheAge })
+    // Check cache with multi-key strategy
+    if (!forceRefresh && cachedAnalytics[cacheKey] && cacheTimestamps[cacheKey] && now - cacheTimestamps[cacheKey] < CACHE_DURATION) {
+      const cacheAge = Math.floor((now - cacheTimestamps[cacheKey]) / 1000)
+      routeLogger.info('Returning cached analytics data', { cacheAge, cacheKey })
       const duration = routeLogger.timeEnd('getAnalytics')
       routeLogger.success('Analytics request completed (cached)', { duration, cacheAge })
       return NextResponse.json({
-        ...cachedAnalytics,
+        ...cachedAnalytics[cacheKey],
         cached: true,
         cacheAge,
       })
     }
 
-    routeLogger.info('Fetching fresh analytics data')
-    // Fetch fresh analytics data
-    const analyticsSnapshot = await AnalyticsService.getAnalyticsSnapshot()
+    routeLogger.info('Fetching fresh analytics data', { startDate, endDate })
+    // Fetch fresh analytics data with date filters
+    const analyticsSnapshot = await AnalyticsService.getAnalyticsSnapshot(startDate, endDate)
     routeLogger.debug('Analytics snapshot retrieved', {
       inventoryProducts: analyticsSnapshot.inventoryMetrics.totalProducts
     })
@@ -85,9 +96,20 @@ export async function GET(request: NextRequest) {
       cached: false,
     }
 
-    // Update cache
-    cachedAnalytics = response
-    cacheTimestamp = now
+    // Update cache with key
+    cachedAnalytics[cacheKey] = response
+    cacheTimestamps[cacheKey] = now
+
+    // Limit cache size (keep last 10 entries)
+    const cacheKeys = Object.keys(cachedAnalytics)
+    if (cacheKeys.length > 10) {
+      // Remove oldest entry
+      const oldestKey = cacheKeys.reduce((oldest, key) => {
+        return cacheTimestamps[key] < cacheTimestamps[oldest] ? key : oldest
+      })
+      delete cachedAnalytics[oldestKey]
+      delete cacheTimestamps[oldestKey]
+    }
 
     const duration = routeLogger.timeEnd('getAnalytics')
     routeLogger.success('Analytics request completed', {

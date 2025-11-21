@@ -26,6 +26,14 @@ export interface CategoryPerformance {
   percentageOfTotal: number
 }
 
+export interface BrandPerformance {
+  brandName: string
+  productCount: number
+  totalInventory: number
+  availableInventory: number
+  percentageOfTotal: number
+}
+
 export interface ExpirationMetrics {
   expiringSoon7Days: number
   expiringSoon14Days: number
@@ -279,6 +287,79 @@ export class AnalyticsService {
 }
 
   /**
+   * Get brand-wise performance data
+   */
+  static async getBrandPerformance(): Promise<BrandPerformance[]> {
+    const serviceLogger = logger.child({
+      service: 'AnalyticsService',
+      operation: 'getBrandPerformance'
+    })
+    serviceLogger.time('getBrandPerformance')
+
+    const supabase = createClient()
+
+    try {
+      serviceLogger.info('Fetching brand performance data')
+      serviceLogger.db('SELECT', 'brands')
+
+      // Query brands with products and inventory
+      const { data: brands, error } = await supabase
+        .from('brands')
+        .select(`
+          name,
+          products(
+            id,
+            inventory(quantity, available_quantity)
+          )
+        `)
+        .eq('is_active', true)
+
+      if (error) throw error
+
+      // Calculate total inventory across all brands
+      const totalInventory = brands?.reduce((sum: number, brand: any) => {
+        const brandInventory = brand.products?.reduce((pSum: number, p: any) => {
+          return pSum + (p.inventory?.[0]?.quantity || 0)
+        }, 0)
+        return sum + (brandInventory || 0)
+      }, 0)
+
+      // Map brands to performance data and filter out brands with 0 products
+      const result = (brands?.map((brand: any) => {
+        const productCount = brand.products?.length || 0
+        const brandTotalInventory = brand.products?.reduce((sum: number, p: any) => {
+          return sum + (p.inventory?.[0]?.quantity || 0)
+        }, 0)
+        const brandAvailableInventory = brand.products?.reduce((sum: number, p: any) => {
+          return sum + (p.inventory?.[0]?.available_quantity || 0)
+        }, 0)
+
+        return {
+          brandName: brand.name,
+          productCount,
+          totalInventory: brandTotalInventory || 0,
+          availableInventory: brandAvailableInventory || 0,
+          percentageOfTotal:
+            totalInventory > 0 ? ((brandTotalInventory || 0) / totalInventory) * 100 : 0,
+        }
+      }) || [])
+        .filter((brand: BrandPerformance) => brand.productCount > 0)
+        .sort((a: BrandPerformance, b: BrandPerformance) => b.totalInventory - a.totalInventory)
+
+      const duration = serviceLogger.timeEnd('getBrandPerformance')
+      serviceLogger.success('Brand performance data fetched successfully', {
+        duration,
+        brandCount: result.length
+      })
+
+      return result
+    } catch (error) {
+      serviceLogger.error('Error fetching brand performance', error as Error)
+      throw error
+    }
+  }
+
+  /**
    * Get expiration metrics and critical batches
    */
   static async getExpirationMetrics(): Promise<ExpirationMetrics> {
@@ -369,8 +450,10 @@ export class AnalyticsService {
 
   /**
    * Get sales metrics
+   * @param startDate Optional start date filter (ISO format 'YYYY-MM-DD')
+   * @param endDate Optional end date filter (ISO format 'YYYY-MM-DD')
    */
-  static async getSalesMetrics(): Promise<SalesMetrics> {
+  static async getSalesMetrics(startDate?: string, endDate?: string): Promise<SalesMetrics> {
     const serviceLogger = logger.child({ service: 'AnalyticsService', operation: 'getSalesMetrics' })
     serviceLogger.time('getSalesMetrics')
 
@@ -381,19 +464,30 @@ export class AnalyticsService {
     serviceLogger.info('Fetching sales metrics', {
       branchId,
       isServer,
-      clientType: isServer ? 'service_role' : 'anon'
+      clientType: isServer ? 'service_role' : 'anon',
+      startDate: startDate || 'all',
+      endDate: endDate || 'all'
     })
 
-    // Get all orders with items for current branch
+    // Get all orders with items for current branch, with optional date filtering
     serviceLogger.db('SELECT', 'orders')
-    const { data: orders, error } = await supabase
+    let query = supabase
       .from('orders')
       .select(`
         *,
         order_items(id)
       `)
       .eq('branch_id', branchId)
-      .order('created_at', { ascending: false })
+
+    // Add date filters if provided
+    if (startDate) {
+      query = query.gte('order_date', startDate)
+    }
+    if (endDate) {
+      query = query.lte('order_date', endDate)
+    }
+
+    const { data: orders, error } = await query.order('created_at', { ascending: false })
 
     serviceLogger.debug('Orders fetched', {
       count: orders?.length || 0,
@@ -450,10 +544,8 @@ export class AnalyticsService {
     const monthlySales = Object.entries(monthlyData)
       .map(([monthKey, data]) => {
         const [year, month] = monthKey.split('-')
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                           'July', 'August', 'September', 'October', 'November', 'December']
         return {
-          month: monthNames[parseInt(month) - 1],
+          month: month,  // Keep as numeric string "01" to "12"
           year: parseInt(year),
           totalOrders: data.count,
           totalRevenue: data.revenue,
@@ -463,9 +555,7 @@ export class AnalyticsService {
       .sort((a, b) => {
         // Sort by year then month (most recent first)
         if (a.year !== b.year) return b.year - a.year
-        const monthIndex = (m: string) => ['January', 'February', 'March', 'April', 'May', 'June',
-                                           'July', 'August', 'September', 'October', 'November', 'December'].indexOf(m)
-        return monthIndex(b.month) - monthIndex(a.month)
+        return parseInt(b.month) - parseInt(a.month)
       })
 
     const result = {
@@ -807,8 +897,10 @@ export class AnalyticsService {
 
   /**
    * Get aggregated analytics data for AI insights
+   * @param startDate Optional start date filter for sales metrics (ISO format 'YYYY-MM-DD')
+   * @param endDate Optional end date filter for sales metrics (ISO format 'YYYY-MM-DD')
    */
-  static async getAnalyticsSnapshot() {
+  static async getAnalyticsSnapshot(startDate?: string, endDate?: string) {
     const serviceLogger = logger.child({
       service: 'AnalyticsService',
       operation: 'getAnalyticsSnapshot'
@@ -816,11 +908,15 @@ export class AnalyticsService {
     serviceLogger.time('getAnalyticsSnapshot')
 
     try {
-      serviceLogger.info('Fetching complete analytics snapshot')
+      serviceLogger.info('Fetching complete analytics snapshot', {
+        startDate: startDate || 'all',
+        endDate: endDate || 'all'
+      })
 
       const [
         inventoryMetrics,
         categoryPerformance,
+        brandPerformance,
         expirationMetrics,
         salesMetrics,
         pricingTierAnalysis,
@@ -829,8 +925,9 @@ export class AnalyticsService {
       ] = await Promise.all([
         this.getInventoryMetrics(),
         this.getCategoryPerformance(),
+        this.getBrandPerformance(),
         this.getExpirationMetrics(),
-        this.getSalesMetrics(),
+        this.getSalesMetrics(startDate, endDate),
         this.getPricingTierAnalysis(),
         this.getProductStockStatus(),
         this.getProductTrafficMetrics(),
@@ -839,6 +936,7 @@ export class AnalyticsService {
       const result = {
         inventoryMetrics,
         categoryPerformance,
+        brandPerformance,
         expirationMetrics,
         salesMetrics,
         pricingTierAnalysis,
@@ -851,6 +949,7 @@ export class AnalyticsService {
       serviceLogger.success('Analytics snapshot completed successfully', {
         duration,
         categories: categoryPerformance.length,
+        brands: brandPerformance.length,
         totalProducts: inventoryMetrics.totalProducts,
         totalOrders: salesMetrics.totalOrders
       })

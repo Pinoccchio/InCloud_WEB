@@ -15,6 +15,10 @@ import { useToast } from '@/contexts/ToastContext'
 import MetricsCard from '@/components/analytics/MetricsCard'
 import InventoryDistributionChart from '@/components/analytics/InventoryDistributionChart'
 import CategoryBarChart from '@/components/analytics/CategoryBarChart'
+import BrandBarChart from '@/components/analytics/BrandBarChart'
+import SalesBarChart from '@/components/analytics/SalesBarChart'
+import SalesChartFilters from '@/components/analytics/SalesChartFilters'
+import EmptyStateChart from '@/components/analytics/EmptyStateChart'
 import AIInsightsPanel from '@/components/analytics/AIInsightsPanel'
 
 interface AIInsight {
@@ -45,6 +49,14 @@ interface InventoryMetrics {
 
 interface CategoryPerformance {
   categoryName: string
+  productCount: number
+  totalInventory: number
+  availableInventory: number
+  percentageOfTotal: number
+}
+
+interface BrandPerformance {
+  brandName: string
   productCount: number
   totalInventory: number
   availableInventory: number
@@ -119,6 +131,7 @@ interface ExpirationMetricsExtended extends ExpirationMetrics {
 interface AnalyticsData {
   inventoryMetrics: InventoryMetrics
   categoryPerformance: CategoryPerformance[]
+  brandPerformance: BrandPerformance[]
   expirationMetrics: ExpirationMetricsExtended
   salesMetrics: SalesMetricsExtended
   pricingTierAnalysis: PricingTierAnalysis[]
@@ -135,13 +148,20 @@ export default function AnalyticsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isRegeneratingAI, setIsRegeneratingAI] = useState(false)
   const [activeTab, setActiveTab] = useState<'descriptive' | 'prescriptive'>('descriptive')
+  const [dateFilterStart, setDateFilterStart] = useState<string | undefined>(undefined)
+  const [dateFilterEnd, setDateFilterEnd] = useState<string | undefined>(undefined)
   const { addToast } = useToast()
 
-  const loadAnalytics = async (forceRefresh = false) => {
-    console.log('\n🔷 [Analytics Page] Loading analytics...', { forceRefresh })
+  const loadAnalytics = async (forceRefresh = false, startDate?: string, endDate?: string) => {
+    console.log('\n🔷 [Analytics Page] Loading analytics...', { forceRefresh, startDate, endDate })
     try {
       setIsRefreshing(forceRefresh)
-      const url = `/api/analytics?refresh=${forceRefresh}&includeAI=true`
+      const params = new URLSearchParams()
+      params.set('refresh', forceRefresh.toString())
+      params.set('includeAI', 'true')
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
+      const url = `/api/analytics?${params.toString()}`
       console.log('📡 [Analytics Page] Fetching:', url)
 
       const startTime = Date.now()
@@ -233,8 +253,14 @@ export default function AnalyticsPage() {
     }
   }
 
+  const handleDateFilterChange = (startDate?: string, endDate?: string) => {
+    setDateFilterStart(startDate)
+    setDateFilterEnd(endDate)
+    loadAnalytics(false, startDate, endDate)
+  }
+
   useEffect(() => {
-    loadAnalytics()
+    loadAnalytics(false, dateFilterStart, dateFilterEnd)
   }, [])
 
   if (isLoading) {
@@ -275,6 +301,7 @@ export default function AnalyticsPage() {
   const {
     inventoryMetrics,
     categoryPerformance,
+    brandPerformance,
     expirationMetrics,
     salesMetrics,
     pricingTierAnalysis,
@@ -405,9 +432,9 @@ export default function AnalyticsPage() {
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Category Performance
+                Brand Performance
               </h2>
-              <CategoryBarChart data={categoryPerformance} />
+              <BrandBarChart data={brandPerformance} />
             </div>
           </div>
 
@@ -462,52 +489,21 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* Monthly Sales Breakdown */}
-          {salesMetrics.monthlySales && salesMetrics.monthlySales.length > 0 && (
+          {/* Sales Chart with Filters */}
+          <div className="space-y-4">
+            <SalesChartFilters onFilterChange={handleDateFilterChange} />
+
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Monthly Sales Breakdown
+                Sales Performance
               </h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Month
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total Orders
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total Revenue
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Avg Order Value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {salesMetrics.monthlySales.map((monthData, index) => (
-                      <tr key={`${monthData.year}-${monthData.month}`} className={index === 0 ? 'bg-primary-50' : ''}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {monthData.month} {monthData.year}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                          {monthData.totalOrders}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                          ₱{monthData.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                          ₱{monthData.averageOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {salesMetrics.monthlySales && salesMetrics.monthlySales.length > 0 ? (
+                <SalesBarChart data={salesMetrics.monthlySales} />
+              ) : (
+                <EmptyStateChart selectedFilter={dateFilterStart} />
+              )}
             </div>
-          )}
+          </div>
 
           {/* Expiration Alerts */}
           {expirationMetrics.criticalBatches.length > 0 && (
