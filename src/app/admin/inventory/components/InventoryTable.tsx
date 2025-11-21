@@ -9,7 +9,8 @@ import {
   ExclamationTriangleIcon,
   ClockIcon,
   CheckCircleIcon,
-  ArchiveBoxIcon
+  ArchiveBoxIcon,
+  ShoppingCartIcon
 } from '@heroicons/react/24/outline'
 import { LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
@@ -46,6 +47,7 @@ interface InventoryTableProps {
   expirationFilter: string
   onViewBatches: (item: InventoryItem) => void
   onRestock: (item: InventoryItem) => void
+  onReorder?: (item: InventoryItem) => void
 }
 
 export default function InventoryTable({
@@ -55,7 +57,8 @@ export default function InventoryTable({
   stockStatusFilter,
   expirationFilter,
   onViewBatches,
-  onRestock
+  onRestock,
+  onReorder
 }: InventoryTableProps) {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -575,6 +578,24 @@ export default function InventoryTable({
                       <PlusIcon className="w-4 h-4 mr-2 text-gray-500" />
                       Add Stock
                     </button>
+
+                    {/* Reorder from Supplier (show for low/critical/out stock) */}
+                    {onReorder && (item.stock_status === 'low' || item.stock_status === 'critical' || item.stock_status === 'out') && (
+                      <button
+                        onClick={() => {
+                          closeDropdownAndOpenModal(() => onReorder(item))
+                        }}
+                        disabled={isOpeningModal}
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center transition-colors ${
+                          isOpeningModal
+                            ? 'text-gray-400 cursor-not-allowed bg-gray-50'
+                            : 'text-blue-700 hover:bg-blue-50'
+                        }`}
+                      >
+                        <ShoppingCartIcon className="w-4 h-4 mr-2 text-blue-500" />
+                        Reorder from Supplier
+                      </button>
+                    )}
                   </>
                 )
               })()}

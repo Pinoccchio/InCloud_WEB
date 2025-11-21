@@ -23,6 +23,7 @@ import InventoryFilters from './components/InventoryFilters'
 import RestockModal from './components/RestockModal'
 import BatchDetailsModal from './components/BatchDetailsModal'
 import InventoryImportModal from './components/InventoryImportModal'
+import { SupplierOrderModal } from '../supplier-orders/components/SupplierOrderModal'
 
 interface InventoryItem {
   id: string
@@ -57,6 +58,7 @@ export default function InventoryPage() {
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
   const [isBatchDetailsModalOpen, setIsBatchDetailsModalOpen] = useState(false)
   const [isInventoryImportOpen, setIsInventoryImportOpen] = useState(false)
+  const [isSupplierOrderModalOpen, setIsSupplierOrderModalOpen] = useState(false)
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
 
   // Table refresh trigger
@@ -111,6 +113,11 @@ export default function InventoryPage() {
   const handleViewBatches = (inventoryItem: InventoryItem) => {
     setSelectedInventoryItem(inventoryItem)
     setIsBatchDetailsModalOpen(true)
+  }
+
+  const handleReorder = (inventoryItem: InventoryItem) => {
+    setSelectedInventoryItem(inventoryItem)
+    setIsSupplierOrderModalOpen(true)
   }
 
   const handleRestockSuccess = () => {
@@ -466,6 +473,7 @@ export default function InventoryPage() {
           setSelectedInventoryItem(item)
           setIsRestockModalOpen(true)
         }}
+        onReorder={handleReorder}
       />
 
       {/* Restock Modal */}
@@ -495,6 +503,23 @@ export default function InventoryPage() {
         isOpen={isInventoryImportOpen}
         onClose={() => setIsInventoryImportOpen(false)}
         onSuccess={handleImportSuccess}
+      />
+
+      {/* Supplier Order Modal */}
+      <SupplierOrderModal
+        isOpen={isSupplierOrderModalOpen}
+        onClose={() => {
+          setIsSupplierOrderModalOpen(false)
+          setSelectedInventoryItem(null)
+        }}
+        onSuccess={() => {
+          addToast({
+            type: 'success',
+            title: 'Supplier Order Created',
+            message: 'Supplier order has been created successfully.'
+          })
+          setRefreshTrigger(prev => prev + 1)
+        }}
       />
 
     </div>

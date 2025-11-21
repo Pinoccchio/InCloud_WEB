@@ -851,7 +851,7 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                               disabled={updating || cancellingOrder}
                               size="sm"
                               variant="outline"
-                              className="border-red-300 text-red-700 hover:bg-red-50"
+                              className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-700"
                             >
                               Cancel Order
                             </Button>
@@ -1105,7 +1105,7 @@ export default function OrderDetailsModal({ isOpen, onClose, orderId }: OrderDet
                                     disabled={processingProof}
                                     size="sm"
                                     variant="outline"
-                                    className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                                    className="flex-1 border-red-600 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-700"
                                   >
                                     Reject
                                   </Button>

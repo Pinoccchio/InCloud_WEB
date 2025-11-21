@@ -116,7 +116,7 @@ export default function AlertFilters({
             <Button
               variant="outline"
               onClick={onClearFilters}
-              className="flex items-center space-x-2 text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+              className="flex items-center space-x-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-700"
             >
               <XMarkIcon className="w-4 h-4" />
               <span>Clear</span>

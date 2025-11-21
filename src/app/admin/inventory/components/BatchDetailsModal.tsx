@@ -415,17 +415,25 @@ export default function BatchDetailsModal({
 
                                   {/* Actions */}
                                   <td className="px-4 py-3 whitespace-nowrap">
-                                    {batch.expiration_status === 'expired' && (
-                                      <button
-                                        onClick={() => handleRemoveBatchClick(batch)}
-                                        disabled={removingBatchId !== null}
-                                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500"
-                                        title="Remove expired batch"
-                                        aria-label={`Remove expired batch ${batch.batch_number}`}
-                                      >
-                                        <TrashIcon className="w-5 h-5" />
-                                      </button>
-                                    )}
+                                    <button
+                                      onClick={() => batch.expiration_status === 'expired' ? handleRemoveBatchClick(batch) : undefined}
+                                      disabled={batch.expiration_status !== 'expired' || removingBatchId !== null}
+                                      className={`p-2 rounded transition-colors focus:outline-none ${
+                                        batch.expiration_status === 'expired'
+                                          ? 'text-red-600 hover:text-red-700 hover:bg-red-50 focus:ring-2 focus:ring-red-500 cursor-pointer'
+                                          : 'text-gray-300 cursor-not-allowed'
+                                      } disabled:opacity-50`}
+                                      title={
+                                        batch.expiration_status === 'expired'
+                                          ? 'Remove expired batch'
+                                          : batch.expiration_status === 'expiring'
+                                          ? 'Batch expiring soon - removal available after expiration'
+                                          : 'Batch is fresh - removal available after expiration'
+                                      }
+                                      aria-label={`Remove batch ${batch.batch_number}`}
+                                    >
+                                      <TrashIcon className="w-5 h-5" />
+                                    </button>
                                   </td>
                                 </tr>
                               ))}

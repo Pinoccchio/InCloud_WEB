@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
     // Get or create inventory record
     let targetInventoryId: string
     let currentQuantity = 0
+    let currentCostPerUnit = 0
 
     if (inventoryId) {
       // Use existing inventory record
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
       routeLogger.db('SELECT', 'inventory')
       const { data: inventoryData, error: inventoryError } = await client
         .from('inventory')
-        .select('id, quantity')
+        .select('id, quantity, cost_per_unit')
         .eq('id', inventoryId)
         .single()
 
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
 
       targetInventoryId = inventoryData.id
       currentQuantity = inventoryData.quantity
+      currentCostPerUnit = Number(inventoryData.cost_per_unit) || 0
     } else {
       // Create new inventory record
       routeLogger.info('Creating new inventory record', { productId, branchId })
@@ -230,19 +232,66 @@ export async function POST(request: NextRequest) {
 
     routeLogger.success('Product batch created', { batchId: batch.id })
 
-    // Update inventory quantities
+    // Calculate weighted average cost
+    routeLogger.info('Calculating weighted average cost')
+
+    // Get all existing active batches to calculate weighted average
+    const { data: existingBatches, error: batchQueryError } = await client
+      .from('product_batches')
+      .select('quantity, cost_per_unit')
+      .eq('inventory_id', targetInventoryId)
+      .eq('is_active', true)
+
+    let weightedAvgCost: number
+
+    if (batchQueryError) {
+      routeLogger.warn('Could not load existing batches for cost calculation, using new batch cost', batchQueryError)
+      weightedAvgCost = costPerUnit
+    } else {
+      // Calculate total value of existing inventory
+      const existingTotalValue = (existingBatches || []).reduce(
+        (sum, batch) => sum + (batch.quantity * Number(batch.cost_per_unit)),
+        0
+      )
+      const existingTotalQuantity = (existingBatches || []).reduce(
+        (sum, batch) => sum + batch.quantity,
+        0
+      )
+
+      // Calculate weighted average: (old_value + new_value) / total_quantity
+      const newBatchValue = quantity * costPerUnit
+      const totalValue = existingTotalValue + newBatchValue
+      const totalQuantity = existingTotalQuantity + quantity
+
+      weightedAvgCost = totalQuantity > 0 ? totalValue / totalQuantity : costPerUnit
+
+      routeLogger.info('Weighted average cost calculated', {
+        existingBatches: existingBatches?.length || 0,
+        existingTotalValue,
+        existingTotalQuantity,
+        newBatchValue,
+        newBatchQuantity: quantity,
+        totalValue,
+        totalQuantity,
+        weightedAvgCost
+      })
+    }
+
+    // Update inventory quantities with weighted average cost
     const newQuantity = currentQuantity + quantity
     routeLogger.info('Updating inventory quantities', {
       currentQuantity,
       addedQuantity: quantity,
-      newQuantity
+      newQuantity,
+      newCostPerUnit: weightedAvgCost,
+      previousCostPerUnit: currentCostPerUnit
     })
     routeLogger.db('UPDATE', 'inventory')
     const { error: updateError } = await client
       .from('inventory')
       .update({
         quantity: newQuantity,
-        cost_per_unit: costPerUnit,
+        cost_per_unit: weightedAvgCost,
         last_restock_date: receivedDate,
         updated_at: new Date().toISOString(),
         updated_by: currentAdminId

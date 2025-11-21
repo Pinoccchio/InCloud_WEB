@@ -11,6 +11,7 @@ import {
   BellIcon,
   BuildingStorefrontIcon,
   DocumentTextIcon,
+  TruckIcon,
 } from '@heroicons/react/24/outline'
 import { Logo } from '@/components/ui'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -59,6 +60,12 @@ const navigation: NavItem[] = [
     href: '/admin/orders',
     icon: ClipboardDocumentListIcon,
     description: 'Order processing and tracking'
+  },
+  {
+    name: 'Supplier Orders',
+    href: '/admin/supplier-orders',
+    icon: TruckIcon,
+    description: 'Manage supplier orders and deliveries'
   },
   {
     name: 'Analytics',
