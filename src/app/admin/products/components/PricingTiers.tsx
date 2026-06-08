@@ -51,6 +51,16 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
     setTiers(value)
   }, [value])
 
+  useEffect(() => {
+    const availableTypes = getAvailableTierTypes()
+    if (isAdding && availableTypes.length > 0 && !availableTypes.includes(newTier.pricing_type)) {
+      setNewTier(prev => ({
+        ...prev,
+        pricing_type: availableTypes[0]
+      }))
+    }
+  }, [tiers, isAdding, newTier.pricing_type])
+
   const getAvailableTierTypes = (): PricingTier[] => {
     const usedTypes = new Set(tiers.map(t => t.pricing_type))
     return (Object.keys(TIER_LABELS) as PricingTier[]).filter(type => !usedTypes.has(type))
@@ -141,6 +151,19 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
     setError(null)
   }
 
+  const handleStartAddingTier = () => {
+    const availableTypes = getAvailableTierTypes()
+    setNewTier({
+      pricing_type: availableTypes[0] || 'retail',
+      price: '',
+      min_quantity: '',
+      max_quantity: '',
+      is_active: true
+    })
+    setIsAdding(true)
+    setError(null)
+  }
+
   const formatCurrency = (value: number | string) => {
     const numValue = typeof value === 'string' ? parseFloat(value) : value
     if (isNaN(numValue)) return '₱0.00'
@@ -180,7 +203,7 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
         {tiers.length > 0 ? (
           <div className="divide-y divide-gray-200">
             {tiers.map((tier, index) => (
-              <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+              <div key={tier.id || tier.pricing_type} className="p-4 hover:bg-gray-50 transition-colors">
                 {editingIndex === index ? (
                   /* Edit Mode */
                   <div className="space-y-3">
@@ -449,7 +472,7 @@ export default function PricingTiers({ value, onChange, disabled = false }: Pric
             ) : (
               <Button
                 type="button"
-                onClick={() => setIsAdding(true)}
+                onClick={handleStartAddingTier}
                 disabled={disabled || tiers.length >= 3}
                 variant="outline"
                 size="sm"

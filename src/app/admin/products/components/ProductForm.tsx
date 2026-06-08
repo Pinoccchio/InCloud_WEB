@@ -321,18 +321,22 @@ export default function ProductForm({
     handleCategoryChange(newCategory.id)
   }
 
-  const handleBrandCreated = (newBrand: Brand) => {
-    // Add new brand to the list and sort
-    const updatedBrands = [...brands, newBrand].sort((a, b) =>
-      a.name.localeCompare(b.name)
-    )
-    setBrands(updatedBrands)
-
-    // Auto-select the newly created brand
+  const handleBrandCreated = async (newBrand: Brand) => {
+    await loadFormData()
     setFormData(prev => ({
       ...prev,
       brand_id: newBrand.id
     }))
+    setError(null)
+  }
+
+  const handleBrandDeleted = async (brandId: string) => {
+    await loadFormData()
+    setFormData(prev => (
+      prev.brand_id === brandId
+        ? { ...prev, brand_id: '' }
+        : prev
+    ))
     setError(null)
   }
 
@@ -1130,6 +1134,8 @@ export default function ProductForm({
         isOpen={isBrandModalOpen}
         onClose={() => setIsBrandModalOpen(false)}
         onSuccess={handleBrandCreated}
+        onDelete={handleBrandDeleted}
+        selectedBrandId={formData.brand_id}
       />
     </Dialog>
   )

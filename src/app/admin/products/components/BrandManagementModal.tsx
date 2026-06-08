@@ -1,19 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
-import { XMarkIcon, TagIcon } from '@heroicons/react/24/outline'
-import { Button, Input } from '@/components/ui'
+import { TrashIcon, XMarkIcon, TagIcon } from '@heroicons/react/24/outline'
+import { Button, Input, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { Database } from '@/types/supabase'
 
 type Brand = Database['public']['Tables']['brands']['Row']
+type ManagedBrand = Brand & { productCount: number }
 
-// Form validation schema
 const createBrandSchema = z.object({
   name: z.string().min(2, 'Brand name must be at least 2 characters').max(100, 'Brand name is too long'),
   description: z.string().max(500, 'Description is too long').optional()
@@ -24,15 +24,22 @@ type CreateBrandFormData = z.infer<typeof createBrandSchema>
 interface BrandManagementModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (brand: Brand) => void
+  onSuccess: (brand: Brand) => void | Promise<void>
+  onDelete?: (brandId: string) => void | Promise<void>
+  selectedBrandId?: string | null
 }
 
 export default function BrandManagementModal({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  onDelete,
+  selectedBrandId
 }: BrandManagementModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
+  const [isLoadingBrands, setIsLoadingBrands] = useState(false)
+  const [brands, setBrands] = useState<ManagedBrand[]>([])
   const [error, setError] = useState<string | null>(null)
   const { admin } = useAuth()
 
@@ -45,6 +52,52 @@ export default function BrandManagementModal({
     resolver: zodResolver(createBrandSchema)
   })
 
+  const loadBrands = useCallback(async () => {
+    try {
+      setIsLoadingBrands(true)
+
+      const { data: brandsData, error: brandsError } = await supabase
+        .from('brands')
+        .select('*')
+        .eq('is_active', true)
+        .order('name')
+
+      if (brandsError) {
+        throw new Error(`Failed to load brands: ${brandsError.message}`)
+      }
+
+      const brandsWithUsage = await Promise.all(
+        (brandsData || []).map(async (brand) => {
+          const { count, error: countError } = await supabase
+            .from('products')
+            .select('id', { count: 'exact', head: true })
+            .eq('brand_id', brand.id)
+
+          if (countError) {
+            throw new Error(`Failed to check products for ${brand.name}: ${countError.message}`)
+          }
+
+          return {
+            ...brand,
+            productCount: count || 0
+          }
+        })
+      )
+
+      setBrands(brandsWithUsage)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load brands.')
+    } finally {
+      setIsLoadingBrands(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      loadBrands()
+    }
+  }, [isOpen, loadBrands])
+
   const onSubmit = async (data: CreateBrandFormData) => {
     if (!admin) {
       setError('You must be logged in to create brands')
@@ -55,7 +108,6 @@ export default function BrandManagementModal({
       setIsSubmitting(true)
       setError(null)
 
-      // Check if brand name already exists
       const { data: existing, error: checkError } = await supabase
         .from('brands')
         .select('id, name')
@@ -71,7 +123,6 @@ export default function BrandManagementModal({
         return
       }
 
-      // Create new brand
       const { data: newBrand, error: createError } = await supabase
         .from('brands')
         .insert({
@@ -91,9 +142,9 @@ export default function BrandManagementModal({
         throw new Error('Brand was created but no data was returned')
       }
 
-      // Success
+      await Promise.resolve(onSuccess(newBrand))
+      await loadBrands()
       reset()
-      onSuccess(newBrand)
       onClose()
     } catch (err) {
       console.error('Error creating brand:', err)
@@ -105,8 +156,43 @@ export default function BrandManagementModal({
     }
   }
 
+  const handleDeleteBrand = async (brand: ManagedBrand) => {
+    if (brand.productCount > 0) {
+      setError(`Cannot delete "${brand.name}" because it is used by ${brand.productCount} product(s).`)
+      return
+    }
+
+    if (!window.confirm(`Delete brand "${brand.name}"? This cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setIsDeletingId(brand.id)
+      setError(null)
+
+      const { error: deleteError } = await supabase
+        .from('brands')
+        .delete()
+        .eq('id', brand.id)
+
+      if (deleteError) {
+        throw new Error(`Failed to delete brand: ${deleteError.message}`)
+      }
+
+      setBrands((prev) => prev.filter((item) => item.id !== brand.id))
+      await Promise.resolve(onDelete?.(brand.id))
+    } catch (err) {
+      console.error('Error deleting brand:', err)
+      setError(
+        err instanceof Error ? err.message : 'Failed to delete brand. Please try again.'
+      )
+    } finally {
+      setIsDeletingId(null)
+    }
+  }
+
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!isSubmitting && !isDeletingId) {
       reset()
       setError(null)
       onClose()
@@ -119,7 +205,7 @@ export default function BrandManagementModal({
 
       <div className="fixed inset-0 overflow-y-auto">
         <div className="flex min-h-full items-center justify-center p-4 text-center">
-          <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+          <DialogPanel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center">
                 <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
@@ -127,74 +213,126 @@ export default function BrandManagementModal({
                 </div>
                 <div>
                   <DialogTitle className="text-lg font-semibold text-gray-900">
-                    Add New Brand
+                    Manage Brands
                   </DialogTitle>
                   <p className="text-sm text-gray-600">
-                    Create a new product brand
+                    Create brands and remove unused ones
                   </p>
                 </div>
               </div>
               <button
                 onClick={handleClose}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!isDeletingId}
                 className="text-gray-400 hover:text-gray-600 transition-colors p-1"
               >
                 <XMarkIcon className="w-6 h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              {/* Brand Name */}
-              <Input
-                label="Brand Name"
-                placeholder="e.g., Creamy Delights, Ocean Fresh"
-                error={errors.name?.message}
-                {...register('name')}
-                autoFocus
-              />
-
-              {/* Description */}
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-800">
-                  Description (Optional)
-                </label>
-                <textarea
-                  {...register('description')}
-                  placeholder="Brief description of this brand..."
-                  rows={3}
-                  className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white placeholder:text-gray-600 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                <Input
+                  label="Brand Name"
+                  placeholder="e.g., Creamy Delights, Ocean Fresh"
+                  error={errors.name?.message}
+                  {...register('name')}
+                  autoFocus
                 />
-                {errors.description && (
-                  <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
-                )}
-              </div>
 
-              {/* Error Display */}
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800">{error}</p>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-800">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    {...register('description')}
+                    placeholder="Brief description of this brand..."
+                    rows={3}
+                    className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white placeholder:text-gray-600 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                  />
+                  {errors.description && (
+                    <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+                  )}
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleClose}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  isLoading={isSubmitting}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Creating Brand...' : 'Create Brand'}
-                </Button>
+                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleClose}
+                    disabled={isSubmitting || !!isDeletingId}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    isLoading={isSubmitting}
+                    disabled={isSubmitting || !!isDeletingId}
+                  >
+                    {isSubmitting ? 'Creating Brand...' : 'Create Brand'}
+                  </Button>
+                </div>
+              </form>
+
+              <div className="border border-gray-200 rounded-xl">
+                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                  <h3 className="text-sm font-semibold text-gray-900">Existing Brands</h3>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                  {isLoadingBrands ? (
+                    <div className="py-10 flex items-center justify-center">
+                      <LoadingSpinner size="md" />
+                    </div>
+                  ) : brands.length === 0 ? (
+                    <div className="px-4 py-8 text-sm text-gray-500 text-center">
+                      No brands found.
+                    </div>
+                  ) : (
+                    brands.map((brand) => {
+                      const isSelected = selectedBrandId === brand.id
+                      const isInUse = brand.productCount > 0
+
+                      return (
+                        <div key={brand.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900 truncate">{brand.name}</p>
+                              {isSelected && (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Selected
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {isInUse ? `${brand.productCount} linked product(s)` : 'Unused'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBrand(brand)}
+                            disabled={!!isDeletingId || isInUse}
+                            className={`p-2 rounded-md transition-colors ${
+                              isInUse || !!isDeletingId
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : 'text-red-600 hover:bg-red-50'
+                            }`}
+                            title={isInUse ? 'Cannot delete a brand used by products' : 'Delete brand'}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
               </div>
-            </form>
+            </div>
+
+            {error && (
+              <div className="mt-5 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
           </DialogPanel>
         </div>
       </div>
