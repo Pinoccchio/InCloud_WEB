@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
@@ -21,7 +21,7 @@ export interface AdminNotification {
   acknowledgedAt?: string
   resolvedAt?: string
   createdAt: string
-  relatedId?: string // order_id, product_id, etc.
+  relatedId?: string
 }
 
 interface NotificationContextType {
@@ -29,20 +29,26 @@ interface NotificationContextType {
   unreadCount: number
   criticalCount: number
   isLoading: boolean
-
-  // Actions
   markAsRead: (id: string) => Promise<void>
   markAllAsRead: () => Promise<void>
   acknowledge: (id: string) => Promise<void>
   resolve: (id: string) => Promise<void>
   clearNotification: (id: string) => void
   refreshNotifications: () => Promise<void>
-
-  // Real-time status
   isConnected: boolean
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
+
+function dedupeNotifications(notifications: AdminNotification[]): AdminNotification[] {
+  const seen = new Set<string>()
+
+  return notifications.filter((notification) => {
+    if (seen.has(notification.id)) return false
+    seen.add(notification.id)
+    return true
+  })
+}
 
 async function syncExpiredNotifications() {
   const { data: { session } } = await supabase.auth.getSession()
@@ -63,8 +69,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const notificationsChannelRef = useRef<RealtimeChannel | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load initial notifications
+  const clearReconnectTimer = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+  }
+
+  const removeNotificationsChannel = () => {
+    if (notificationsChannelRef.current) {
+      supabase.removeChannel(notificationsChannelRef.current)
+      notificationsChannelRef.current = null
+    }
+  }
+
   const loadNotifications = useCallback(async () => {
     if (!isAuthenticated || !admin) return
 
@@ -73,7 +94,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       await syncExpiredNotifications()
       const branchId = await getMainBranchId()
 
-      // Load notifications from unified table
       const { data: notificationsData, error: notificationsError } = await supabase
         .from('notifications')
         .select(`
@@ -88,7 +108,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           acknowledged_at,
           resolved_at,
           created_at,
-          related_entity_type,
           related_entity_id,
           metadata,
           action_url
@@ -99,7 +118,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       if (notificationsError) throw notificationsError
 
-      // Transform notifications to AdminNotification format
       const allNotifications: AdminNotification[] = (notificationsData || []).map(notification => ({
         id: notification.id,
         type: notification.type,
@@ -117,7 +135,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         actionUrl: notification.action_url,
       }))
 
-      setNotifications(allNotifications)
+      setNotifications(dedupeNotifications(allNotifications))
     } catch (error) {
       console.error('Error loading notifications:', error)
       addToast({
@@ -130,23 +148,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, admin, addToast])
 
-  // Set up real-time subscriptions
   useEffect(() => {
     if (!isAuthenticated || !admin) {
+      clearReconnectTimer()
+      removeNotificationsChannel()
       setIsConnected(false)
       return
     }
 
-    let notificationsChannel: RealtimeChannel | null = null
+    let isDisposed = false
 
     const setupSubscriptions = async () => {
       try {
-        const branchId = await getMainBranchId()
-        console.log('Setting up notification subscription for branch:', branchId)
+        if (isDisposed) return
 
-        // Subscribe to notifications table with unique channel name
+        const branchId = await getMainBranchId()
+        removeNotificationsChannel()
+
         const channelName = `notifications-${admin.id}-${branchId}-${Date.now()}`
-        notificationsChannel = supabase
+        const nextChannel = supabase
           .channel(channelName, {
             config: {
               presence: {
@@ -163,13 +183,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               filter: `branch_id=eq.${branchId}`
             },
             async (payload) => {
-              console.log('🔔 New notification detected:', payload.new)
-
               const newNotification = payload.new
 
-              // Validate notification data before processing
               if (!newNotification?.id) {
-                console.error('❌ Invalid notification payload - missing ID:', payload)
+                console.error('Invalid notification payload - missing ID:', payload)
                 return
               }
 
@@ -192,13 +209,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 actionUrl: newNotification.action_url,
               }
 
-              setNotifications(prev => [notification, ...prev])
+              setNotifications(prev => {
+                if (prev.some(existing => existing.id === notification.id)) {
+                  return prev
+                }
 
-              // Show toast for critical/high severity notifications
+                return dedupeNotifications([notification, ...prev]).slice(0, 50)
+              })
+
               if (newNotification.severity === 'critical' || newNotification.severity === 'high') {
                 addToast({
-                  type: newNotification.severity === 'critical' ? 'error' :
-                        newNotification.severity === 'high' ? 'warning' : 'info',
+                  type: newNotification.severity === 'critical' ? 'error' : 'warning',
                   title: newNotification.title,
                   message: newNotification.message,
                   duration: newNotification.severity === 'critical' ? 0 : 8000,
@@ -223,13 +244,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             async (payload) => {
               const updatedNotification = payload.new
 
-              // Validate update data before processing
               if (!updatedNotification?.id) {
-                console.error('❌ Invalid update payload - missing ID:', payload)
+                console.error('Invalid update payload - missing ID:', payload)
                 return
               }
-
-              console.log('🔄 Notification updated:', updatedNotification.id)
 
               setNotifications(prev =>
                 prev.map(notif =>
@@ -258,13 +276,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             async (payload) => {
               const deletedNotification = payload.old
 
-              // Validate delete data before processing
               if (!deletedNotification?.id) {
-                console.error('❌ Invalid delete payload - missing ID:', payload)
+                console.error('Invalid delete payload - missing ID:', payload)
                 return
               }
-
-              console.log('🗑️ Notification deleted:', deletedNotification.id)
 
               setNotifications(prev =>
                 prev.filter(notif => notif.id !== deletedNotification.id)
@@ -272,64 +287,55 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             }
           )
           .subscribe((status, err) => {
-            console.log('📡 Subscription status changed:', status)
-
             if (err) {
-              console.error('❌ Subscription error:', err)
-              // Handle schema mismatch specifically
-              if (err.message?.includes('mismatch')) {
-                console.warn('⚠️ Schema mismatch detected - REPLICA IDENTITY FULL should resolve this')
-              }
+              console.error('Subscription error:', err)
             }
+
+            if (isDisposed) return
 
             setIsConnected(status === 'SUBSCRIBED')
 
-            if (status === 'CLOSED') {
-              console.log('🔄 Connection closed, attempting to reconnect...')
-              // Attempt to reconnect after a delay
-              setTimeout(() => {
+            if (status === 'CLOSED' && !reconnectTimeoutRef.current) {
+              reconnectTimeoutRef.current = setTimeout(() => {
+                reconnectTimeoutRef.current = null
                 setupSubscriptions()
               }, 5000)
             }
           })
 
-        console.log('✅ Notification subscription set up successfully')
-
+        notificationsChannelRef.current = nextChannel
       } catch (error) {
-        console.error('❌ Error setting up subscriptions:', error)
+        console.error('Error setting up subscriptions:', error)
         setIsConnected(false)
 
-        // Retry setup after delay
-        setTimeout(() => {
-          setupSubscriptions()
-        }, 10000)
+        if (!isDisposed && !reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null
+            setupSubscriptions()
+          }, 10000)
+        }
       }
     }
 
-    // Initial setup
     setupSubscriptions()
     loadNotifications()
 
     return () => {
-      console.log('🧹 Cleaning up notification subscription')
-      if (notificationsChannel) {
-        supabase.removeChannel(notificationsChannel)
-      }
+      isDisposed = true
+      clearReconnectTimer()
+      removeNotificationsChannel()
       setIsConnected(false)
     }
   }, [isAuthenticated, admin, loadNotifications, addToast])
 
-  // Actions
   const markAsRead = async (id: string) => {
     try {
-      // Update local state immediately
       setNotifications(prev =>
         prev.map(notif =>
           notif.id === id ? { ...notif, isRead: true } : notif
         )
       )
 
-      // Update database - use admin_is_read for admin users
       const { error } = await supabase
         .from('notifications')
         .update({ admin_is_read: true })
@@ -338,19 +344,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (error) throw error
     } catch (error) {
       console.error('Error marking notification as read:', error)
-      // Revert local state on error
       loadNotifications()
     }
   }
 
   const markAllAsRead = async () => {
     try {
-      // Update local state
       setNotifications(prev =>
         prev.map(notif => ({ ...notif, isRead: true }))
       )
 
-      // Update all notifications in database - use admin_is_read for admin users
       const notificationIds = notifications
         .filter(notif => !notif.isRead)
         .map(notif => notif.id)
@@ -371,7 +374,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const acknowledge = async (id: string) => {
     try {
-      // Update local state immediately
       const now = new Date().toISOString()
       setNotifications(prev =>
         prev.map(notif =>
@@ -379,7 +381,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         )
       )
 
-      // Update database - use admin_is_read for admin users
       const { error } = await supabase
         .from('notifications')
         .update({
@@ -399,7 +400,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const resolve = async (id: string) => {
     try {
-      // Update local state immediately
       const now = new Date().toISOString()
       setNotifications(prev =>
         prev.map(notif =>
@@ -407,7 +407,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         )
       )
 
-      // Update database
       const { error } = await supabase
         .from('notifications')
         .update({
@@ -434,7 +433,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     await loadNotifications()
   }
 
-  // Computed values
   const unreadCount = notifications.filter(n => !n.isRead).length
   const criticalCount = notifications.filter(n =>
     n.severity === 'critical' && !n.isAcknowledged
