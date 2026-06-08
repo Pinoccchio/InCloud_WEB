@@ -48,7 +48,7 @@ export default function SupplierOrdersPage() {
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: '20'
+        limit: '10'
       })
 
       if (statusFilter !== 'all') {

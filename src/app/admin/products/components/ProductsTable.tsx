@@ -11,7 +11,7 @@ import {
   CheckCircleIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline'
-import { Button, LoadingSpinner } from '@/components/ui'
+import { Button, LoadingSpinner, TablePagination } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 import { createThumbnailUrl } from '@/lib/supabase/storage'
 import { Database } from '@/types/supabase'
@@ -58,6 +58,7 @@ export default function ProductsTable({
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const [internalSelectedProducts, setInternalSelectedProducts] = useState<Set<string>>(new Set())
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Product
@@ -67,6 +68,7 @@ export default function ProductsTable({
   // Use external selection if provided, otherwise use internal
   const selectedProducts = externalSelectedProducts !== undefined ? externalSelectedProducts : internalSelectedProducts
   const setSelectedProducts = onSelectionChange || setInternalSelectedProducts
+  const itemsPerPage = 10
 
   // Dropdown state management (similar to super admin pattern)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
@@ -464,6 +466,10 @@ export default function ProductsTable({
     fetchProducts()
   }, [fetchProducts])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, categoryFilter, brandFilter, statusFilter, stockFilter, sortConfig])
+
   const handleSort = (key: keyof Product) => {
     const newDirection = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
     console.log('🔄 [ProductsTable] Sort changed:', {
@@ -565,6 +571,12 @@ export default function ProductsTable({
     return Math.min(...activeTiers.map(tier => Number(tier.price)))
   }
 
+  const totalPages = Math.max(1, Math.ceil(products.length / itemsPerPage))
+  const paginatedProducts = products.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -622,7 +634,7 @@ export default function ProductsTable({
               <th className="px-6 py-3 text-left">
                 <input
                   type="checkbox"
-                  checked={selectedProducts.size === products.length && products.length > 0}
+                  checked={paginatedProducts.length > 0 && paginatedProducts.every(product => selectedProducts.has(product.id))}
                   onChange={handleSelectAll}
                   className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                 />
@@ -654,7 +666,7 @@ export default function ProductsTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {products.map((product) => {
+            {paginatedProducts.map((product) => {
               const mainImage = getMainImage(product)
               const lowestPrice = getLowestPrice(product.price_tiers || [])
 
@@ -781,6 +793,15 @@ export default function ProductsTable({
           </div>
         )}
       </div>
+
+      <TablePagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={products.length}
+        itemsPerPage={itemsPerPage}
+        itemLabel="products"
+        onPageChange={setCurrentPage}
+      />
 
       {/* Portal-based Dropdown - Render outside table hierarchy */}
       {openDropdown && dropdownPosition && typeof window !== 'undefined' && createPortal(

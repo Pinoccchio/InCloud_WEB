@@ -12,7 +12,7 @@ import {
   ArchiveBoxIcon,
   ShoppingCartIcon
 } from '@heroicons/react/24/outline'
-import { LoadingSpinner } from '@/components/ui'
+import { LoadingSpinner, TablePagination } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
 
@@ -63,6 +63,8 @@ export default function InventoryTable({
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Advanced dropdown state management (copied from ProductsTable)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
@@ -306,6 +308,16 @@ export default function InventoryTable({
     return true
   })
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, categoryFilter, brandFilter, stockStatusFilter, expirationFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredInventory.length / itemsPerPage))
+  const paginatedInventory = filteredInventory.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
 
   const getStockStatusColor = (status: string) => {
     switch (status) {
@@ -412,7 +424,7 @@ export default function InventoryTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredInventory.map((item) => (
+            {paginatedInventory.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -514,6 +526,15 @@ export default function InventoryTable({
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filteredInventory.length}
+        itemsPerPage={itemsPerPage}
+        itemLabel="inventory items"
+        onPageChange={setCurrentPage}
+      />
 
       {/* Portal-based Dropdown - Render outside table hierarchy */}
       {openDropdown && dropdownPosition && typeof window !== 'undefined' && createPortal(

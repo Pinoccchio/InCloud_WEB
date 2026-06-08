@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { supabase } from '@/lib/supabase/auth'
 import { useToast } from '@/contexts/ToastContext'
-import { Button } from '@/components/ui'
+import { Button, TablePagination } from '@/components/ui'
 
 interface Order {
   id: string
@@ -88,7 +88,9 @@ export default function OrdersTable({
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const { showToast } = useToast()
+  const itemsPerPage = 10
 
   // Fetch orders data
   const fetchOrders = async () => {
@@ -313,6 +315,10 @@ export default function OrdersTable({
     fetchOrders()
   }, [searchQuery])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, paymentFilter, dateRange])
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -329,6 +335,12 @@ export default function OrdersTable({
       currency: 'PHP'
     }).format(amount)
   }
+
+  const totalPages = Math.max(1, Math.ceil(orders.length / itemsPerPage))
+  const paginatedOrders = orders.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
   if (loading) {
     return (
@@ -409,7 +421,7 @@ export default function OrdersTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {orders.map((order) => {
+            {paginatedOrders.map((order) => {
               const StatusIcon = statusConfig[order.status].icon
               return (
                 <tr key={order.id} className="hover:bg-gray-50">
@@ -486,6 +498,15 @@ export default function OrdersTable({
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={orders.length}
+        itemsPerPage={itemsPerPage}
+        itemLabel="orders"
+        onPageChange={setCurrentPage}
+      />
     </div>
   )
 }

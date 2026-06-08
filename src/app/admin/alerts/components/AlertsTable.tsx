@@ -10,7 +10,7 @@ import {
   EyeIcon,
   CheckIcon
 } from '@heroicons/react/24/outline'
-import { Button, LoadingSpinner } from '@/components/ui'
+import { Button, LoadingSpinner, TablePagination } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
 import { useToast } from '@/contexts/ToastContext'
@@ -54,6 +54,7 @@ export default function AlertsTable({
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set())
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Alert
@@ -76,6 +77,7 @@ export default function AlertsTable({
 
   const { addToast } = useToast()
   const { admin } = useAuth()
+  const itemsPerPage = 10
 
   // Fetch alerts with filters applied
   const fetchAlerts = useCallback(async () => {
@@ -262,6 +264,10 @@ export default function AlertsTable({
     fetchAlerts()
   }, [fetchAlerts])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, typeFilter, severityFilter, statusFilter, dateFilter, sortConfig])
+
   const handleSort = (key: keyof Alert) => {
     setSortConfig(prev => ({
       key,
@@ -270,10 +276,18 @@ export default function AlertsTable({
   }
 
   const handleSelectAll = () => {
-    if (selectedAlerts.size === alerts.length) {
-      setSelectedAlerts(new Set())
+    const visibleAlertIds = paginatedAlerts.map(alert => alert.id)
+    const allVisibleSelected = visibleAlertIds.every(alertId => selectedAlerts.has(alertId))
+
+    if (allVisibleSelected) {
+      setSelectedAlerts(new Set(
+        Array.from(selectedAlerts).filter(alertId => !visibleAlertIds.includes(alertId))
+      ))
     } else {
-      setSelectedAlerts(new Set(alerts.map(a => a.id)))
+      setSelectedAlerts(new Set([
+        ...Array.from(selectedAlerts),
+        ...visibleAlertIds
+      ]))
     }
   }
 
@@ -536,6 +550,12 @@ export default function AlertsTable({
     return new Date(dateString).toLocaleString()
   }
 
+  const totalPages = Math.max(1, Math.ceil(alerts.length / itemsPerPage))
+  const paginatedAlerts = alerts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
   const closeDropdownAndExecute = async (action: () => void) => {
     if (isOpeningModal) return
 
@@ -612,7 +632,7 @@ export default function AlertsTable({
               <th className="px-6 py-3 text-left">
                 <input
                   type="checkbox"
-                  checked={selectedAlerts.size === alerts.length && alerts.length > 0}
+                  checked={paginatedAlerts.length > 0 && paginatedAlerts.every(alert => selectedAlerts.has(alert.id))}
                   onChange={handleSelectAll}
                   className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                 />
@@ -644,7 +664,7 @@ export default function AlertsTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {alerts.map((alert) => (
+            {paginatedAlerts.map((alert) => (
               <tr
                 key={alert.id}
                 className={`hover:bg-gray-50 transition-colors ${
@@ -766,6 +786,15 @@ export default function AlertsTable({
           </div>
         )}
       </div>
+
+      <TablePagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={alerts.length}
+        itemsPerPage={itemsPerPage}
+        itemLabel="alerts"
+        onPageChange={setCurrentPage}
+      />
 
       {/* Portal-based Dropdown */}
       {openDropdown && dropdownPosition && typeof window !== 'undefined' && createPortal(
