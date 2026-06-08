@@ -34,9 +34,11 @@ interface InventoryItem {
   brand_name: string
   category_name: string
   batch_count: number
+  active_batch_quantity: number
   next_expiration: string
   stock_status: 'healthy' | 'low' | 'critical' | 'out'
   expiration_status: 'fresh' | 'expiring' | 'expired'
+  has_data_mismatch: boolean
 }
 
 interface InventoryTableProps {
@@ -207,13 +209,17 @@ export default function InventoryTable({
       const processedInventory = data.map(item => {
         const product = item.products
         const activeBatches = item.product_batches?.filter(batch => batch.is_active) || []
+        const activeBatchQuantity = activeBatches.reduce((sum, batch) => sum + batch.quantity, 0)
         const nextExpiration = activeBatches.length > 0
           ? activeBatches.sort((a, b) => new Date(a.expiration_date).getTime() - new Date(b.expiration_date).getTime())[0]?.expiration_date
           : null
+        const hasDataMismatch = item.available_quantity > 0 && activeBatches.length === 0
 
         // Determine stock status
         let stockStatus: 'healthy' | 'low' | 'critical' | 'out' = 'healthy'
-        if (item.available_quantity === 0) {
+        if (hasDataMismatch) {
+          stockStatus = 'critical'
+        } else if (item.available_quantity === 0) {
           stockStatus = 'out'
         } else if (item.available_quantity <= (item.low_stock_threshold / 2)) {
           stockStatus = 'critical'
@@ -243,9 +249,11 @@ export default function InventoryTable({
           brand_name: product.brands?.name || 'Unknown',
           category_name: product.categories?.name || 'Unknown',
           batch_count: activeBatches.length,
+          active_batch_quantity: activeBatchQuantity,
           next_expiration: nextExpiration,
           stock_status: stockStatus,
-          expiration_status: expirationStatus
+          expiration_status: expirationStatus,
+          has_data_mismatch: hasDataMismatch
         }
       })
 
@@ -438,6 +446,11 @@ export default function InventoryTable({
                       <div className="text-xs text-gray-400">
                         {item.category_name}
                       </div>
+                      {item.has_data_mismatch && (
+                        <div className="text-xs text-red-600">
+                          Stock exists without active batch records.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -446,7 +459,8 @@ export default function InventoryTable({
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStockStatusColor(item.stock_status)}`}>
                       {getStockStatusIcon(item.stock_status)}
                       <span className="ml-1">
-                        {item.stock_status === 'out' ? 'Out of Stock' :
+                        {item.has_data_mismatch ? 'Batch Data Missing' :
+                         item.stock_status === 'out' ? 'Out of Stock' :
                          item.stock_status === 'healthy' ? 'Adequate Stock' :
                          item.stock_status === 'low' ? 'Low Stock' :
                          item.stock_status === 'critical' ? 'Critical Stock' : item.stock_status}
@@ -468,7 +482,9 @@ export default function InventoryTable({
                     {item.batch_count} batch{item.batch_count !== 1 ? 'es' : ''}
                   </div>
                   <div className="text-xs text-gray-500">
-                    Active inventory batches
+                    {item.batch_count > 0
+                      ? `${item.active_batch_quantity} units in active batches`
+                      : 'No active batch records'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -489,12 +505,25 @@ export default function InventoryTable({
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    {formatPrice(item.quantity * Number(item.cost_per_unit))}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {formatPrice(Number(item.cost_per_unit))} per unit
-                  </div>
+                  {item.has_data_mismatch ? (
+                    <>
+                      <div className="text-sm font-medium text-red-600">
+                        Needs reconciliation
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Missing batch cost details
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm font-medium text-gray-900">
+                        {formatPrice(item.quantity * Number(item.cost_per_unit))}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {formatPrice(Number(item.cost_per_unit))} per unit
+                      </div>
+                    </>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {formatDate(item.updated_at)}
