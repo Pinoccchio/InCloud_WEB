@@ -56,10 +56,56 @@ const safeNumericField = (value: unknown, fieldName?: string): number => {
   return numValue;
 };
 
+const formatDateToIso = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const parseSlashDate = (value: string): Date | null => {
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (!match) return null
+
+  const [, firstPart, secondPart, yearPart] = match
+  const first = Number(firstPart)
+  const second = Number(secondPart)
+  const year = yearPart.length === 2 ? 2000 + Number(yearPart) : Number(yearPart)
+
+  if (!Number.isInteger(first) || !Number.isInteger(second) || !Number.isInteger(year)) {
+    return null
+  }
+
+  const candidateFormats: Array<{ month: number; day: number }> = []
+
+  // Default ambiguous slash dates to MM/DD/YYYY, but still support DD/MM/YYYY
+  candidateFormats.push({ month: first, day: second })
+  if (first > 12 || second <= 12) {
+    candidateFormats.push({ month: second, day: first })
+  }
+
+  for (const candidate of candidateFormats) {
+    const parsedDate = new Date(year, candidate.month - 1, candidate.day)
+    if (
+      parsedDate.getFullYear() === year &&
+      parsedDate.getMonth() === candidate.month - 1 &&
+      parsedDate.getDate() === candidate.day
+    ) {
+      return parsedDate
+    }
+  }
+
+  return null
+}
+
 // Helper function to parse Excel serial numbers and date strings
 const parseExcelDate = (value: unknown): Date | null => {
   // Handle null/undefined/empty values
   if (value === null || value === undefined || value === '') return null
+
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+  }
 
   // Handle Excel serial numbers (like 46022.33383101852)
   if (typeof value === 'number' && value > 25569) { // Excel epoch starts at 25569 (1970-01-01)
@@ -81,9 +127,12 @@ const parseExcelDate = (value: unknown): Date | null => {
     const trimmed = value.trim()
     if (!trimmed) return null
 
+    const slashDate = parseSlashDate(trimmed)
+    if (slashDate) return slashDate
+
     const date = new Date(trimmed)
     if (isNaN(date.getTime())) return null
-    return date
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
   }
 
   return null
@@ -98,7 +147,7 @@ const validateDate = (value: unknown, fieldName: string): string | null => {
     if (!parsedDate || isNaN(parsedDate.getTime())) {
       throw new Error(`Invalid date format for ${fieldName}`)
     }
-    return parsedDate.toISOString().split('T')[0] // Return YYYY-MM-DD format
+    return formatDateToIso(parsedDate)
   } catch {
     const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value)
     throw new Error(`Invalid date format for ${fieldName}: ${valueStr}`)
@@ -174,8 +223,7 @@ export async function POST(request: NextRequest) {
       const text = new TextDecoder('utf-8').decode(arrayBuffer)
       workbook = XLSX.read(text, {
         type: 'string',
-        cellDates: false,   // Don't auto-convert dates (we handle this manually)
-        defval: null        // Handle empty cells properly
+        cellDates: false
       })
     } else {
       // Parse Excel files (XLSX/XLS) with minimal options

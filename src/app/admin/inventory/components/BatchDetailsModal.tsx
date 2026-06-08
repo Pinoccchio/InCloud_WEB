@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { LoadingSpinner } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase/auth'
 
 interface InventoryItem {
@@ -62,6 +63,7 @@ export default function BatchDetailsModal({
   const [removalError, setRemovalError] = useState<string | null>(null)
 
   const { addToast } = useToast()
+  const { admin } = useAuth()
 
   // Load batch data
   const loadBatchData = useCallback(async () => {
@@ -132,22 +134,26 @@ export default function BatchDetailsModal({
     setRemovalError(null)
 
     try {
-      // Get current admin user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        throw new Error('Not authenticated')
+      if (!admin) {
+        throw new Error('Authentication required')
       }
 
-      // Call RPC function to remove batch
-      const { data, error } = await supabase.rpc('remove_expired_batch', {
-        p_batch_id: batchToRemove.id,
-        p_admin_id: user.id,
-        p_reason: 'Expired product disposal'
+      const response = await fetch('/api/inventory/batches/remove', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          batchId: batchToRemove.id,
+          reason: 'Expired product disposal',
+          currentAdminId: admin.id,
+          currentAdminRole: admin.role
+        })
       })
 
-      if (error) throw error
+      const data = await response.json()
 
-      if (!data.success) {
+      if (!response.ok || !data.success) {
         throw new Error(data.error || 'Failed to remove batch')
       }
 

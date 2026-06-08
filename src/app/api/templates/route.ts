@@ -240,7 +240,7 @@ async function generateInventoryTemplate(routeLogger: ReturnType<typeof logger.c
         'Product ID': 'PF-TJ-1KG-001',
         'Add Quantity': 50,
         'Cost Per Unit': 185.84,
-        'Expiration Date': '2025-12-31',
+        'Expiration Date': '12/31/2025',
         'Supplier Name': 'Purefoods Supplier Inc.',
         'Supplier Contact': '+63 912 345 6789',
         'Supplier Email': 'orders@purefoods.com',
@@ -253,7 +253,7 @@ async function generateInventoryTemplate(routeLogger: ReturnType<typeof logger.c
         'Product ID': 'SAMPLE-ID-002',
         'Add Quantity': 100,
         'Cost Per Unit': 150.00,
-        'Expiration Date': '2025-06-30',
+        'Expiration Date': '06/30/2025',
         'Supplier Name': 'Sample Supplier Co.',
         'Supplier Contact': '+63 998 765 4321',
         'Supplier Email': 'supply@sample.com',
@@ -290,13 +290,13 @@ async function generateInventoryTemplate(routeLogger: ReturnType<typeof logger.c
       { 'Field': 'Product ID', 'Required': 'YES', 'Type': 'Text', 'Description': 'Product ID - must match existing product exactly', 'Example': 'PF-TJ-1KG-001' },
       { 'Field': 'Add Quantity', 'Required': 'YES', 'Type': 'Number', 'Description': 'Quantity to add to current stock', 'Example': '50' },
       { 'Field': 'Cost Per Unit', 'Required': 'YES', 'Type': 'Number', 'Description': 'Cost per unit in Philippine Pesos (₱)', 'Example': '185.84' },
-      { 'Field': 'Expiration Date', 'Required': 'NO', 'Type': 'Date', 'Description': 'Format: YYYY-MM-DD (e.g., 2025-12-31)', 'Example': '2025-12-31' },
+      { 'Field': 'Expiration Date', 'Required': 'NO', 'Type': 'Date', 'Description': 'Accepted formats: YYYY-MM-DD or MM/DD/YYYY', 'Example': '12/31/2025' },
       { 'Field': 'Supplier Name', 'Required': 'YES', 'Type': 'Text', 'Description': 'Name of the supplier company', 'Example': 'Purefoods Supplier Inc.' },
       { 'Field': 'Supplier Contact', 'Required': 'NO', 'Type': 'Text', 'Description': 'Supplier phone number', 'Example': '+63 912 345 6789' },
       { 'Field': 'Supplier Email', 'Required': 'NO', 'Type': 'Text', 'Description': 'Supplier email address', 'Example': 'orders@purefoods.com' },
       { 'Field': 'Batch Number', 'Required': 'NO', 'Type': 'Text', 'Description': 'Batch tracking number (auto-generated if empty)', 'Example': 'PF-TJ-1KG-001-2025-001' },
       { 'Field': 'Purchase Order Ref', 'Required': 'NO', 'Type': 'Text', 'Description': 'Purchase order reference number', 'Example': 'PO-2025-001' },
-      { 'Field': 'Received Date', 'Required': 'NO', 'Type': 'Date', 'Description': 'Date received (defaults to today if empty)', 'Example': '2025-01-15' },
+      { 'Field': 'Received Date', 'Required': 'NO', 'Type': 'Date', 'Description': 'Accepted formats: YYYY-MM-DD or MM/DD/YYYY (defaults to today if empty)', 'Example': '01/15/2025' },
       { 'Field': 'Notes', 'Required': 'NO', 'Type': 'Text', 'Description': 'Additional notes about this restock', 'Example': 'Regular monthly restock delivery' }
     ]
 

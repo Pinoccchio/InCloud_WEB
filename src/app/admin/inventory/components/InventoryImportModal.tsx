@@ -45,27 +45,24 @@ export default function InventoryImportModal({
   const { admin } = useAuth()
 
   const handleFileSelect = (file: File) => {
-    // Check MIME types - comprehensive list for better browser compatibility
     const validMimeTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
-      'application/vnd.ms-excel',                                          // XLS
-      'application/xls',                                                   // XLS alternative
-      'application/x-xls',                                                 // XLS alternative
-      'application/x-msexcel',                                            // XLS alternative
-      'text/csv',                                                         // CSV
-      'application/csv',                                                   // CSV alternative
-      'text/comma-separated-values',                                       // CSV alternative
-      'application/x-csv',                                                 // CSV alternative
-      'text/x-csv',                                                        // CSV alternative
-      'text/plain'                                                        // CSV as plain text
-    ];
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/xls',
+      'application/x-xls',
+      'application/x-msexcel',
+      'text/csv',
+      'application/csv',
+      'text/comma-separated-values',
+      'application/x-csv',
+      'text/x-csv',
+      'text/plain'
+    ]
 
-    // Fallback to extension check when MIME type is unreliable
-    const fileName = file.name.toLowerCase();
-    const validExtensions = ['.xlsx', '.xls', '.csv'];
-    const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+    const fileName = file.name.toLowerCase()
+    const validExtensions = ['.xlsx', '.xls', '.csv']
+    const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext))
 
-    // Accept if MIME type matches OR file extension is valid
     if (validMimeTypes.includes(file.type) || hasValidExtension) {
       setSelectedFile(file)
       setImportResult(null)
@@ -129,7 +126,6 @@ export default function InventoryImportModal({
       if (result.success) {
         onSuccess(result)
       }
-
     } catch (error) {
       console.error('Import error:', error)
       setImportResult({
@@ -212,7 +208,6 @@ export default function InventoryImportModal({
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-xl transition-all max-h-[90vh] flex flex-col">
-                {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                   <Dialog.Title as="h3" className="text-lg font-semibold text-gray-900">
                     Import Inventory from Excel
@@ -228,17 +223,16 @@ export default function InventoryImportModal({
                 <div className="flex-1 overflow-y-auto px-6 py-6">
                   {!importResult ? (
                     <>
-                      {/* Instructions */}
                       <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded-lg">
                         <h4 className="font-semibold text-blue-900 mb-2">Before You Import:</h4>
                         <ul className="text-sm text-blue-900 space-y-1">
-                          <li>• Download the template first to ensure correct format</li>
-                          <li>• Supports Excel (.xlsx, .xls) and CSV (.csv) files</li>
-                          <li>• Make sure product SKUs match existing products exactly</li>
-                          <li>• Supplier name and cost per unit are required</li>
-                          <li>• Expiration dates should be in YYYY-MM-DD format</li>
-                          <li>• Batch numbers will be auto-generated if not provided</li>
-                          <li>• This will add stock to existing inventory records</li>
+                          <li>- Download the template first to ensure correct format</li>
+                          <li>- Supports Excel (.xlsx, .xls) and CSV (.csv) files</li>
+                          <li>- Make sure product SKUs match existing products exactly</li>
+                          <li>- Supplier name and cost per unit are required</li>
+                          <li>- Expiration and received dates can use YYYY-MM-DD or MM/DD/YYYY format</li>
+                          <li>- Batch numbers will be auto-generated if not provided</li>
+                          <li>- This will add stock to existing inventory records</li>
                         </ul>
                         <button
                           onClick={downloadTemplate}
@@ -248,7 +242,6 @@ export default function InventoryImportModal({
                         </button>
                       </div>
 
-                      {/* File Upload Area */}
                       <div
                         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                           dragActive
@@ -300,20 +293,18 @@ export default function InventoryImportModal({
                         )}
                       </div>
 
-                      {/* Batch Conflict Information */}
                       {selectedFile && (
                         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
                           <h4 className="font-semibold text-yellow-900 mb-2">Batch Number Handling</h4>
                           <div className="text-sm text-yellow-900 space-y-1">
-                            <p>• If batch numbers are not provided, they will be auto-generated with format: <code className="bg-yellow-100 px-1 rounded">ProductID-YEAR-TIMESTAMP-RANDOM</code></p>
-                            <p>• If a batch number already exists, the system will automatically generate a unique alternative</p>
-                            <p>• All batch conflicts are resolved automatically during import</p>
+                            <p>- If batch numbers are not provided, they will be auto-generated with format: <code className="bg-yellow-100 px-1 rounded">ProductID-YEAR-TIMESTAMP-RANDOM</code></p>
+                            <p>- If a batch number already exists, the system will automatically generate a unique alternative</p>
+                            <p>- All batch conflicts are resolved automatically during import</p>
                           </div>
                         </div>
                       )}
                     </>
                   ) : (
-                    /* Import Results */
                     <div className="space-y-4">
                       <div className="flex items-center space-x-2">
                         {importResult.success ? (
@@ -326,7 +317,6 @@ export default function InventoryImportModal({
                         </h3>
                       </div>
 
-                      {/* Statistics */}
                       <div className="grid grid-cols-3 gap-4">
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
                           <div className="text-2xl font-bold text-gray-900">{importResult.totalRows}</div>
@@ -342,7 +332,6 @@ export default function InventoryImportModal({
                         </div>
                       </div>
 
-                      {/* Success Summary */}
                       {importResult.success && importResult.successCount > 0 && (
                         <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                           <h4 className="font-semibold text-green-900 mb-2">Import Summary:</h4>
@@ -365,14 +354,13 @@ export default function InventoryImportModal({
                             )}
                           </div>
                           <div className="text-sm text-green-900">
-                            <p>✓ All batch numbers were processed successfully</p>
-                            <p>✓ Inventory quantities have been updated</p>
-                            <p>✓ Movement records created for audit trail</p>
+                            <p>- All batch numbers were processed successfully</p>
+                            <p>- Inventory quantities have been updated</p>
+                            <p>- Movement records created for audit trail</p>
                           </div>
                         </div>
                       )}
 
-                      {/* Errors */}
                       {importResult.errors && importResult.errors.length > 0 && (
                         <div className="max-h-60 overflow-y-auto">
                           <h4 className="font-semibold text-gray-900 mb-2">Errors Found:</h4>
@@ -397,7 +385,6 @@ export default function InventoryImportModal({
                   )}
                 </div>
 
-                {/* Footer */}
                 <div className="flex-shrink-0 px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
                   <Button
                     variant="outline"
