@@ -17,21 +17,17 @@ export interface AlertRule {
 }
 
 export interface GeneratedAlert {
-  id: string
-  type: string
-  severity: string
+  type: 'stock' | 'expiration'
+  severity: 'low' | 'medium' | 'high' | 'critical'
   title: string
   message: string
-  product_id?: string
-  inventory_id?: string
-  batch_id?: string
-  metadata: Record<string, any>
+  relatedEntityType: 'inventory' | 'batch'
+  relatedEntityId: string
+  actionUrl: string
+  metadata: Record<string, unknown>
 }
 
 export class AlertService {
-  /**
-   * Generate low stock alerts based on inventory levels
-   */
   static async generateLowStockAlerts(): Promise<GeneratedAlert[]> {
     const serviceLogger = logger.child({
       service: 'AlertService',
@@ -40,12 +36,8 @@ export class AlertService {
     serviceLogger.time('generateLowStockAlerts')
 
     try {
-      serviceLogger.info('Starting low stock alert generation')
       const branchId = await getMainBranchId()
-      serviceLogger.debug('Retrieved branch ID', { branchId })
 
-      // Get inventory items that are low on stock
-      serviceLogger.db('SELECT', 'inventory')
       const { data: lowStockItems, error } = await supabase
         .from('inventory')
         .select(`
@@ -56,7 +48,7 @@ export class AlertService {
           products (
             id,
             name,
-            sku
+            product_id
           )
         `)
         .eq('branch_id', branchId)
@@ -64,59 +56,59 @@ export class AlertService {
 
       if (error) throw error
 
-      serviceLogger.debug('Low stock items fetched', { count: lowStockItems?.length || 0 })
+      const inventoryIds = (lowStockItems || []).map((item) => item.id)
+      const existingNotifications = inventoryIds.length > 0
+        ? await supabase
+            .from('notifications')
+            .select('related_entity_id')
+            .eq('type', 'stock')
+            .eq('related_entity_type', 'inventory')
+            .eq('is_resolved', false)
+            .in('related_entity_id', inventoryIds)
+        : { data: [], error: null }
+
+      if (existingNotifications.error) throw existingNotifications.error
+
+      const existingIds = new Set(
+        (existingNotifications.data || [])
+          .map((notification) => notification.related_entity_id)
+          .filter((id): id is string => typeof id === 'string')
+      )
 
       const alerts: GeneratedAlert[] = []
 
       for (const item of lowStockItems || []) {
+        if (existingIds.has(item.id)) continue
+
         const isOutOfStock = item.available_quantity === 0
-        const isLowStock = item.available_quantity <= (item.low_stock_threshold || 10)
+        const threshold = item.low_stock_threshold || 10
+        const productName = item.products?.name || 'Unknown product'
+        const productCode = item.products?.product_id || null
 
-        if (isOutOfStock || isLowStock) {
-          // Check if alert already exists for this item
-          const { data: existingAlert } = await supabase
-            .from('alerts')
-            .select('id')
-            .eq('type', isOutOfStock ? 'out_of_stock' : 'low_stock')
-            .eq('inventory_id', item.id)
-            .eq('status', 'active')
-            .single()
-
-          if (!existingAlert) {
-            // Create new alert
-            const alert: GeneratedAlert = {
-              id: crypto.randomUUID(),
-              type: isOutOfStock ? 'out_of_stock' : 'low_stock',
-              severity: isOutOfStock ? 'critical' : 'high',
-              title: isOutOfStock ? 'Out of Stock' : 'Low Stock Alert',
-              message: `${item.products?.name} ${
-                isOutOfStock
-                  ? 'is out of stock'
-                  : `has only ${item.available_quantity} units remaining (threshold: ${item.low_stock_threshold || 10})`
-              }`,
-              product_id: item.product_id,
-              inventory_id: item.id,
-              metadata: {
-                current_quantity: item.available_quantity,
-                threshold: item.low_stock_threshold || 10,
-                product_name: item.products?.name,
-                sku: item.products?.sku
-              }
-            }
-
-            alerts.push(alert)
-            serviceLogger.debug('Created low stock alert', {
-              type: alert.type,
-              productName: item.products?.name,
-              quantity: item.available_quantity
-            })
+        alerts.push({
+          type: 'stock',
+          severity: isOutOfStock ? 'critical' : 'high',
+          title: isOutOfStock ? 'Out of Stock' : 'Low Stock Alert',
+          message: isOutOfStock
+            ? `${productName} is out of stock`
+            : `${productName} has only ${item.available_quantity} units remaining (threshold: ${threshold})`,
+          relatedEntityType: 'inventory',
+          relatedEntityId: item.id,
+          actionUrl: '/admin/inventory?stockStatusFilter=low',
+          metadata: {
+            alert_type: isOutOfStock ? 'out_of_stock' : 'low_stock',
+            current_quantity: item.available_quantity,
+            threshold,
+            product_name: productName,
+            product_id: item.product_id,
+            product_code: productCode,
+            auto_generated: true,
+            triggered_by: 'alert_service'
           }
-        }
+        })
       }
 
-      const duration = serviceLogger.timeEnd('generateLowStockAlerts')
       serviceLogger.success('Low stock alerts generated', {
-        duration,
         alertsGenerated: alerts.length
       })
 
@@ -127,9 +119,6 @@ export class AlertService {
     }
   }
 
-  /**
-   * Generate expiration alerts based on product batches
-   */
   static async generateExpirationAlerts(): Promise<GeneratedAlert[]> {
     const serviceLogger = logger.child({
       service: 'AlertService',
@@ -138,16 +127,10 @@ export class AlertService {
     serviceLogger.time('generateExpirationAlerts')
 
     try {
-      serviceLogger.info('Starting expiration alert generation')
-      const branchId = await getMainBranchId()
-      serviceLogger.debug('Retrieved branch ID', { branchId })
-
-      // Get batches that are expiring soon or expired
-      const today = new Date()
       const warningDate = new Date()
-      warningDate.setDate(today.getDate() + 7) // 7 days warning
+      warningDate.setDate(warningDate.getDate() + 7)
+      const now = new Date()
 
-      serviceLogger.db('SELECT', 'product_batches')
       const { data: expiringBatches, error } = await supabase
         .from('product_batches')
         .select(`
@@ -161,7 +144,7 @@ export class AlertService {
             products (
               id,
               name,
-              sku
+              product_id
             )
           )
         `)
@@ -170,60 +153,62 @@ export class AlertService {
 
       if (error) throw error
 
-      serviceLogger.debug('Expiring batches fetched', { count: expiringBatches?.length || 0 })
+      const batchIds = (expiringBatches || []).map((batch) => batch.id)
+      const existingNotifications = batchIds.length > 0
+        ? await supabase
+            .from('notifications')
+            .select('related_entity_id')
+            .eq('type', 'expiration')
+            .eq('related_entity_type', 'batch')
+            .eq('is_resolved', false)
+            .in('related_entity_id', batchIds)
+        : { data: [], error: null }
+
+      if (existingNotifications.error) throw existingNotifications.error
+
+      const existingIds = new Set(
+        (existingNotifications.data || [])
+          .map((notification) => notification.related_entity_id)
+          .filter((id): id is string => typeof id === 'string')
+      )
 
       const alerts: GeneratedAlert[] = []
 
       for (const batch of expiringBatches || []) {
+        if (existingIds.has(batch.id)) continue
+
         const expirationDate = new Date(batch.expiration_date)
-        const isExpired = expirationDate < today
-        const daysUntilExpiry = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        const daysUntilExpiry = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        const isExpired = expirationDate < now
+        const productName = batch.inventory?.products?.name || 'Unknown product'
+        const productCode = batch.inventory?.products?.product_id || null
 
-        // Check if alert already exists for this batch
-        const { data: existingAlert } = await supabase
-          .from('alerts')
-          .select('id')
-          .eq('type', isExpired ? 'expired' : 'expiring_soon')
-          .eq('batch_id', batch.id)
-          .eq('status', 'active')
-          .single()
-
-        if (!existingAlert) {
-          const alert: GeneratedAlert = {
-            id: crypto.randomUUID(),
-            type: isExpired ? 'expired' : 'expiring_soon',
-            severity: isExpired ? 'critical' : daysUntilExpiry <= 3 ? 'high' : 'medium',
-            title: isExpired ? 'Product Expired' : 'Product Expiring Soon',
-            message: `Batch ${batch.batch_number} of ${batch.inventory?.products?.name} ${
-              isExpired
-                ? `expired ${Math.abs(daysUntilExpiry)} day(s) ago`
-                : `expires in ${daysUntilExpiry} day(s)`
-            } (${batch.quantity} units)`,
-            product_id: batch.inventory?.product_id,
-            batch_id: batch.id,
-            metadata: {
-              batch_number: batch.batch_number,
-              expiration_date: batch.expiration_date,
-              days_until_expiry: daysUntilExpiry,
-              quantity: batch.quantity,
-              product_name: batch.inventory?.products?.name,
-              sku: batch.inventory?.products?.sku
-            }
+        alerts.push({
+          type: 'expiration',
+          severity: isExpired ? 'critical' : daysUntilExpiry <= 3 ? 'high' : 'medium',
+          title: isExpired ? 'Product Expired' : 'Product Expiring Soon',
+          message: isExpired
+            ? `Batch ${batch.batch_number} of ${productName} expired ${Math.abs(daysUntilExpiry)} day(s) ago (${batch.quantity} units)`
+            : `Batch ${batch.batch_number} of ${productName} expires in ${daysUntilExpiry} day(s) (${batch.quantity} units)`,
+          relatedEntityType: 'batch',
+          relatedEntityId: batch.id,
+          actionUrl: `/admin/inventory?expirationFilter=${isExpired ? 'expired' : 'expiring'}`,
+          metadata: {
+            alert_type: isExpired ? 'expired' : 'expiring_soon',
+            batch_number: batch.batch_number,
+            expiration_date: batch.expiration_date,
+            days_until_expiry: daysUntilExpiry,
+            quantity: batch.quantity,
+            product_name: productName,
+            product_id: batch.inventory?.product_id || null,
+            product_code: productCode,
+            auto_generated: true,
+            triggered_by: 'alert_service'
           }
-
-          alerts.push(alert)
-          serviceLogger.debug('Created expiration alert', {
-            type: alert.type,
-            batchNumber: batch.batch_number,
-            productName: batch.inventory?.products?.name,
-            daysUntilExpiry
-          })
-        }
+        })
       }
 
-      const duration = serviceLogger.timeEnd('generateExpirationAlerts')
       serviceLogger.success('Expiration alerts generated', {
-        duration,
         alertsGenerated: alerts.length
       })
 
@@ -234,280 +219,124 @@ export class AlertService {
     }
   }
 
-  /**
-   * Insert generated alerts into the database
-   */
   static async insertAlerts(alerts: GeneratedAlert[]): Promise<void> {
     const serviceLogger = logger.child({
       service: 'AlertService',
       operation: 'insertAlerts'
     })
 
-    if (alerts.length === 0) {
-      serviceLogger.debug('No alerts to insert, skipping')
-      return
-    }
-
-    serviceLogger.time('insertAlerts')
+    if (alerts.length === 0) return
 
     try {
-      serviceLogger.info('Inserting alerts into database', { count: alerts.length })
       const branchId = await getMainBranchId()
-
-      // Convert alerts to database format
-      const alertsToInsert = alerts.map(alert => ({
-        id: alert.id,
+      const notificationsToInsert = alerts.map((alert) => ({
         type: alert.type,
         severity: alert.severity,
         title: alert.title,
         message: alert.message,
         branch_id: branchId,
-        product_id: alert.product_id || null,
-        inventory_id: alert.inventory_id || null,
-        batch_id: alert.batch_id || null,
+        related_entity_type: alert.relatedEntityType,
+        related_entity_id: alert.relatedEntityId,
         metadata: alert.metadata,
-        status: 'active',
+        action_url: alert.actionUrl,
         is_read: false,
+        admin_is_read: false,
         is_acknowledged: false,
-        auto_generated: true
+        is_resolved: false
       }))
 
-      serviceLogger.db('INSERT', 'alerts')
       const { error } = await supabase
-        .from('alerts')
-        .insert(alertsToInsert)
+        .from('notifications')
+        .insert(notificationsToInsert)
 
       if (error) throw error
-
-      const duration = serviceLogger.timeEnd('insertAlerts')
-      serviceLogger.success('Successfully inserted alerts', {
-        duration,
-        count: alerts.length
-      })
     } catch (error) {
       serviceLogger.error('Error inserting alerts', error as Error)
       throw error
     }
   }
 
-  /**
-   * Run complete alert generation process
-   */
   static async generateAllAlerts(): Promise<{
     lowStockAlerts: GeneratedAlert[]
     expirationAlerts: GeneratedAlert[]
     totalGenerated: number
   }> {
-    const serviceLogger = logger.child({
-      service: 'AlertService',
-      operation: 'generateAllAlerts'
-    })
-    serviceLogger.time('generateAllAlerts')
+    const [lowStockAlerts, expirationAlerts] = await Promise.all([
+      this.generateLowStockAlerts(),
+      this.generateExpirationAlerts()
+    ])
 
-    try {
-      serviceLogger.info('Starting complete alert generation process')
+    const allAlerts = [...lowStockAlerts, ...expirationAlerts]
+    await this.insertAlerts(allAlerts)
 
-      // Generate different types of alerts
-      const [lowStockAlerts, expirationAlerts] = await Promise.all([
-        this.generateLowStockAlerts(),
-        this.generateExpirationAlerts()
-      ])
-
-      // Insert all alerts
-      const allAlerts = [...lowStockAlerts, ...expirationAlerts]
-      if (allAlerts.length > 0) {
-        await this.insertAlerts(allAlerts)
-      }
-
-      const duration = serviceLogger.timeEnd('generateAllAlerts')
-      serviceLogger.success('Alert generation complete', {
-        duration,
-        lowStockCount: lowStockAlerts.length,
-        expirationCount: expirationAlerts.length,
-        totalGenerated: allAlerts.length
-      })
-
-      return {
-        lowStockAlerts,
-        expirationAlerts,
-        totalGenerated: allAlerts.length
-      }
-    } catch (error) {
-      serviceLogger.error('Error in alert generation process', error as Error)
-      throw error
+    return {
+      lowStockAlerts,
+      expirationAlerts,
+      totalGenerated: allAlerts.length
     }
   }
 
-  /**
-   * Get active alert rules
-   */
   static async getActiveAlertRules(): Promise<AlertRule[]> {
-    const serviceLogger = logger.child({
-      service: 'AlertService',
-      operation: 'getActiveAlertRules'
-    })
-    serviceLogger.time('getActiveAlertRules')
+    const { data: rules, error } = await supabase
+      .from('alert_rules')
+      .select('*')
+      .eq('is_active', true)
 
-    try {
-      serviceLogger.info('Fetching active alert rules')
-      serviceLogger.db('SELECT', 'alert_rules')
-      const { data: rules, error } = await supabase
-        .from('alert_rules')
-        .select('*')
-        .eq('is_active', true)
-
-      if (error) throw error
-
-      const duration = serviceLogger.timeEnd('getActiveAlertRules')
-      serviceLogger.success('Alert rules fetched', {
-        duration,
-        count: rules?.length || 0
-      })
-
-      return rules || []
-    } catch (error) {
-      serviceLogger.error('Error fetching alert rules', error as Error)
-      throw error
-    }
+    if (error) throw error
+    return rules || []
   }
 
-  /**
-   * Acknowledge an alert
-   */
   static async acknowledgeAlert(alertId: string): Promise<void> {
-    const serviceLogger = logger.child({
-      service: 'AlertService',
-      operation: 'acknowledgeAlert'
-    })
-    serviceLogger.time('acknowledgeAlert')
-
-    try {
-      serviceLogger.info('Acknowledging alert', { alertId })
-      serviceLogger.db('UPDATE', 'alerts')
-      const { error } = await supabase
-        .from('alerts')
-        .update({
-          is_acknowledged: true,
-          is_read: true,
-          acknowledged_at: new Date().toISOString()
-        })
-        .eq('id', alertId)
-
-      if (error) throw error
-
-      const duration = serviceLogger.timeEnd('acknowledgeAlert')
-      serviceLogger.success('Alert acknowledged', { duration, alertId })
-    } catch (error) {
-      serviceLogger.error('Error acknowledging alert', error as Error, { alertId })
-      throw error
-    }
-  }
-
-  /**
-   * Dismiss/resolve an alert
-   */
-  static async resolveAlert(alertId: string): Promise<void> {
-    const serviceLogger = logger.child({
-      service: 'AlertService',
-      operation: 'resolveAlert'
-    })
-    serviceLogger.time('resolveAlert')
-
-    try {
-      serviceLogger.info('Resolving alert', { alertId })
-      serviceLogger.db('UPDATE', 'alerts')
-      const { error } = await supabase
-        .from('alerts')
-        .update({
-          status: 'resolved',
-          is_read: true
-        })
-        .eq('id', alertId)
-
-      if (error) throw error
-
-      const duration = serviceLogger.timeEnd('resolveAlert')
-      serviceLogger.success('Alert resolved', { duration, alertId })
-    } catch (error) {
-      serviceLogger.error('Error resolving alert', error as Error, { alertId })
-      throw error
-    }
-  }
-
-  /**
-   * Clean up old resolved alerts
-   */
-  static async cleanupOldAlerts(daysOld: number = 30): Promise<void> {
-    const serviceLogger = logger.child({
-      service: 'AlertService',
-      operation: 'cleanupOldAlerts'
-    })
-    serviceLogger.time('cleanupOldAlerts')
-
-    try {
-      serviceLogger.info('Cleaning up old alerts', { daysOld })
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - daysOld)
-
-      serviceLogger.db('DELETE', 'alerts')
-      const { error } = await supabase
-        .from('alerts')
-        .delete()
-        .eq('status', 'resolved')
-        .lt('created_at', cutoffDate.toISOString())
-
-      if (error) throw error
-
-      const duration = serviceLogger.timeEnd('cleanupOldAlerts')
-      serviceLogger.success('Cleaned up old alerts', {
-        duration,
-        daysOld,
-        cutoffDate: cutoffDate.toISOString()
+    const { error } = await supabase
+      .from('notifications')
+      .update({
+        is_acknowledged: true,
+        admin_is_read: true,
+        acknowledged_at: new Date().toISOString()
       })
-    } catch (error) {
-      serviceLogger.error('Error cleaning up old alerts', error as Error, { daysOld })
-      throw error
-    }
+      .eq('id', alertId)
+
+    if (error) throw error
   }
 
-  /**
-   * Schedule alert generation (to be called by cron job or manually)
-   */
+  static async resolveAlert(alertId: string): Promise<void> {
+    const { error } = await supabase
+      .from('notifications')
+      .update({
+        is_resolved: true,
+        admin_is_read: true,
+        resolved_at: new Date().toISOString()
+      })
+      .eq('id', alertId)
+
+    if (error) throw error
+  }
+
+  static async cleanupOldAlerts(daysOld: number = 30): Promise<void> {
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld)
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('is_resolved', true)
+      .lt('created_at', cutoffDate.toISOString())
+
+    if (error) throw error
+  }
+
   static async scheduleAlertGeneration(): Promise<{
     lowStockAlerts: GeneratedAlert[]
     expirationAlerts: GeneratedAlert[]
     totalGenerated: number
     cleanupCompleted: boolean
   }> {
-    const serviceLogger = logger.child({
-      service: 'AlertService',
-      operation: 'scheduleAlertGeneration'
-    })
-    serviceLogger.time('scheduleAlertGeneration')
+    const result = await this.generateAllAlerts()
+    await this.cleanupOldAlerts()
 
-    try {
-      serviceLogger.info('Running scheduled alert generation')
-
-      // Run alert generation
-      const result = await this.generateAllAlerts()
-
-      // Clean up old alerts
-      await this.cleanupOldAlerts()
-
-      const duration = serviceLogger.timeEnd('scheduleAlertGeneration')
-      serviceLogger.success('Scheduled alert generation complete', {
-        duration,
-        totalGenerated: result.totalGenerated,
-        cleanupCompleted: true
-      })
-
-      return {
-        ...result,
-        cleanupCompleted: true
-      }
-    } catch (error) {
-      serviceLogger.error('Error in scheduled alert generation', error as Error)
-      throw error
+    return {
+      ...result,
+      cleanupCompleted: true
     }
   }
 }

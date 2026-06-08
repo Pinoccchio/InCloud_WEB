@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/auth'
 import { getMainBranchId } from '@/lib/constants/branch'
 import { useAuth } from './AuthContext'
@@ -8,11 +9,12 @@ import { useToast } from './ToastContext'
 
 export interface AdminNotification {
   id: string
-  type: 'order' | 'alert' | 'system' | 'inventory'
+  type: 'order' | 'alert' | 'system' | 'inventory' | 'expiration' | 'stock'
   severity: 'low' | 'medium' | 'high' | 'critical'
   title: string
   message: string
   data?: Record<string, unknown>
+  actionUrl?: string
   isRead: boolean
   isAcknowledged: boolean
   isResolved: boolean
@@ -42,6 +44,18 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
+async function syncExpiredNotifications() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) return
+
+  await fetch('/api/notifications/expired-products', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`
+    }
+  })
+}
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { admin, isAuthenticated } = useAuth()
   const { addToast } = useToast()
@@ -56,6 +70,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true)
     try {
+      await syncExpiredNotifications()
       const branchId = await getMainBranchId()
 
       // Load notifications from unified table
@@ -99,6 +114,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         resolvedAt: notification.resolved_at,
         createdAt: notification.created_at,
         relatedId: notification.related_entity_id,
+        actionUrl: notification.action_url,
       }))
 
       setNotifications(allNotifications)
@@ -121,7 +137,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    let notificationsChannel: unknown
+    let notificationsChannel: RealtimeChannel | null = null
 
     const setupSubscriptions = async () => {
       try {
@@ -173,6 +189,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 resolvedAt: newNotification.resolved_at,
                 createdAt: newNotification.created_at || new Date().toISOString(),
                 relatedId: newNotification.related_entity_id,
+                actionUrl: newNotification.action_url,
               }
 
               setNotifications(prev => [notification, ...prev])
@@ -413,6 +430,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshNotifications = async () => {
+    await syncExpiredNotifications()
     await loadNotifications()
   }
 

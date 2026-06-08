@@ -13,7 +13,7 @@ import {
   DocumentTextIcon,
   TruckIcon,
 } from '@heroicons/react/24/outline'
-import { Logo } from '@/components/ui'
+import { InCloudLogo } from '@/components/ui'
 import { useSidebar } from '@/contexts/SidebarContext'
 
 interface AdminData {
@@ -118,11 +118,9 @@ export default function AdminSidebar({ adminData }: SidebarProps) {
           isCollapsed ? "px-3 justify-center" : "px-6"
         )}>
           {isCollapsed ? (
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">IC</span>
-            </div>
+            <InCloudLogo size="md" showText={false} />
           ) : (
-            <Logo size="lg" showText={true} />
+            <InCloudLogo size="lg" showText={true} />
           )}
         </div>
 

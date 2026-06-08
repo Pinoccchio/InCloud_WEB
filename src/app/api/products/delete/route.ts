@@ -48,7 +48,7 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (fetchError || !productToDelete) {
-      routeLogger.error('Product fetch failed', {
+      routeLogger.warn('Product fetch failed', {
         productId,
         error: fetchError?.message,
         errorCode: fetchError?.code,
@@ -111,19 +111,42 @@ export async function DELETE(request: NextRequest) {
 
     // Get cascade deletion summary before proceeding
     routeLogger.info('Gathering cascade deletion summary')
-    routeLogger.db('SELECT', 'inventory, price_tiers, alerts, alert_configurations')
-    const [inventoryCount, priceTiersCount, alertsCount, configurationsCount] = await Promise.all([
+    routeLogger.db('SELECT', 'inventory, product_batches, price_tiers, notifications')
+    const [inventoryResult, priceTiersResult] = await Promise.all([
       client.from('inventory').select('id', { count: 'exact' }).eq('product_id', productId),
-      client.from('price_tiers').select('id', { count: 'exact' }).eq('product_id', productId),
-      client.from('alerts').select('id', { count: 'exact' }).eq('product_id', productId),
-      client.from('alert_configurations').select('id', { count: 'exact' }).eq('product_id', productId)
+      client.from('price_tiers').select('id', { count: 'exact' }).eq('product_id', productId)
+    ])
+
+    const inventoryIds = (inventoryResult.data || []).map((record) => record.id)
+    const { data: batchRecords } = inventoryIds.length > 0
+      ? await client
+          .from('product_batches')
+          .select('id')
+          .in('inventory_id', inventoryIds)
+      : { data: [] }
+    const batchIds = (batchRecords || []).map((record) => record.id)
+
+    const [inventoryNotificationCount, batchNotificationCount] = await Promise.all([
+      inventoryIds.length > 0
+        ? client
+            .from('notifications')
+            .select('id', { count: 'exact' })
+            .eq('related_entity_type', 'inventory')
+            .in('related_entity_id', inventoryIds)
+        : Promise.resolve({ count: 0 }),
+      batchIds.length > 0
+        ? client
+            .from('notifications')
+            .select('id', { count: 'exact' })
+            .eq('related_entity_type', 'batch')
+            .in('related_entity_id', batchIds)
+        : Promise.resolve({ count: 0 })
     ])
 
     const cascadeData = {
-      inventory_records: inventoryCount.count || 0,
-      price_tiers: priceTiersCount.count || 0,
-      alerts: alertsCount.count || 0,
-      alert_configurations: configurationsCount.count || 0,
+      inventory_records: inventoryResult.count || 0,
+      price_tiers: priceTiersResult.count || 0,
+      notifications: (inventoryNotificationCount.count || 0) + (batchNotificationCount.count || 0),
       has_order_history: (orderItems?.length || 0) > 0,
       has_transfer_history: (stockTransfers?.length || 0) > 0
     }
@@ -175,8 +198,8 @@ export async function DELETE(request: NextRequest) {
           metadata: {
             deleted_product_name: productToDelete.name,
             deleted_product_id: productToDelete.product_id,
-            brand_name: productToDelete.brands?.name,
-            category_name: productToDelete.categories?.name,
+            brand_name: productToDelete.brands?.[0]?.name,
+            category_name: productToDelete.categories?.[0]?.name,
             cascade_summary: cascadeData,
             had_business_history: hasBusinessHistory,
             reason: reason || null,
@@ -196,7 +219,7 @@ export async function DELETE(request: NextRequest) {
       productId,
       productName: productToDelete.name,
       product_id: productToDelete.product_id,
-      cascadedRecords: cascadeData.inventory_records + cascadeData.price_tiers + cascadeData.alerts + cascadeData.alert_configurations
+      cascadedRecords: cascadeData.inventory_records + cascadeData.price_tiers + cascadeData.notifications
     })
 
     return NextResponse.json({

@@ -170,7 +170,8 @@ export async function DELETE(request: NextRequest) {
 
     // Handle nullable foreign keys - set to null instead of reassigning
     const nullifyUpdates = [
-      { table: 'alerts', field: 'acknowledged_by' }
+      { table: 'notifications', field: 'acknowledged_by' },
+      { table: 'notifications', field: 'resolved_by' }
     ]
 
     for (const { table, field } of nullifyUpdates) {

@@ -13,7 +13,7 @@ import {
   EyeIcon,
   BellSlashIcon
 } from '@heroicons/react/24/outline'
-import { useNotifications } from '@/contexts/NotificationContext'
+import { AdminNotification, useNotifications } from '@/contexts/NotificationContext'
 
 interface NotificationDropdownProps {
   isOpen: boolean
@@ -95,7 +95,7 @@ export default function NotificationDropdown({ isOpen, onToggle, onClose }: Noti
 
   const [loadingStates, setLoadingStates] = useState<Set<string>>(new Set())
 
-  const handleNotificationClick = async (notification: Record<string, unknown>) => {
+  const handleNotificationClick = async (notification: AdminNotification) => {
     // Add loading state for instant feedback
     if (!notification.isRead) {
       setLoadingStates(prev => new Set([...prev, notification.id as string]))
@@ -111,8 +111,8 @@ export default function NotificationDropdown({ isOpen, onToggle, onClose }: Noti
     }
 
     // Navigate using action_url if available (includes filter parameters)
-    if (notification.action_url) {
-      window.location.href = notification.action_url as string
+    if (notification.actionUrl) {
+      window.location.href = notification.actionUrl
     } else {
       // Fallback to old behavior for backward compatibility
       if (notification.type === 'order' && notification.relatedId) {

@@ -22,6 +22,18 @@ interface AlertSummary {
   low_alerts: number
 }
 
+async function syncExpiredNotifications() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) return
+
+  await fetch('/api/notifications/expired-products', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`
+    }
+  })
+}
+
 
 export default function AlertsPage() {
   // Filter states
@@ -50,6 +62,7 @@ export default function AlertsPage() {
 
     try {
       setIsLoading(true)
+      await syncExpiredNotifications()
 
       console.log('🏢 [AlertsPage] Fetching main branch ID...')
       const branchId = await getMainBranchId()

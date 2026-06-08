@@ -140,8 +140,8 @@ export default function ProductsPage() {
         if (result.cascadeInfo.price_tiers > 0) {
           cascadeDetails.push(`${result.cascadeInfo.price_tiers} pricing type(s)`)
         }
-        if (result.cascadeInfo.alerts > 0) {
-          cascadeDetails.push(`${result.cascadeInfo.alerts} alert(s)`)
+        if (result.cascadeInfo.notifications > 0) {
+          cascadeDetails.push(`${result.cascadeInfo.notifications} notification(s)`)
         }
 
         if (cascadeDetails.length > 0) {
@@ -390,7 +390,7 @@ export default function ProductsPage() {
 • The product and all its data
 • All inventory records and stock levels
 • All pricing tiers (wholesale, retail, bulk)
-• All product-specific alerts and configurations
+• All product-specific notifications tied to inventory or batches
 • All product batches and expiration data
 • All order items associated with this product
 • All stock transfer records for this product
@@ -416,7 +416,7 @@ This will completely remove the product from the system.`
 • The product and all its data
 • All inventory records and stock levels
 • All pricing tiers (wholesale, retail, bulk)
-• All product-specific alerts and configurations
+• All product-specific notifications tied to inventory or batches
 • All product batches and expiration data
 • All order items associated with these products
 • All stock transfer records for these products
