@@ -71,6 +71,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false)
   const notificationsChannelRef = useRef<RealtimeChannel | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const displayedToastIdsRef = useRef<Set<string>>(new Set())
 
   const clearReconnectTimer = () => {
     if (reconnectTimeoutRef.current) {
@@ -217,7 +218,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 return dedupeNotifications([notification, ...prev]).slice(0, 50)
               })
 
-              if (newNotification.severity === 'critical' || newNotification.severity === 'high') {
+              const shouldShowToast =
+                (newNotification.severity === 'critical' || newNotification.severity === 'high') &&
+                !displayedToastIdsRef.current.has(notification.id)
+
+              if (shouldShowToast) {
+                displayedToastIdsRef.current.add(notification.id)
                 addToast({
                   type: newNotification.severity === 'critical' ? 'error' : 'warning',
                   title: newNotification.title,
