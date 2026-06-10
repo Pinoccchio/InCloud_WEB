@@ -214,7 +214,7 @@ export default function Home() {
                       <h3 className="text-2xl font-bold text-gray-900 mb-4">Scan to Download</h3>
                       <div className="bg-white p-6 rounded-xl inline-block shadow-lg">
                         <QRCode
-                          value="https://drive.google.com/drive/folders/1b_-4JENADwl0j6C6cJJk9X-kUNZbaDWq?usp=sharing"
+                          value="https://drive.google.com/drive/folders/1xMU3QYZt0oBJY5NXEqVpnNDqBg8dX3gZ?usp=sharing"
                           size={200}
                           level="H"
                           style={{ height: "auto", maxWidth: "100%", width: "100%" }}
@@ -226,7 +226,7 @@ export default function Home() {
 
                   <div className="w-full">
                     <a
-                      href="https://drive.google.com/drive/folders/1b_-4JENADwl0j6C6cJJk9X-kUNZbaDWq?usp=sharing"
+                      href="https://drive.google.com/drive/folders/1xMU3QYZt0oBJY5NXEqVpnNDqBg8dX3gZ?usp=sharing"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block"
