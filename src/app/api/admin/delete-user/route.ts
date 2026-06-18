@@ -76,29 +76,13 @@ export async function DELETE(request: NextRequest) {
 
     routeLogger.info('Security checks passed')
 
-    // Step 1: Get system admin ID for reassignment
-    routeLogger.info('Looking up system admin for record reassignment')
-    routeLogger.db('SELECT', 'admins')
-    const { data: systemAdmin, error: systemAdminError } = await client
-      .from('admins')
-      .select('id')
-      .eq('full_name', 'Pinocchio Incloud Super Admin')
-      .eq('role', 'super_admin')
-      .single()
-
-    if (systemAdminError || !systemAdmin) {
-      routeLogger.error('System admin not found', systemAdminError)
-      return NextResponse.json(
-        { error: 'System admin not found for record reassignment' },
-        { status: 500 }
-      )
-    }
-
-    const systemAdminId = systemAdmin.id
-    routeLogger.debug('System admin found', { systemAdminId })
+    // Use the authenticated super admin performing the deletion as the
+    // reassignment target. This avoids brittle hardcoded-name lookups.
+    const reassignmentAdminId = currentAdminId
+    routeLogger.debug('Using acting super admin for record reassignment', { reassignmentAdminId })
 
     // Step 2: Handle dependent records before deletion
-    routeLogger.info('Starting record reassignment and cleanup', { fromAdmin: adminId, toSystemAdmin: systemAdminId })
+    routeLogger.info('Starting record reassignment and cleanup', { fromAdmin: adminId, reassignmentAdminId })
 
     // Delete user-specific records (these should be removed, not reassigned)
     routeLogger.info('Deleting user-specific records')
@@ -119,7 +103,7 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // Reassign audit trail records to system admin (preserve history)
+    // Reassign constrained references so the admin row can be deleted safely.
     const auditTrailUpdates = [
       // Tables with created_by field
       { table: 'alert_rules', field: 'created_by' },
@@ -136,7 +120,11 @@ export async function DELETE(request: NextRequest) {
       { table: 'order_fulfillment', field: 'delivered_by' },
       { table: 'order_status_history', field: 'changed_by' },
       { table: 'orders', field: 'assigned_to' },
+      { table: 'orders', field: 'cancelled_by' },
       { table: 'orders', field: 'created_by' },
+      { table: 'orders', field: 'proof_reviewed_by' },
+      { table: 'notification_settings', field: 'created_by' },
+      { table: 'notification_settings', field: 'updated_by' },
       { table: 'price_tiers', field: 'created_by' },
       { table: 'price_tiers', field: 'updated_by' },
       { table: 'product_batches', field: 'created_by' },
@@ -146,17 +134,19 @@ export async function DELETE(request: NextRequest) {
       { table: 'restock_history', field: 'performed_by' },
       { table: 'stock_transfers', field: 'approved_by' },
       { table: 'stock_transfers', field: 'requested_by' },
+      { table: 'supplier_orders', field: 'assigned_to' },
+      { table: 'supplier_orders', field: 'created_by' },
+      { table: 'supplier_order_status_history', field: 'changed_by' },
       { table: 'system_settings', field: 'updated_by' }
     ]
 
-    // Reassign records to system admin
-    routeLogger.info('Reassigning audit trail records to system admin', { updateCount: auditTrailUpdates.length })
+    routeLogger.info('Reassigning constrained records', { updateCount: auditTrailUpdates.length })
     routeLogger.db('UPDATE', 'multiple tables (audit trail)')
     for (const { table, field } of auditTrailUpdates) {
       try {
         const { error } = await client
           .from(table)
-          .update({ [field]: systemAdminId })
+          .update({ [field]: reassignmentAdminId })
           .eq(field, adminId)
 
         if (error) {
@@ -168,8 +158,9 @@ export async function DELETE(request: NextRequest) {
     }
     routeLogger.debug('Audit trail reassignment completed')
 
-    // Handle nullable foreign keys - set to null instead of reassigning
+    // Clear nullable foreign keys that should not be reassigned.
     const nullifyUpdates = [
+      { table: 'audit_logs', field: 'admin_id' },
       { table: 'notifications', field: 'acknowledged_by' },
       { table: 'notifications', field: 'resolved_by' }
     ]
@@ -189,8 +180,7 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // Keep audit_logs for historical purposes (don't reassign admin_id)
-    routeLogger.debug('Audit logs preserved for historical purposes')
+    routeLogger.debug('Nullable foreign key cleanup completed')
 
     // Step 3: Now delete from admins table
     routeLogger.info('Deleting admin record from admins table', { adminId })
@@ -240,7 +230,7 @@ export async function DELETE(request: NextRequest) {
             deleted_admin_name: adminToDelete.full_name,
             deleted_admin_role: adminToDelete.role,
             had_auth_user: !!adminToDelete.user_id,
-            reassigned_to_system_admin: systemAdminId,
+            reassigned_to_admin: reassignmentAdminId,
             records_reassigned: true,
             user_specific_records_deleted: true,
             reason: reason || null,
