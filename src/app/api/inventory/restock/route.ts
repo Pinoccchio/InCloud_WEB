@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateAdminWithContext, getRequestMetadata } from '@/lib/auth-middleware'
+import { validateAdminWithContext } from '@/lib/auth-middleware'
 import { logger } from '@/lib/logger'
+import { isValidPhilippinePhoneNumber, sanitizePhoneNumber } from '@/lib/utils/phone'
 
 export async function POST(request: NextRequest) {
   const routeLogger = logger.child({
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
       notes,
       inventoryId
     } = requestBody
+    const normalizedSupplierContact = supplierContact ? sanitizePhoneNumber(String(supplierContact)) : ''
 
     routeLogger.debug('Request validated', {
       currentAdminId,
@@ -37,9 +39,6 @@ export async function POST(request: NextRequest) {
       quantity,
       hasInventoryId: !!inventoryId
     })
-
-    // Get audit metadata
-    const auditMetadata = getRequestMetadata(request)
 
     // Validate required fields
     if (!productId) {
@@ -90,6 +89,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (normalizedSupplierContact && !isValidPhilippinePhoneNumber(normalizedSupplierContact)) {
+      routeLogger.warn('Invalid supplier contact', { supplierContact })
+      return NextResponse.json(
+        { error: 'Supplier contact must be exactly 11 digits' },
+        { status: 400 }
+      )
+    }
+
     // Validate product exists and is available
     routeLogger.info('Validating product', { productId })
     routeLogger.db('SELECT', 'products')
@@ -101,7 +108,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (productError || !product) {
-      routeLogger.error('Product validation failed', {
+      routeLogger.warn('Product validation failed', {
         productId,
         error: productError?.message
       })
@@ -149,7 +156,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (inventoryError || !inventoryData) {
-        routeLogger.error('Inventory record not found', {
+        routeLogger.warn('Inventory record not found', {
           inventoryId,
           error: inventoryError?.message
         })
@@ -183,7 +190,10 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (createError || !newInventory) {
-        routeLogger.error('Failed to create inventory record', createError)
+        routeLogger.error(
+          'Failed to create inventory record',
+          createError ? new Error(createError.message) : undefined
+        )
         return NextResponse.json(
           { error: `Failed to create inventory record: ${createError?.message}` },
           { status: 500 }
@@ -211,7 +221,7 @@ export async function POST(request: NextRequest) {
         cost_per_unit: costPerUnit,
         supplier_name: supplierName,
         supplier_info: {
-          contact: supplierContact,
+          contact: normalizedSupplierContact || null,
           email: supplierEmail,
           purchase_order_ref: purchaseOrderRef
         },
@@ -223,7 +233,10 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (batchError || !batch) {
-      routeLogger.error('Failed to create product batch', batchError)
+      routeLogger.error(
+        'Failed to create product batch',
+        batchError ? new Error(batchError.message) : undefined
+      )
       return NextResponse.json(
         { error: `Failed to create product batch: ${batchError?.message}` },
         { status: 500 }
@@ -299,7 +312,10 @@ export async function POST(request: NextRequest) {
       .eq('id', targetInventoryId)
 
     if (updateError) {
-      routeLogger.error('Failed to update inventory', updateError)
+      routeLogger.error(
+        'Failed to update inventory',
+        new Error(updateError.message)
+      )
       return NextResponse.json(
         { error: `Failed to update inventory: ${updateError.message}` },
         { status: 500 }
@@ -346,7 +362,7 @@ export async function POST(request: NextRequest) {
         cost_per_unit: costPerUnit,
         supplier_info: {
           name: supplierName,
-          contact: supplierContact,
+          contact: normalizedSupplierContact || null,
           email: supplierEmail
         },
         purchase_order_ref: purchaseOrderRef,

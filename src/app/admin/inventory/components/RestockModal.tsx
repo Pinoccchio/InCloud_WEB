@@ -9,14 +9,14 @@ import {
   CurrencyDollarIcon,
   CalendarIcon,
   DocumentTextIcon,
-  ChevronDownIcon,
   CheckIcon
 } from '@heroicons/react/24/outline'
-import { Button, Input, LoadingSpinner } from '@/components/ui'
+import { Button, Input, LoadingSpinner, ProductSearchSelect } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { getMainBranchId } from '@/lib/constants/branch'
 import { getPhilippineDate, isFutureDate, getMinDate, getMaxExpirationDate } from '@/lib/utils/philippine-date'
+import { isValidPhilippinePhoneNumber, PH_PHONE_LENGTH, sanitizePhoneNumber } from '@/lib/utils/phone'
 
 interface InventoryItem {
   id: string
@@ -236,6 +236,10 @@ export default function RestockModal({
     setError(null)
   }
 
+  const handleSupplierContactChange = (value: string) => {
+    handleInputChange('supplierContact', sanitizePhoneNumber(value))
+  }
+
   const handleProductSelect = (productId: string) => {
     const product = availableProducts.find(p => p.id === productId)
     if (product) {
@@ -275,6 +279,9 @@ export default function RestockModal({
         break
       case 2:
         if (!formData.supplierName.trim()) return 'Supplier name is required for record keeping'
+        if (formData.supplierContact && !isValidPhilippinePhoneNumber(formData.supplierContact)) {
+          return `Supplier contact must be exactly ${PH_PHONE_LENGTH} digits.`
+        }
         if (!formData.batchNumber.trim()) return 'Batch number is required for traceability'
         if (!formData.receivedDate) return 'Received date is required'
         // Validate received date is not in the future (using Philippine timezone)
@@ -409,6 +416,7 @@ export default function RestockModal({
   }
 
   const displayItem = item || selectedProduct
+  const displayProductName = item?.product_name || selectedProduct?.name || ''
   const currentStock = item?.quantity || selectedProduct?.current_stock || 0
 
   return (
@@ -508,30 +516,28 @@ export default function RestockModal({
                         {/* Product Selection (only for general restocking) */}
                         {!item && (
                           <div className="mb-6">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Select Product *
-                            </label>
                             {loadingProducts ? (
                               <div className="flex items-center justify-center py-4">
                                 <LoadingSpinner size="sm" />
                                 <span className="ml-2 text-sm text-gray-500">Loading products...</span>
                               </div>
                             ) : (
-                              <div className="relative">
-                                <select
-                                  value={formData.selectedProductId}
-                                  onChange={(e) => handleProductSelect(e.target.value)}
-                                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 appearance-none"
-                                >
-                                  <option value="">Choose a product...</option>
-                                  {availableProducts.map((product) => (
-                                    <option key={product.id} value={product.id}>
-                                      {product.name} ({product.product_id}) - {product.brand_name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <ChevronDownIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                              </div>
+                              <ProductSearchSelect
+                                label="Select Product"
+                                required
+                                value={formData.selectedProductId}
+                                onChange={handleProductSelect}
+                                placeholder="Choose a product..."
+                                searchPlaceholder="Search by product name, product ID, brand, or category..."
+                                emptyMessage="No matching products found."
+                                options={availableProducts.map((product) => ({
+                                  value: product.id,
+                                  label: `${product.name} (${product.product_id})`,
+                                  description: `${product.brand_name} • ${product.category_name}`,
+                                  meta: `Current stock: ${product.current_stock || 0} units`,
+                                  searchText: `${product.name} ${product.product_id} ${product.brand_name} ${product.category_name}`
+                                }))}
+                              />
                             )}
                             {selectedProduct && (
                               <div className="mt-2 p-3 bg-blue-50 rounded-lg">
@@ -652,12 +658,17 @@ export default function RestockModal({
                               Supplier Contact
                             </label>
                             <Input
-                              type="text"
+                              type="tel"
                               value={formData.supplierContact}
-                              onChange={(e) => handleInputChange('supplierContact', e.target.value)}
-                              placeholder="Phone number"
+                              onChange={(e) => handleSupplierContactChange(e.target.value)}
+                              placeholder="09XXXXXXXXX"
+                              inputMode="numeric"
+                              maxLength={PH_PHONE_LENGTH}
                               className="w-full"
                             />
+                            <p className="mt-1 text-xs text-gray-500">
+                              Numbers only, {PH_PHONE_LENGTH} digits.
+                            </p>
                           </div>
 
                           <div>
@@ -743,7 +754,7 @@ export default function RestockModal({
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <span className="text-sm font-semibold text-gray-500">Product:</span>
-                              <p className="text-sm text-gray-900 font-semibold">{displayItem?.product_name || displayItem?.name}</p>
+                              <p className="text-sm text-gray-900 font-semibold">{displayProductName}</p>
                             </div>
                             <div>
                               <span className="text-sm font-semibold text-gray-500">Product ID:</span>

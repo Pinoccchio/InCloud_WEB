@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdminAccess } from '@/lib/supabase/admin-auth'
+import { isValidPhilippinePhoneNumber, sanitizePhoneNumber } from '@/lib/utils/phone'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,11 +35,19 @@ interface CreateSupplierOrderRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateSupplierOrderRequest = await request.json()
+    const normalizedSupplierContact = body.supplier_contact ? sanitizePhoneNumber(String(body.supplier_contact)) : ''
 
     // Validate required fields
     if (!body.supplier_name || !body.branch_id || !body.items || body.items.length === 0) {
       return NextResponse.json(
         { error: 'Missing required fields: supplier_name, branch_id, and items are required' },
+        { status: 400 }
+      )
+    }
+
+    if (normalizedSupplierContact && !isValidPhilippinePhoneNumber(normalizedSupplierContact)) {
+      return NextResponse.json(
+        { error: 'Supplier contact must be exactly 11 digits' },
         { status: 400 }
       )
     }
@@ -80,7 +89,7 @@ export async function POST(request: NextRequest) {
       .insert({
         order_number,
         supplier_name: body.supplier_name,
-        supplier_contact: body.supplier_contact,
+        supplier_contact: normalizedSupplierContact || null,
         supplier_email: body.supplier_email,
         branch_id: body.branch_id,
         expected_delivery_date: body.expected_delivery_date,

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, Fragment } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { Button, Input, LoadingSpinner } from '@/components/ui'
+import { Button, Input, LoadingSpinner, ProductSearchSelect } from '@/components/ui'
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { isValidPhilippinePhoneNumber, PH_PHONE_LENGTH, sanitizePhoneNumber } from '@/lib/utils/phone'
 
 interface Product {
   id: string
@@ -139,6 +140,19 @@ export function SupplierOrderModal({ isOpen, onClose, onSuccess }: SupplierOrder
     setItems(newItems)
   }
 
+  const handleSupplierContactChange = (value: string) => {
+    setSupplierContact(sanitizePhoneNumber(value))
+    setErrors((prev) => {
+      if (!prev.supplierContact) {
+        return prev
+      }
+
+      const nextErrors = { ...prev }
+      delete nextErrors.supplierContact
+      return nextErrors
+    })
+  }
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
@@ -152,6 +166,10 @@ export function SupplierOrderModal({ isOpen, onClose, onSuccess }: SupplierOrder
 
     if (supplierEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supplierEmail)) {
       newErrors.supplierEmail = 'Invalid email format'
+    }
+
+    if (supplierContact && !isValidPhilippinePhoneNumber(supplierContact)) {
+      newErrors.supplierContact = `Contact number must be exactly ${PH_PHONE_LENGTH} digits`
     }
 
     items.forEach((item, index) => {
@@ -244,12 +262,6 @@ export function SupplierOrderModal({ isOpen, onClose, onSuccess }: SupplierOrder
   const calculateTotal = () => {
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0)
   }
-
-  const getProductName = (productId: string) => {
-    const product = products.find(p => p.id === productId)
-    return product ? `${product.product_name} (${product.sku})` : 'Select product'
-  }
-
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -317,7 +329,11 @@ export function SupplierOrderModal({ isOpen, onClose, onSuccess }: SupplierOrder
                 label="Contact Number"
                 type="tel"
                 value={supplierContact}
-                onChange={(e) => setSupplierContact(e.target.value)}
+                onChange={(e) => handleSupplierContactChange(e.target.value)}
+                inputMode="numeric"
+                maxLength={PH_PHONE_LENGTH}
+                placeholder="09XXXXXXXXX"
+                error={errors.supplierContact}
               />
               <Input
                 label="Email"
@@ -421,24 +437,22 @@ export function SupplierOrderModal({ isOpen, onClose, onSuccess }: SupplierOrder
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-1">
-                      Product <span className="text-red-500">*</span>
-                    </label>
-                    <select
+                    <ProductSearchSelect
+                      label="Product"
+                      required
                       value={item.product_id}
-                      onChange={(e) => updateItem(index, 'product_id', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select product</option>
-                      {products.map(product => (
-                        <option key={product.id} value={product.id}>
-                          {product.product_name} ({product.sku}) - {product.unit_of_measure}
-                        </option>
-                      ))}
-                    </select>
-                    {errors[`item_${index}_product`] && (
-                      <p className="mt-1 text-sm text-red-600">{errors[`item_${index}_product`]}</p>
-                    )}
+                      onChange={(productId) => updateItem(index, 'product_id', productId)}
+                      placeholder="Select product"
+                      searchPlaceholder="Search by product name, SKU, or unit..."
+                      emptyMessage="No matching products found."
+                      error={errors[`item_${index}_product`]}
+                      options={products.map((product) => ({
+                        value: product.id,
+                        label: `${product.product_name} (${product.sku})`,
+                        description: product.unit_of_measure,
+                        searchText: `${product.product_name} ${product.sku} ${product.unit_of_measure}`
+                      }))}
+                    />
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
