@@ -262,6 +262,7 @@ export default function ProductForm({
     switch (currentStep) {
       case 1:
         if (!formData.name.trim()) return 'Product name is required'
+        if (!formData.product_id.trim()) return 'Product ID is required'
         if (!formData.category_id) return 'Category is required'
         if (!formData.brand_id) return 'Brand is required'
         return null
@@ -321,6 +322,16 @@ export default function ProductForm({
     handleCategoryChange(newCategory.id)
   }
 
+  const handleCategoryDeleted = (categoryId: string) => {
+    setCategories((prev) => prev.filter((category) => category.id !== categoryId))
+    setFormData(prev => (
+      prev.category_id === categoryId
+        ? { ...prev, category_id: '' }
+        : prev
+    ))
+    setError(null)
+  }
+
   const handleBrandCreated = async (newBrand: Brand) => {
     await loadFormData()
     setFormData(prev => ({
@@ -342,6 +353,7 @@ export default function ProductForm({
 
   const validateForm = (): string | null => {
     if (!formData.name.trim()) return 'Product name is required'
+    if (!formData.product_id.trim()) return 'Product ID is required'
     if (!formData.category_id) return 'Category is required'
     if (!formData.brand_id) return 'Brand is required'
     if (formData.pricingTiers.length === 0) return 'At least one pricing type is required'
@@ -813,7 +825,7 @@ export default function ProductForm({
 
                             <div>
                               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Product ID
+                                Product ID *
                               </label>
                               <Input
                                 value={formData.product_id}
@@ -1127,6 +1139,8 @@ export default function ProductForm({
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
         onSuccess={handleCategoryCreated}
+        onDelete={handleCategoryDeleted}
+        selectedCategoryId={formData.category_id}
       />
 
       {/* Brand Management Modal */}
