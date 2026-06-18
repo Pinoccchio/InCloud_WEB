@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
 import { TrashIcon, XMarkIcon, FolderPlusIcon } from '@heroicons/react/24/outline'
-import { Button, Input, LoadingSpinner } from '@/components/ui'
+import { Button, ConfirmDialog, Input, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { Database } from '@/types/supabase'
@@ -40,6 +40,7 @@ export default function CategoryManagementModal({
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
   const [isLoadingCategories, setIsLoadingCategories] = useState(false)
   const [categories, setCategories] = useState<ManagedCategory[]>([])
+  const [categoryToDelete, setCategoryToDelete] = useState<ManagedCategory | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { admin } = useAuth()
 
@@ -156,31 +157,36 @@ export default function CategoryManagementModal({
     }
   }
 
-  const handleDeleteCategory = async (category: ManagedCategory) => {
+  const handleDeleteCategory = (category: ManagedCategory) => {
     if (category.productCount > 0) {
       setError(`Cannot delete "${category.name}" because it is used by ${category.productCount} product(s).`)
       return
     }
 
-    if (!window.confirm(`Delete category "${category.name}"? This cannot be undone.`)) {
+    setCategoryToDelete(category)
+  }
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) {
       return
     }
 
     try {
-      setIsDeletingId(category.id)
+      setIsDeletingId(categoryToDelete.id)
       setError(null)
 
       const { error: deleteError } = await supabase
         .from('categories')
         .delete()
-        .eq('id', category.id)
+        .eq('id', categoryToDelete.id)
 
       if (deleteError) {
         throw new Error(`Failed to delete category: ${deleteError.message}`)
       }
 
-      setCategories((prev) => prev.filter((item) => item.id !== category.id))
-      await Promise.resolve(onDelete?.(category.id))
+      setCategories((prev) => prev.filter((item) => item.id !== categoryToDelete.id))
+      await Promise.resolve(onDelete?.(categoryToDelete.id))
+      setCategoryToDelete(null)
     } catch (err) {
       console.error('Error deleting category:', err)
       setError(
@@ -195,6 +201,7 @@ export default function CategoryManagementModal({
     if (!isSubmitting && !isDeletingId) {
       reset()
       setError(null)
+      setCategoryToDelete(null)
       onClose()
     }
   }
@@ -336,6 +343,26 @@ export default function CategoryManagementModal({
           </DialogPanel>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!categoryToDelete}
+        onClose={() => {
+          if (!isDeletingId) {
+            setCategoryToDelete(null)
+          }
+        }}
+        onConfirm={confirmDeleteCategory}
+        title="Delete Category"
+        message={
+          categoryToDelete
+            ? `Are you sure you want to delete "${categoryToDelete.name}"? This action cannot be undone.`
+            : ''
+        }
+        confirmText="Delete Category"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={!!isDeletingId}
+      />
     </Dialog>
   )
 }

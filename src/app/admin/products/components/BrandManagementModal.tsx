@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
 import { TrashIcon, XMarkIcon, TagIcon } from '@heroicons/react/24/outline'
-import { Button, Input, LoadingSpinner } from '@/components/ui'
+import { Button, ConfirmDialog, Input, LoadingSpinner } from '@/components/ui'
 import { supabase } from '@/lib/supabase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { Database } from '@/types/supabase'
@@ -40,6 +40,7 @@ export default function BrandManagementModal({
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
   const [isLoadingBrands, setIsLoadingBrands] = useState(false)
   const [brands, setBrands] = useState<ManagedBrand[]>([])
+  const [brandToDelete, setBrandToDelete] = useState<ManagedBrand | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { admin } = useAuth()
 
@@ -156,31 +157,36 @@ export default function BrandManagementModal({
     }
   }
 
-  const handleDeleteBrand = async (brand: ManagedBrand) => {
+  const handleDeleteBrand = (brand: ManagedBrand) => {
     if (brand.productCount > 0) {
       setError(`Cannot delete "${brand.name}" because it is used by ${brand.productCount} product(s).`)
       return
     }
 
-    if (!window.confirm(`Delete brand "${brand.name}"? This cannot be undone.`)) {
+    setBrandToDelete(brand)
+  }
+
+  const confirmDeleteBrand = async () => {
+    if (!brandToDelete) {
       return
     }
 
     try {
-      setIsDeletingId(brand.id)
+      setIsDeletingId(brandToDelete.id)
       setError(null)
 
       const { error: deleteError } = await supabase
         .from('brands')
         .delete()
-        .eq('id', brand.id)
+        .eq('id', brandToDelete.id)
 
       if (deleteError) {
         throw new Error(`Failed to delete brand: ${deleteError.message}`)
       }
 
-      setBrands((prev) => prev.filter((item) => item.id !== brand.id))
-      await Promise.resolve(onDelete?.(brand.id))
+      setBrands((prev) => prev.filter((item) => item.id !== brandToDelete.id))
+      await Promise.resolve(onDelete?.(brandToDelete.id))
+      setBrandToDelete(null)
     } catch (err) {
       console.error('Error deleting brand:', err)
       setError(
@@ -195,6 +201,7 @@ export default function BrandManagementModal({
     if (!isSubmitting && !isDeletingId) {
       reset()
       setError(null)
+      setBrandToDelete(null)
       onClose()
     }
   }
@@ -336,6 +343,26 @@ export default function BrandManagementModal({
           </DialogPanel>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!brandToDelete}
+        onClose={() => {
+          if (!isDeletingId) {
+            setBrandToDelete(null)
+          }
+        }}
+        onConfirm={confirmDeleteBrand}
+        title="Delete Brand"
+        message={
+          brandToDelete
+            ? `Are you sure you want to delete "${brandToDelete.name}"? This action cannot be undone.`
+            : ''
+        }
+        confirmText="Delete Brand"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={!!isDeletingId}
+      />
     </Dialog>
   )
 }
