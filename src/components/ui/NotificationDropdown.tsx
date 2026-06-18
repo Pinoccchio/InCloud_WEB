@@ -95,36 +95,54 @@ export default function NotificationDropdown({ isOpen, onToggle, onClose }: Noti
 
   const [loadingStates, setLoadingStates] = useState<Set<string>>(new Set())
 
-  const handleNotificationClick = async (notification: AdminNotification) => {
+  const getNotificationTargetUrl = (notification: AdminNotification) => {
+    if (notification.actionUrl) {
+      return notification.actionUrl
+    }
+
+    if (notification.type === 'order' && notification.relatedId) {
+      return '/admin/orders'
+    }
+
+    if (
+      notification.type === 'alert' ||
+      notification.type === 'inventory' ||
+      notification.type === 'stock' ||
+      notification.type === 'expiration'
+    ) {
+      return '/admin/inventory'
+    }
+
+    return undefined
+  }
+
+  const handleNotificationClick = (notification: AdminNotification) => {
+    const targetUrl = getNotificationTargetUrl(notification)
+
     // Add loading state for instant feedback
     if (!notification.isRead) {
       setLoadingStates(prev => new Set([...prev, notification.id as string]))
-      try {
-        await markAsRead(notification.id as string)
-      } finally {
+      void markAsRead(notification.id as string).finally(() => {
         setLoadingStates(prev => {
           const newSet = new Set(prev)
           newSet.delete(notification.id as string)
           return newSet
         })
-      }
+      })
     }
 
-    // Navigate using action_url if available (includes filter parameters)
-    if (notification.actionUrl) {
-      window.location.href = notification.actionUrl
-    } else {
-      // Fallback to old behavior for backward compatibility
-      if (notification.type === 'order' && notification.relatedId) {
-        window.location.href = '/admin/orders'
-      } else if (notification.type === 'alert' || notification.type === 'inventory' ||
-                 notification.type === 'stock' || notification.type === 'expiration') {
-        window.location.href = '/admin/inventory'
-      }
-    }
-
-    // Close dropdown after navigation
     onClose()
+
+    if (!targetUrl) {
+      return
+    }
+
+    const currentUrl = `${window.location.pathname}${window.location.search}`
+    if (currentUrl === targetUrl) {
+      return
+    }
+
+    window.location.href = targetUrl
   }
 
   return (
