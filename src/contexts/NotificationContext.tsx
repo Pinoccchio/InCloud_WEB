@@ -40,6 +40,23 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
+function normalizeNotificationActionUrl(
+  actionUrl: string | null | undefined,
+  type: AdminNotification['type']
+): string | undefined {
+  if (!actionUrl) return undefined
+
+  if (type === 'expiration' && actionUrl.startsWith('/admin/inventory/batches')) {
+    if (actionUrl.includes('expirationFilter=')) {
+      return actionUrl.replace('/admin/inventory/batches', '/admin/inventory')
+    }
+
+    return '/admin/inventory?expirationFilter=expired'
+  }
+
+  return actionUrl
+}
+
 function dedupeNotifications(notifications: AdminNotification[]): AdminNotification[] {
   const seen = new Set<string>()
 
@@ -133,7 +150,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         resolvedAt: notification.resolved_at,
         createdAt: notification.created_at,
         relatedId: notification.related_entity_id,
-        actionUrl: notification.action_url,
+        actionUrl: normalizeNotificationActionUrl(notification.action_url, notification.type),
       }))
 
       setNotifications(dedupeNotifications(allNotifications))
@@ -207,7 +224,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 resolvedAt: newNotification.resolved_at,
                 createdAt: newNotification.created_at || new Date().toISOString(),
                 relatedId: newNotification.related_entity_id,
-                actionUrl: newNotification.action_url,
+                actionUrl: normalizeNotificationActionUrl(newNotification.action_url, newNotification.type || 'system'),
               }
 
               setNotifications(prev => {
@@ -232,7 +249,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                   action: newNotification.action_url ? {
                     label: 'View',
                     onClick: () => {
-                      window.location.href = newNotification.action_url
+                      const targetUrl = normalizeNotificationActionUrl(
+                        newNotification.action_url,
+                        newNotification.type || 'system'
+                      )
+
+                      if (targetUrl) {
+                        window.location.href = targetUrl
+                      }
                     }
                   } : undefined
                 })
